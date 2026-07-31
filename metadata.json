@@ -1,0 +1,8 @@
+{
+  "name": "Remix Ecclesia Church Management System",
+  "description": "Comprehensive church administration system for member records, sacraments, activities, contributions, finance, ledgers, and reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
