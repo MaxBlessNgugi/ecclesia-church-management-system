@@ -66,7 +66,10 @@ Open your browser and navigate to: **`http://localhost:3000`** (or the port disp
 ├── index.html               # Main HTML entry point (Loads Google Fonts & Icons)
 ├── package.json             # NPM dependencies & scripts
 ├── tsconfig.json            # TypeScript configuration with @/ path alias
-└── vite.config.ts           # Vite bundler configuration
+├── vite.config.ts           # Vite bundler configuration
+├── src/services/api.ts      # Typed frontend API client (maps 1:1 to the REST contract)
+├── server/index.js          # Reference Express REST API (in-memory store, mirrors mock data)
+└── API.md                   # Full REST API contract for the backend developer
 ```
 
 ---
@@ -105,9 +108,35 @@ import { Header } from '@/components';
 ## ⚡ Useful NPM Scripts
 
 - `npm run dev` — Starts the local dev server.
+- `npm run server` — Starts the reference Express API on port 5000 (`/api/health`).
 - `npm run build` — Builds production-ready bundle in `dist/`.
 - `npm run preview` — Previews production build locally.
 - `npm run lint` — Runs TypeScript type-check to ensure zero syntax or type errors.
+
+---
+
+## 🔌 Backend Integration
+
+The frontend currently runs on client-side mock data. The backend contract is ready to implement:
+
+- **Contract**: [`API.md`](API.md) — every endpoint, JSON shape, and status code.
+- **Typed client**: [`src/services/api.ts`](src/services/api.ts) — the frontend already has typed functions for every resource; point it at the backend with `VITE_API_BASE_URL`.
+- **Reference server**: [`server/index.js`](server/index.js) — a working Express API implementing the full contract with an in-memory store seeded like `src/data/mockData.ts`.
+
+### Run frontend + reference API together
+
+```bash
+npm run server   # terminal 1 → API on http://localhost:5000
+npm run dev      # terminal 2 → frontend on http://localhost:3000 (proxies /api → :5000)
+```
+
+Smoke test: `curl http://localhost:5000/api/health` → `{"status":"ok"}`.
+
+### What the backend developer needs to do
+
+1. Read [`API.md`](API.md) and keep endpoint paths + JSON shapes in sync with [`src/services/api.ts`](src/services/api.ts) and [`src/types.ts`](src/types.ts).
+2. Replace the in-memory store in `server/index.js` with a real database (PostgreSQL/MySQL/Mongo) and add real authentication, authorization (rights), and validation.
+3. Wire the frontend views to the client functions in `src/services/api.ts` (swap mock state initializers for API calls) and set `VITE_API_BASE_URL`.
 
 ---
 

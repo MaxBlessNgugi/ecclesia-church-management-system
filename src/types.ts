@@ -132,3 +132,192 @@ export interface ExpenseRecord {
   paymentMethod: string;
   voucherNo: string;
 }
+
+// ---------- HR ----------
+
+export interface EmployeeRecord {
+  id: string;
+  code: string;
+  name: string;
+  role: string;
+  phone: string;
+  email: string;
+  hireDate: string;
+}
+
+export interface EmployeeOnboardingInput {
+  nationalId: string;
+  surname: string;
+  firstName: string;
+  middleName?: string;
+  designation: string;
+  hireDate: string;
+  email: string;
+  phone: string;
+  nextOfKinName?: string;
+  nextOfKinRelation?: string;
+  nextOfKinPhone?: string;
+}
+
+// ---------- Inventory ----------
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  cost: number;
+  price: number;
+  stock: number;
+  reorder: number;
+}
+
+export interface DeliveryRecord {
+  id: string;
+  supplier: string;
+  inv: string;
+  date: string;
+  units: number;
+  cat: string;
+  total: number;
+}
+
+export interface SaleRecord {
+  id: string;
+  item: string;
+  time: string;
+  amount: number;
+}
+
+export interface StockTakeRecord {
+  id: string;
+  name: string;
+  sku: string;
+  system: number;
+  physical: number;
+  notes: string;
+}
+
+export interface StockIssueRecord {
+  id: string;
+  item: string;
+  dest: string;
+}
+
+// ---------- Ledgers ----------
+
+export interface LedgerRecord {
+  id: string;
+  name: string;
+  code: string;
+  type: string;
+  cashier: string;
+  balance: number;
+}
+
+export interface LedgerMovement {
+  id: string;
+  amount: number;
+  time: string;
+  from: string;
+  to: string;
+}
+
+// ---------- Reports ----------
+
+export interface SacramentReportRow {
+  name: string;
+  dob: string;
+  date: string;
+  scc: string;
+  status: string;
+}
+
+export interface ContributionReportRow {
+  memberName: string;
+  category: string;
+  month: string;
+  amount: number;
+  status: string;
+}
+
+export interface SalesReportRow {
+  item: string;
+  quantity: number;
+  amount: number;
+  date: string;
+}
+
+export interface CashierReportRow {
+  cashier: string;
+  sessions: number;
+  collected: number;
+  reconciled: number;
+  status: string;
+}
+
+// ---------- Administration ----------
+
+export type PanelKey =
+  | 'christian'
+  | 'activities'
+  | 'sacraments'
+  | 'finance'
+  | 'ledgers'
+  | 'inventory'
+  | 'reports'
+  | 'hr'
+  | 'administration';
+
+export interface PanelPermissions {
+  panels: Record<PanelKey, boolean>;
+  actions: { view: boolean; edit: boolean; delete: boolean };
+}
+
+export interface PushPaymentSettings {
+  paybill: string;
+  accountFormat: string;
+  consumerKey: string;
+  consumerSecret: string;
+  testPhone: string;
+  testAmount: string;
+}
+
+// ---------- Dashboard ----------
+
+export interface DashboardSummary {
+  activeMembers: number;
+  totalChristians: number;
+  totalDeposits: number;
+  totalExpenses: number;
+  pendingCreditors: number;
+  outstandingDebtors: number;
+  lowStockItems: number;
+  totalEmployees: number;
+  recentDeposits: DepositRecord[];
+  recentExpenses: ExpenseRecord[];
+}
+
+// ---------- Auth ----------
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+  role: string;
+}
+
+export interface AuthSession {
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
