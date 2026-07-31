@@ -303,7 +303,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                         className="hidden"
                       />
                       <span className="material-symbols-outlined text-sm">
-                        {isChecked ? 'check_box' : 'checkbox_outline_blank'}
+                        {isChecked ? 'check_box' : 'check_box_outline_blank'}
                       </span>
                       <span>{cat}</span>
                     </label>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   NavigationTab,
   ChristianSubTab,
@@ -65,6 +65,34 @@ export const App: React.FC = () => {
 
   // Selected parishioner context passed across multi-step action views (e.g. sacrament update, contribution receipt)
   const [selectedMember, setSelectedMember] = useState<ChristianRecord | null>(null);
+
+  // Deep-link support: #tab or #tab/subtab, e.g. #finance or #christian/find
+  useEffect(() => {
+    const applyHash = () => {
+      const parts = window.location.hash.replace(/^#/, '').split('/');
+      const tab = parts[0] as NavigationTab;
+      const tabs: NavigationTab[] = [
+        'dashboard',
+        'christian',
+        'activities',
+        'sacraments',
+        'finance',
+        'ledgers',
+        'inventory',
+        'reports',
+        'hr',
+        'administration',
+        'auth'
+      ];
+      if (tabs.includes(tab)) {
+        handleNavigate(tab, parts[1]);
+      }
+    };
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Switches the active top-level navigation view and optionally sets the active sub-tab.
