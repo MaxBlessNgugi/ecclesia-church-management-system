@@ -45,7 +45,7 @@ import {
  */
 export const App: React.FC = () => {
   // Navigation & View active tab states
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<NavigationTab>('auth');
   const [christianSubTab, setChristianSubTab] = useState<ChristianSubTab>('add');
   const [activitiesSubTab, setActivitiesSubTab] = useState<ActivitiesSubTab>('receive_payment');
   const [sacramentsSubTab, setSacramentsSubTab] = useState<SacramentsSubTab>('update_card');
@@ -222,13 +222,15 @@ export const App: React.FC = () => {
 
       {/* Main Body Container */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Drawer Sidebar */}
-        <Sidebar
-          currentTab={currentTab}
-          onSelectTab={(tab) => handleNavigate(tab)}
-          isOpen={isSidebarOpen}
-          onCloseMobile={() => setIsSidebarOpen(false)}
-        />
+        {/* Navigation Drawer Sidebar - hidden during authentication flow */}
+        {currentTab !== 'auth' && (
+          <Sidebar
+            currentTab={currentTab}
+            onSelectTab={(tab) => handleNavigate(tab)}
+            isOpen={isSidebarOpen}
+            onCloseMobile={() => setIsSidebarOpen(false)}
+          />
+        )}
 
         {/* Content View Area */}
         <main className="flex-1 overflow-y-auto">
