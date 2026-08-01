@@ -209,6 +209,14 @@ export const App: React.FC = () => {
     setExpenses([expense, ...expenses]);
   };
 
+  if (currentTab === 'auth') {
+    return (
+      <div className="min-h-screen bg-[#f9f9f9] text-[#1a1c1c] font-serif selection:bg-[#1e1e1e] selection:text-white">
+        <AuthView onSuccessAuth={() => setCurrentTab('dashboard')} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f9f9f9] text-[#1a1c1c] font-serif selection:bg-[#1e1e1e] selection:text-white">
       {/* Top Header */}
