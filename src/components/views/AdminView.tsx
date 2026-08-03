@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { AdminSubTab } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { AdminSubTab, PanelPermissions, PushPaymentSettings, EmployeeRecord } from '../../types';
+import { adminApi, hrApi } from '../../services/api';
 
 export const AdminView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<AdminSubTab>('rights');
@@ -8,7 +9,7 @@ export const AdminView: React.FC = () => {
   const [selectedStaff, setSelectedStaff] = useState('Evelyn Vance (Administrator)');
 
   // Panel Permissions State
-  const [panels, setPanels] = useState({
+  const [panels, setPanels] = useState<PanelPermissions['panels']>({
     christian: true,
     activities: true,
     sacraments: true,
@@ -21,7 +22,7 @@ export const AdminView: React.FC = () => {
   });
 
   // Action Permissions State
-  const [actions, setActions] = useState({
+  const [actions, setActions] = useState<PanelPermissions['actions']>({
     view: true,
     edit: true,
     delete: false
@@ -29,18 +30,50 @@ export const AdminView: React.FC = () => {
 
   // Online & Push Payments state
   const [paybill, setPaybill] = useState('522522');
-  const [accountFormat, setAccountFormat] = useState('ST MARYS PARISH TITHE');
-  const [consumerKey, setConsumerKey] = useState('ck_live_992184019284012');
-  const [consumerSecret, setConsumerSecret] = useState('cs_live_449201948201948');
+  const [accountFormat, setAccountFormat] = useState('');
+  const [consumerKey, setConsumerKey] = useState('');
+  const [consumerSecret, setConsumerSecret] = useState('');
   const [testPhone, setTestPhone] = useState('254700000000');
   const [testAmount, setTestAmount] = useState('100');
 
   const [notification, setNotification] = useState<string | null>(null);
 
+  const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
+
   const showNotif = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
   };
+
+  useEffect(() => {
+    adminApi.rights
+      .get()
+      .then((r: PanelPermissions) => {
+        setPanels(r.panels);
+        setActions(r.actions);
+      })
+      .catch((error) => console.error('Failed to load panel permissions', error));
+    adminApi.pushPayments
+      .get()
+      .then((s: PushPaymentSettings) => {
+        setPaybill(s.paybill);
+        setAccountFormat(s.accountFormat);
+        setConsumerKey(s.consumerKey);
+        setConsumerSecret(s.consumerSecret);
+        setTestPhone(s.testPhone);
+        setTestAmount(s.testAmount);
+      })
+      .catch((error) => console.error('Failed to load push payment settings', error));
+    hrApi.employees
+      .list()
+      .then((rows) => {
+        setEmployees(rows);
+        if (rows.length > 0) {
+          setSelectedStaff(`${rows[0].name} (${rows[0].role})`);
+        }
+      })
+      .catch((error) => console.error('Failed to load employees', error));
+  }, []);
 
   const handleTogglePanel = (key: keyof typeof panels) => {
     setPanels({ ...panels, [key]: !panels[key] });
@@ -66,9 +99,33 @@ export const AdminView: React.FC = () => {
     showNotif('Permissions reset to default role profile.');
   };
 
-  const handleSaveRights = (e: React.FormEvent) => {
+  const handleSaveRights = async (e: React.FormEvent) => {
     e.preventDefault();
-    showNotif(`Access permissions updated for ${selectedStaff}!`);
+    try {
+      await adminApi.rights.update({ panels, actions });
+      showNotif(`Access permissions updated for ${selectedStaff}!`);
+    } catch (error) {
+      console.error('Failed to save permissions', error);
+      alert(error instanceof Error ? error.message : 'Failed to save permissions');
+    }
+  };
+
+  const handleSaveGateway = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await adminApi.pushPayments.update({
+        paybill,
+        accountFormat,
+        consumerKey,
+        consumerSecret,
+        testPhone,
+        testAmount
+      });
+      showNotif('Gateway configuration saved!');
+    } catch (error) {
+      console.error('Failed to save gateway settings', error);
+      alert(error instanceof Error ? error.message : 'Failed to save gateway settings');
+    }
   };
 
   const handleSendTestStk = (e: React.FormEvent) => {
@@ -136,10 +193,14 @@ export const AdminView: React.FC = () => {
               onChange={(e) => setSelectedStaff(e.target.value)}
               className="w-full px-3 py-2 bg-[#ffffff] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
             >
-              <option value="Evelyn Vance (Administrator)">Evelyn Vance (Administrator)</option>
-              <option value="Fr. Thomas (Priest-in-Charge)">Fr. Thomas (Priest-in-Charge)</option>
-              <option value="Sarah Jenkins (Head Cashier)">Sarah Jenkins (Head Cashier)</option>
-              <option value="Peter Njuguna (Inventory Clerk)">Peter Njuguna (Inventory Clerk)</option>
+              {employees.length === 0 && (
+                <option value="Evelyn Vance (Administrator)">Evelyn Vance (Administrator)</option>
+              )}
+              {employees.map((emp) => (
+                <option key={emp.id} value={`${emp.name} (${emp.role})`}>
+                  {emp.name} ({emp.role})
+                </option>
+              ))}
             </select>
             <p className="text-[10px] text-[#777777] italic">
               Modifying permissions for the selected staff account.
@@ -241,7 +302,7 @@ export const AdminView: React.FC = () => {
               Configure mobile M-Pesa STK push API credentials and till numbers for direct parish collections.
             </p>
 
-            <form onSubmit={(e) => { e.preventDefault(); showNotif("Gateway configuration saved!"); }} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveGateway} className="space-y-4 text-xs">
               <div>
                 <label className="block text-[#1a1c1c] font-medium mb-1">Paybill / Till Number</label>
                 <input

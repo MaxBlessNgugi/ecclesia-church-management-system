@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChristianRecord, ActivitiesSubTab, ContributionRecord, BilledItemReceipt } from '../../types';
+import { billedItemsApi } from '../../services/api';
 
 interface ActivitiesViewProps {
   christians: ChristianRecord[];
@@ -116,7 +117,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     alert(`Transfer record updated for ${transferMember.baptismalName} ${transferMember.sirName} to ${destParish}!`);
   };
 
-  const handleBilledItemSubmit = (e: React.FormEvent) => {
+  const handleBilledItemSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = billedClientType === 'member' && billedMember
       ? `${billedMember.baptismalName} ${billedMember.sirName}`
@@ -135,8 +136,14 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     };
 
-    setGeneratedReceipt(receipt);
-    setShowReceiptModal(true);
+    try {
+      const persisted = await billedItemsApi.create(receipt);
+      setGeneratedReceipt(persisted);
+      setShowReceiptModal(true);
+    } catch (error) {
+      console.error('Failed to save billed item', error);
+      alert(error instanceof Error ? error.message : 'Failed to save billed item');
+    }
   };
 
   const filteredMembers = christians.filter((c) => {

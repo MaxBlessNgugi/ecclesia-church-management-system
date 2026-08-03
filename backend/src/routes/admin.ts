@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { requireAuth, requireAdmin, AuthRequest } from '../middleware/auth.js';
+import { requireAdmin, requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -21,15 +21,28 @@ const defaultPanels = {
 
 const defaultActions = { view: true, edit: true, delete: true };
 
+function serializeJson<T>(value: T): string {
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+function parseJson<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
+  } catch {
+    return fallback;
+  }
+}
+
 router.get('/rights', async (_req, res, next) => {
   try {
     let row = await prisma.panelPermissions.findUnique({ where: { id: 'default' } });
     if (!row) {
       row = await prisma.panelPermissions.create({
-        data: { id: 'default', panels: defaultPanels, actions: defaultActions },
+        data: { id: 'default', panels: serializeJson(defaultPanels), actions: serializeJson(defaultActions) },
       });
     }
-    res.json({ panels: row.panels, actions: row.actions });
+    res.json({ panels: parseJson(row.panels, defaultPanels), actions: parseJson(row.actions, defaultActions) });
   } catch (e) { next(e); }
 });
 
@@ -46,10 +59,10 @@ router.put('/rights', async (req, res, next) => {
 
     const row = await prisma.panelPermissions.upsert({
       where: { id: 'default' },
-      create: { id: 'default', panels: data.panels, actions: data.actions },
-      update: { panels: data.panels, actions: data.actions },
+      create: { id: 'default', panels: serializeJson(data.panels), actions: serializeJson(data.actions) },
+      update: { panels: serializeJson(data.panels), actions: serializeJson(data.actions) },
     });
-    res.json({ panels: row.panels, actions: row.actions });
+    res.json({ panels: parseJson(row.panels, data.panels), actions: parseJson(row.actions, data.actions) });
   } catch (e) { next(e); }
 });
 

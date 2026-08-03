@@ -22,8 +22,8 @@ model User {
 
 model PanelPermissions {
   id      String @id @default("default")
-  panels  Json
-  actions Json
+  panels  String
+  actions String
 
   @@map("panel_permissions")
 }
@@ -53,10 +53,10 @@ model Christian {
   localChurch   String
   scc           String
   status        String   @default("Active")
-  baptism       Json?
-  eucharist     Json?
-  confirmation  Json?
-  marriage      Json?
+  baptism       String?
+  eucharist     String?
+  confirmation  String?
+  marriage      String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   contributions Contribution[]

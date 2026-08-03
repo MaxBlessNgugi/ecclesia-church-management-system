@@ -1,27 +1,76 @@
-import React, { useState } from 'react';
-import { ReportsSubTab } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { ReportsSubTab, SacramentReportRow, ContributionReportRow, SalesReportRow, CashierReportRow } from '../../types';
+import { reportsApi } from '../../services/api';
 
 export const ReportsView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<ReportsSubTab>('sacraments');
 
   // Sacrament report state
-  const [sacramentType, setSacramentType] = useState('Baptism');
-  const [localChurch, setLocalChurch] = useState('Main Parish Cathedral');
-  const [sccFilter, setSccFilter] = useState('All Jumuiyas');
+  const [sacramentType, setSacramentType] = useState('baptism');
+  const [localChurch, setLocalChurch] = useState('');
+  const [sccFilter, setSccFilter] = useState('');
 
-  const [sacramentPreviewData] = useState([
-    { name: 'Adrian K. Wanjala', dob: '14/05/2012', date: '22/10/2023', scc: 'St. Jude SCC', status: 'Verified' },
-    { name: 'Maria T. Otieno', dob: '03/11/2015', date: '22/10/2023', scc: 'St. Monica SCC', status: 'Verified' },
-    { name: 'Benedict J. Kamau', dob: '28/01/2018', date: '15/09/2023', scc: 'St. Anne SCC', status: 'Verified' },
-    { name: 'Catherine N. Musyoka', dob: '19/08/2020', date: '15/09/2023', scc: 'St. Paul SCC', status: 'Pending' },
-    { name: 'Paul L. Gachora', dob: '02/04/2021', date: '01/08/2023', scc: 'St. Jude SCC', status: 'Verified' }
-  ]);
+  const [sacramentPreviewData, setSacramentPreviewData] = useState<SacramentReportRow[]>([]);
+
+  // Contributions report state
+  const [contributionRows, setContributionRows] = useState<ContributionReportRow[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [monthFilter, setMonthFilter] = useState('');
+
+  // Sales report state
+  const [salesRows, setSalesRows] = useState<SalesReportRow[]>([]);
+
+  // Cashiers report state
+  const [cashierRows, setCashierRows] = useState<CashierReportRow[]>([]);
 
   const [generatedPdf, setGeneratedPdf] = useState<string | null>(null);
 
-  const handleGenerateSacramentReport = (e: React.FormEvent) => {
+  useEffect(() => {
+    (async () => {
+      try {
+        const [sacraments, contributions, sales, cashiers] = await Promise.all([
+          reportsApi.sacraments({ sacramentType: 'baptism' }),
+          reportsApi.contributions(),
+          reportsApi.sales(),
+          reportsApi.cashiers()
+        ]);
+        setSacramentPreviewData(sacraments);
+        setContributionRows(contributions);
+        setSalesRows(sales);
+        setCashierRows(cashiers);
+      } catch (error) {
+        console.error('Failed to load reports', error);
+      }
+    })();
+  }, []);
+
+  const handleGenerateSacramentReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    setGeneratedPdf(`${sacramentType}_Registry_${localChurch.replace(/\s+/g, '_')}_2024.pdf`);
+    try {
+      const rows = await reportsApi.sacraments({
+        sacramentType,
+        localChurch: localChurch || undefined,
+        scc: sccFilter || undefined
+      });
+      setSacramentPreviewData(rows);
+      setGeneratedPdf(`${sacramentType}_Registry_${(localChurch || 'Parish').replace(/\s+/g, '_')}_${new Date().getFullYear()}.pdf`);
+    } catch (error) {
+      console.error('Failed to generate sacrament report', error);
+      alert(error instanceof Error ? error.message : 'Failed to generate sacrament report');
+    }
+  };
+
+  const handleLoadContributions = async () => {
+    try {
+      const rows = await reportsApi.contributions({
+        category: categoryFilter === 'All' ? undefined : categoryFilter,
+        month: monthFilter || undefined
+      });
+      setContributionRows(rows);
+    } catch (error) {
+      console.error('Failed to load contribution report', error);
+      alert(error instanceof Error ? error.message : 'Failed to load contribution report');
+    }
   };
 
   return (
@@ -93,11 +142,10 @@ export const ReportsView: React.FC = () => {
                       onChange={(e) => setSacramentType(e.target.value)}
                       className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     >
-                      <option value="Baptism">Baptism</option>
-                      <option value="First Communion">First Communion</option>
-                      <option value="Confirmation">Confirmation</option>
-                      <option value="Marriage">Marriage</option>
-                      <option value="Deceased">Deceased Registry</option>
+                      <option value="baptism">Baptism</option>
+                      <option value="eucharist">First Communion</option>
+                      <option value="confirmation">Confirmation</option>
+                      <option value="marriage">Marriage</option>
                     </select>
                   </div>
 
@@ -275,61 +323,73 @@ export const ReportsView: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#e1e3e3] pb-4">
               <h3 className="text-xl font-serif font-bold text-[#1a1c1c]">Contribution Reports</h3>
               <div className="flex gap-2 text-xs">
-                <select className="px-3 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded">
-                  <option>Jan 01, 2024 - Dec 31, 2024</option>
-                  <option>Q3 2024 Only</option>
+                <select
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded"
+                >
+                  <option value="">All Months</option>
+                  {['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'].map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
                 </select>
-                <select className="px-3 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded">
-                  <option>All Categories (Tithes, Levies)</option>
-                  <option>Tithes Only</option>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded"
+                >
+                  <option value="All">All Categories</option>
+                  <option value="Tithing">Tithing</option>
+                  <option value="Jumuiya">Jumuiya Contribution</option>
+                  <option value="Diocesan">Diocesan Support</option>
+                  <option value="Project">Parish Project</option>
                 </select>
+                <button
+                  onClick={() => void handleLoadContributions()}
+                  className="px-4 py-1.5 font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer"
+                >
+                  Generate Report
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Card 1 */}
-              <div className="p-5 bg-[#f4f3f3] border border-[#e1e3e3] rounded-xl space-y-3">
-                <h4 className="font-serif font-bold text-sm text-[#1a1c1c]">Christian Contribution Report</h4>
-                <p className="text-xs text-[#444748]">Itemized individual stewardship records for tax and pastoral reviews.</p>
-                <div className="flex gap-1">
-                  <span className="px-2 py-0.5 bg-[#ffffff] border border-[#e1e3e3] rounded text-[10px]">Tithing</span>
-                  <span className="px-2 py-0.5 bg-[#ffffff] border border-[#e1e3e3] rounded text-[10px]">Diocesan</span>
-                </div>
-                <button
-                  onClick={() => alert("Generating Christian Contribution Report...")}
-                  className="w-full py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer"
-                >
-                  Generate Report ↓
-                </button>
-              </div>
-
-              {/* Card 2 */}
-              <div className="p-5 bg-[#f4f3f3] border border-[#e1e3e3] rounded-xl space-y-3">
-                <h4 className="font-serif font-bold text-sm text-[#1a1c1c]">SCC (Jumuiya) Report</h4>
-                <p className="text-xs text-[#444748]">Grouped report organized by Small Christian Communities.</p>
-                <div className="text-xs font-bold text-[#1e1e1e]">
-                  St. Jude: KES 45,000 • St. Anne: KES 38,200
-                </div>
-                <button
-                  onClick={() => alert("Viewing community breakdown...")}
-                  className="w-full py-2 text-xs font-semibold text-[#1a1c1c] bg-[#ffffff] border border-[#c4c7c7] hover:bg-[#eeeeee] rounded cursor-pointer"
-                >
-                  View Community Breakdown
-                </button>
-              </div>
-
-              {/* Card 3 */}
-              <div className="p-5 bg-[#f4f3f3] border border-[#e1e3e3] rounded-xl space-y-3">
-                <h4 className="font-serif font-bold text-sm text-[#1a1c1c]">Sunday Collections</h4>
-                <p className="text-xs text-[#444748]">Consolidated financial overview for parish pastoral council meetings.</p>
-                <div className="text-xs font-bold text-[#1e1e1e]">Total Mass Collections: $18,920.00</div>
-                <button
-                  onClick={() => alert("Generating Consolidated Report...")}
-                  className="w-full py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer"
-                >
-                  Generate Consolidated Report
-                </button>
-              </div>
+            <div className="overflow-x-auto border border-[#e1e3e3] rounded-lg">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#f4f3f3] border-b border-[#e1e3e3] text-[10px] font-bold text-[#444748] uppercase tracking-wider">
+                    <th className="p-3">Member</th>
+                    <th className="p-3">Category</th>
+                    <th className="p-3">Month</th>
+                    <th className="p-3 text-right">Amount (KES)</th>
+                    <th className="p-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#e1e3e3]">
+                  {contributionRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-[#444748]">
+                        No contribution records yet. Record payments in the Activities panel.
+                      </td>
+                    </tr>
+                  ) : (
+                    contributionRows.map((row, i) => (
+                      <tr key={i} className="hover:bg-[#f9f9f9]">
+                        <td className="p-3 font-bold text-[#1a1c1c]">{row.memberName}</td>
+                        <td className="p-3 text-[#444748]">{row.category}</td>
+                        <td className="p-3 text-[#444748]">{row.month}</td>
+                        <td className="p-3 text-right font-bold text-[#1e1e1e]">{row.amount.toLocaleString()}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            row.status === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -341,40 +401,38 @@ export const ReportsView: React.FC = () => {
           {/* Top KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
-              <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">TOTAL SALES (MTD)</span>
-              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">$4,850.00</div>
-              <span className="text-[10px] text-emerald-700 font-bold">+12% vs last month</span>
+              <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">TOTAL SALES</span>
+              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">${salesRows.reduce((acc, r) => acc + r.amount, 0).toFixed(2)}</div>
             </div>
 
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
               <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">ITEMS SOLD</span>
-              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">342</div>
-              <span className="text-[10px] text-[#444748]">Across 18 categories</span>
+              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">{salesRows.reduce((acc, r) => acc + r.quantity, 0)}</div>
+            </div>
+
+            <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
+              <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">TRANSACTIONS</span>
+              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">{salesRows.length}</div>
             </div>
 
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
               <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">AVG ORDER VALUE</span>
-              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">$14.18</div>
-              <span className="text-[10px] text-[#444748]">Consistent with Q1</span>
-            </div>
-
-            <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
-              <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">SERVICE REVENUE</span>
-              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">$1,220.00</div>
-              <span className="text-[10px] text-[#444748]">Certificates & Masses</span>
+              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">
+                ${salesRows.length > 0 ? (salesRows.reduce((acc, r) => acc + r.amount, 0) / salesRows.length).toFixed(2) : '0.00'}
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Sales Table (8 Cols) */}
-            <div className="lg:col-span-8 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
+            {/* Sales Table (12 Cols) */}
+            <div className="lg:col-span-12 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
               <div className="flex justify-between items-center border-b border-[#e1e3e3] pb-3">
                 <h3 className="text-base font-serif font-bold text-[#1a1c1c]">Item Sales Report</h3>
                 <button
-                  onClick={() => alert("Exporting sales PDF...")}
+                  onClick={() => window.print()}
                   className="px-3 py-1 text-xs font-semibold text-[#1a1c1c] border border-[#c4c7c7] rounded hover:bg-[#f4f3f3]"
                 >
-                  Export PDF
+                  Print
                 </button>
               </div>
 
@@ -382,74 +440,31 @@ export const ReportsView: React.FC = () => {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-[#f4f3f3] border-b border-[#e1e3e3] text-[10px] font-bold text-[#444748] uppercase tracking-wider">
-                      <th className="p-3">Item Description</th>
-                      <th className="p-3">Category</th>
+                      <th className="p-3">Item</th>
                       <th className="p-3 text-center">Qty Sold</th>
-                      <th className="p-3 text-right">Unit Price</th>
-                      <th className="p-3 text-right">Revenue</th>
+                      <th className="p-3 text-right">Amount</th>
+                      <th className="p-3">Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e1e3e3]">
-                    {[
-                      { name: 'Votive Candles (Box 12)', cat: 'Religious Supplies', qty: 84, price: 12.0, rev: 1008.0 },
-                      { name: 'Mass Intentions (Stipend)', cat: 'Services', qty: 45, price: 10.0, rev: 450.0 },
-                      { name: 'Baptismal Certificates', cat: 'Administrative', qty: 12, price: 15.0, rev: 180.0 },
-                      { name: 'Sacred Heart Rosary', cat: 'Religious Supplies', qty: 22, price: 45.0, rev: 990.0 },
-                      { name: 'Parish Cookbook', cat: 'Books', qty: 31, price: 20.0, rev: 620.0 }
-                    ].map((row, i) => (
-                      <tr key={i} className="hover:bg-[#f9f9f9]">
-                        <td className="p-3 font-bold text-[#1a1c1c]">{row.name}</td>
-                        <td className="p-3 text-[#444748]">{row.cat}</td>
-                        <td className="p-3 text-center font-bold">{row.qty}</td>
-                        <td className="p-3 text-right text-[#444748]">${row.price.toFixed(2)}</td>
-                        <td className="p-3 text-right font-bold text-[#1e1e1e]">${row.rev.toFixed(2)}</td>
+                    {salesRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-6 text-center text-[#444748]">
+                          No sales recorded yet. Process sales in the Inventory panel.
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      salesRows.map((row, i) => (
+                        <tr key={i} className="hover:bg-[#f9f9f9]">
+                          <td className="p-3 font-bold text-[#1a1c1c]">{row.item}</td>
+                          <td className="p-3 text-center font-bold">{row.quantity}</td>
+                          <td className="p-3 text-right font-bold text-[#1e1e1e]">${row.amount.toFixed(2)}</td>
+                          <td className="p-3 text-[#444748]">{row.date}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
-              </div>
-            </div>
-
-            {/* Breakdown Graphic (4 Cols) */}
-            <div className="lg:col-span-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
-              <h4 className="text-xs font-bold text-[#1a1c1c] uppercase tracking-wider border-b border-[#e1e3e3] pb-2">
-                REVENUE BREAKDOWN
-              </h4>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span>Religious Goods</span>
-                    <span className="font-bold">65%</span>
-                  </div>
-                  <div className="w-full h-2 bg-[#e1e3e3] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#1e1e1e] w-[65%]"></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span>Mass Offerings</span>
-                    <span className="font-bold">20%</span>
-                  </div>
-                  <div className="w-full h-2 bg-[#e1e3e3] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#444748] w-[20%]"></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span>Certificates & Admin</span>
-                    <span className="font-bold">15%</span>
-                  </div>
-                  <div className="w-full h-2 bg-[#e1e3e3] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#888888] w-[15%]"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-[#f4f3f3] rounded border border-[#e1e3e3] text-center text-xs text-[#444748] mt-4">
-                St. Mary's Gift Shop & Office Sales Activity
               </div>
             </div>
           </div>
@@ -477,21 +492,18 @@ export const ReportsView: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
-              <span className="text-[10px] font-bold text-[#444748] uppercase">TOTAL PHYSICAL CASH</span>
-              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">$12,450.00</div>
-              <span className="text-[10px] text-emerald-700 font-bold">+4.2% today</span>
+              <span className="text-[10px] font-bold text-[#444748] uppercase">TOTAL COLLECTED</span>
+              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">${cashierRows.reduce((acc, r) => acc + r.collected, 0).toFixed(2)}</div>
             </div>
 
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
-              <span className="text-[10px] font-bold text-[#444748] uppercase">PUSH PAYMENTS</span>
-              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">$8,920.00</div>
-              <span className="text-[10px] text-[#444748]">Digital & M-Pesa</span>
+              <span className="text-[10px] font-bold text-[#444748] uppercase">RECONCILED</span>
+              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">${cashierRows.reduce((acc, r) => acc + r.reconciled, 0).toFixed(2)}</div>
             </div>
 
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
-              <span className="text-[10px] font-bold text-[#444748] uppercase">RECONCILIATION STATUS</span>
-              <div className="text-xl font-serif font-bold text-emerald-800 mt-1">14 Balanced</div>
-              <span className="text-[10px] text-[#444748]">All physical deposits match logs</span>
+              <span className="text-[10px] font-bold text-[#444748] uppercase">ACTIVE CASHIERS</span>
+              <div className="text-xl font-serif font-bold text-emerald-800 mt-1">{cashierRows.length}</div>
             </div>
           </div>
 
@@ -505,36 +517,38 @@ export const ReportsView: React.FC = () => {
                 <thead>
                   <tr className="bg-[#f4f3f3] border-b border-[#e1e3e3] text-[10px] font-bold text-[#444748] uppercase tracking-wider">
                     <th className="p-3">Cashier Name</th>
-                    <th className="p-3">Shift</th>
-                    <th className="p-3 text-right">Physical Cash</th>
-                    <th className="p-3 text-right">Push Payments</th>
-                    <th className="p-3 text-right">Total Deposit</th>
+                    <th className="p-3 text-right">Sessions</th>
+                    <th className="p-3 text-right">Collected</th>
+                    <th className="p-3 text-right">Reconciled</th>
                     <th className="p-3 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e1e3e3]">
-                  {[
-                    { name: 'Maria Moretti', shift: 'Morning Liturgy', cash: 2450.0, push: 1100.0, total: 3550.0, status: 'RECONCILED' },
-                    { name: 'Thomas Becket', shift: 'Afternoon Sales', cash: 1210.0, push: 3420.5, total: 4630.5, status: 'RECONCILED' },
-                    { name: 'Catherine Newman', shift: 'Vesper Donations', cash: 890.0, push: 150.0, total: 1040.0, status: 'PENDING AUDIT' }
-                  ].map((row, i) => (
-                    <tr key={i} className="hover:bg-[#f9f9f9]">
-                      <td className="p-3 font-bold text-[#1a1c1c]">{row.name}</td>
-                      <td className="p-3 text-[#444748]">{row.shift}</td>
-                      <td className="p-3 text-right">${row.cash.toFixed(2)}</td>
-                      <td className="p-3 text-right">${row.push.toFixed(2)}</td>
-                      <td className="p-3 text-right font-bold text-[#1e1e1e]">${row.total.toFixed(2)}</td>
-                      <td className="p-3 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          row.status === 'RECONCILED'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {row.status}
-                        </span>
+                  {cashierRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-[#444748]">
+                        No cashier collections yet. Create ledgers to track cashier balances.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    cashierRows.map((row, i) => (
+                      <tr key={i} className="hover:bg-[#f9f9f9]">
+                        <td className="p-3 font-bold text-[#1a1c1c]">{row.cashier}</td>
+                        <td className="p-3 text-right">{row.sessions}</td>
+                        <td className="p-3 text-right">${row.collected.toFixed(2)}</td>
+                        <td className="p-3 text-right">${row.reconciled.toFixed(2)}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            row.status === 'OK'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

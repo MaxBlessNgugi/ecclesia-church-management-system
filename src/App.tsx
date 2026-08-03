@@ -1,42 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  NavigationTab,
-  ChristianSubTab,
   ActivitiesSubTab,
-  SacramentsSubTab,
-  FinanceSubTab,
   ChristianRecord,
+  ChristianSubTab,
   ContributionRecord,
-  DeathRecord,
-  DepositRecord,
   CreditorRecord,
+  DeathRecord,
   DebtorRecord,
-  ExpenseRecord
+  DepositRecord,
+  ExpenseRecord,
+  FinanceSubTab,
+  NavigationTab,
+  SacramentsSubTab
 } from './types';
 
+import { Footer, GlobalSearchModal, Header, Sidebar } from './components';
 import {
-  INITIAL_CHRISTIANS,
-  INITIAL_CREDITORS,
-  INITIAL_DEBTORS,
-  INITIAL_DEPOSITS,
-  INITIAL_EXPENSES,
-  INITIAL_DEATHS
-} from './data/mockData';
-
-import { Header, Sidebar, Footer, GlobalSearchModal } from './components';
-import {
-  DashboardView,
-  ChristianView,
   ActivitiesView,
-  SacramentsView,
-  FinanceView,
-  LedgersView,
-  InventoryView,
-  ReportsView,
-  HRView,
   AdminView,
-  AuthView
+  AuthView,
+  ChristianView,
+  DashboardView,
+  FinanceView,
+  HRView,
+  InventoryView,
+  LedgersView,
+  ReportsView,
+  SacramentsView
 } from './components/views';
+import {
+  authApi,
+  christiansApi,
+  contributionsApi,
+  creditorsApi,
+  deathsApi,
+  debtorsApi,
+  depositsApi,
+  expensesApi,
+  transfersApi
+} from './services/api';
 
 /**
  * Main Application Component for Ecclesia Church Management System.
@@ -45,7 +47,7 @@ import {
  */
 export const App: React.FC = () => {
   // Navigation & View active tab states
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<NavigationTab>('auth');
   const [christianSubTab, setChristianSubTab] = useState<ChristianSubTab>('add');
   const [activitiesSubTab, setActivitiesSubTab] = useState<ActivitiesSubTab>('receive_payment');
   const [sacramentsSubTab, setSacramentsSubTab] = useState<SacramentsSubTab>('update_card');
@@ -55,16 +57,72 @@ export const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // In-memory Data Repositories (initialized with parish mock datasets)
-  const [christians, setChristians] = useState<ChristianRecord[]>(INITIAL_CHRISTIANS);
-  const [creditors, setCreditors] = useState<CreditorRecord[]>(INITIAL_CREDITORS);
-  const [debtors, setDebtors] = useState<DebtorRecord[]>(INITIAL_DEBTORS);
-  const [deposits, setDeposits] = useState<DepositRecord[]>(INITIAL_DEPOSITS);
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>(INITIAL_EXPENSES);
-  const [deathRecords, setDeathRecords] = useState<DeathRecord[]>(INITIAL_DEATHS);
+  // Live data repositories loaded from the backend API
+  const [christians, setChristians] = useState<ChristianRecord[]>([]);
+  const [creditors, setCreditors] = useState<CreditorRecord[]>([]);
+  const [debtors, setDebtors] = useState<DebtorRecord[]>([]);
+  const [deposits, setDeposits] = useState<DepositRecord[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [deathRecords, setDeathRecords] = useState<DeathRecord[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Selected parishioner context passed across multi-step action views (e.g. sacrament update, contribution receipt)
   const [selectedMember, setSelectedMember] = useState<ChristianRecord | null>(null);
+
+  const loadDashboardData = async () => {
+    try {
+      const [christiansRes, depositsRes, creditorsRes, debtorsRes, expensesRes, deathsRes] = await Promise.all([
+        christiansApi.list(),
+        depositsApi.list(),
+        creditorsApi.list(),
+        debtorsApi.list(),
+        expensesApi.list(),
+        deathsApi.list(),
+      ]);
+      setChristians(christiansRes);
+      setDeposits(depositsRes);
+      setCreditors(creditorsRes);
+      setDebtors(debtorsRes);
+      setExpenses(expensesRes);
+      setDeathRecords(deathsRes);
+    } catch (error) {
+      console.error('Failed to load church data from the backend', error);
+    }
+  };
+
+  const handleAuthSuccess = async () => {
+    setIsAuthenticated(true);
+    setCurrentTab('dashboard');
+    await loadDashboardData();
+  };
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem('ecclesia_token');
+      if (!token) {
+        setIsAuthenticated(false);
+        setCurrentTab('auth');
+        setIsAuthChecking(false);
+        return;
+      }
+
+      try {
+        await authApi.me();
+        setIsAuthenticated(true);
+        setCurrentTab('dashboard');
+        await loadDashboardData();
+      } catch {
+        localStorage.removeItem('ecclesia_token');
+        setIsAuthenticated(false);
+        setCurrentTab('auth');
+      } finally {
+        setIsAuthChecking(false);
+      }
+    };
+
+    void restoreSession();
+  }, []);
 
   // Deep-link support: #tab or #tab/subtab, e.g. #finance or #christian/find
   useEffect(() => {
@@ -107,14 +165,26 @@ export const App: React.FC = () => {
     }
   };
 
-  /** Adds a newly registered parishioner to the central register */
-  const handleAddChristian = (newMember: ChristianRecord) => {
-    setChristians([newMember, ...christians]);
+  /** Adds a newly registered parishioner to the central register (persists to the backend). */
+  const handleAddChristian = async (newMember: ChristianRecord) => {
+    try {
+      const created = await christiansApi.create(newMember);
+      setChristians([created, ...christians]);
+    } catch (error) {
+      console.error('Failed to add christian', error);
+      alert(error instanceof Error ? error.message : 'Failed to add christian record');
+    }
   };
 
   /** Marks a Christian record as inactive rather than permanently removing historical data */
-  const handleDeleteChristian = (id: string) => {
-    setChristians(christians.map((c) => (c.id === id ? { ...c, status: 'Inactive' } : c)));
+  const handleDeleteChristian = async (id: string) => {
+    try {
+      await christiansApi.remove(id);
+      setChristians(christians.map((c) => (c.id === id ? { ...c, status: 'Inactive' } : c)));
+    } catch (error) {
+      console.error('Failed to delete christian', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete christian record');
+    }
   };
 
   /** Pre-selects a member and opens the Sacraments update workflow */
@@ -131,82 +201,131 @@ export const App: React.FC = () => {
     setActivitiesSubTab('receive_payment');
   };
 
-  /** Handles contribution payment logging */
-  const handleRecordPayment = (payment: ContributionRecord) => {
-    // Handler available for updating financial ledgers or individual contribution tallies
+  /** Handles contribution payment logging (persists to the backend) */
+  const handleRecordPayment = async (payment: ContributionRecord) => {
+    try {
+      await contributionsApi.create(payment);
+    } catch (error) {
+      console.error('Failed to record payment', error);
+      alert(error instanceof Error ? error.message : 'Failed to record payment');
+    }
   };
 
   /** Updates parishioner status and destination hierarchy on parish transfer */
-  const handleTransferChristian = (
+  const handleTransferChristian = async (
     memberId: string,
     dest: { diocese: string; parish: string; localChurch: string; scc: string }
   ) => {
-    setChristians(
-      christians.map((c) =>
-        c.id === memberId
-          ? {
-              ...c,
-              status: 'Transferred',
-              diocese: dest.diocese,
-              parish: dest.parish,
-              localChurch: dest.localChurch,
-              scc: dest.scc
-            }
-          : c
-      )
-    );
+    const member = christians.find((c) => c.id === memberId);
+    if (!member) return;
+    try {
+      await transfersApi.create({
+        christianId: memberId,
+        memberName: `${member.baptismalName} ${member.sirName}`,
+        diocese: dest.diocese,
+        parish: dest.parish,
+        localChurch: dest.localChurch,
+        scc: dest.scc,
+        date: new Date().toISOString().split('T')[0]
+      });
+      setChristians(
+        christians.map((c) =>
+          c.id === memberId
+            ? {
+                ...c,
+                status: 'Transferred',
+                diocese: dest.diocese,
+                parish: dest.parish,
+                localChurch: dest.localChurch,
+                scc: dest.scc
+              }
+            : c
+        )
+      );
+    } catch (error) {
+      console.error('Failed to record transfer', error);
+      alert(error instanceof Error ? error.message : 'Failed to record transfer');
+    }
   };
 
   /** Updates sacramental fields (Baptism, Confirmation, Holy Matrimony, Eucharist) for a member */
-  const handleUpdateSacraments = (memberId: string, data: Partial<ChristianRecord>) => {
-    setChristians(christians.map((c) => (c.id === memberId ? { ...c, ...data } : c)));
+  const handleUpdateSacraments = async (memberId: string, data: Partial<ChristianRecord>) => {
+    try {
+      await christiansApi.updateSacraments(memberId, data);
+      setChristians(christians.map((c) => (c.id === memberId ? { ...c, ...data } : c)));
+    } catch (error) {
+      console.error('Failed to update sacraments', error);
+      alert(error instanceof Error ? error.message : 'Failed to update sacraments');
+    }
   };
 
   /** Records parishioner death entry and updates member status to Deceased */
-  const handleRecordDeath = (death: DeathRecord) => {
-    setDeathRecords([death, ...deathRecords]);
-    setChristians(
-      christians.map((c) => (c.id === death.christianId ? { ...c, status: 'Deceased' } : c))
-    );
+  const handleRecordDeath = async (death: DeathRecord) => {
+    try {
+      const created = await deathsApi.create(death);
+      setDeathRecords([created, ...deathRecords]);
+      setChristians(
+        christians.map((c) => (c.id === death.christianId ? { ...c, status: 'Deceased' } : c))
+      );
+    } catch (error) {
+      console.error('Failed to record death', error);
+      alert(error instanceof Error ? error.message : 'Failed to record death');
+    }
   };
 
   /** Adds bank/cash deposit record to treasury logs */
-  const handleAddDeposit = (deposit: DepositRecord) => {
-    setDeposits([deposit, ...deposits]);
+  const handleAddDeposit = async (deposit: DepositRecord) => {
+    try {
+      const created = await depositsApi.create(deposit);
+      setDeposits([created, ...deposits]);
+    } catch (error) {
+      console.error('Failed to add deposit', error);
+      alert(error instanceof Error ? error.message : 'Failed to add deposit');
+    }
   };
 
   /** Adds a new parish creditor obligation */
-  const handleAddCreditor = (creditor: CreditorRecord) => {
-    setCreditors([creditor, ...creditors]);
+  const handleAddCreditor = async (creditor: CreditorRecord) => {
+    try {
+      const created = await creditorsApi.create(creditor);
+      setCreditors([created, ...creditors]);
+    } catch (error) {
+      console.error('Failed to add creditor', error);
+      alert(error instanceof Error ? error.message : 'Failed to add creditor');
+    }
   };
 
   /** Settles an outstanding creditor record */
-  const handleMarkCreditorPaid = (creditorId: string) => {
-    setCreditors(
-      creditors.map((c) => (c.id === creditorId ? { ...c, status: 'Paid' as const } : c))
-    );
+  const handleMarkCreditorPaid = async (creditorId: string) => {
+    try {
+      const updated = await creditorsApi.markPaid(creditorId);
+      setCreditors(creditors.map((c) => (c.id === creditorId ? updated : c)));
+    } catch (error) {
+      console.error('Failed to mark creditor paid', error);
+      alert(error instanceof Error ? error.message : 'Failed to mark creditor paid');
+    }
   };
 
   /** Applies partial or full payment against a debtor balance */
-  const handleRecordDebtorPayment = (debtorId: string, amountPaid: number) => {
-    setDebtors(
-      debtors.map((d) => {
-        if (d.id === debtorId) {
-          const remaining = d.amount - amountPaid;
-          return {
-            ...d,
-            amount: Math.max(0, remaining),
-            status: remaining <= 0 ? ('Paid' as const) : ('Partially Paid' as const)
-          };
-        }
-        return d;
-      })
-    );
+  const handleRecordDebtorPayment = async (debtorId: string, amountPaid: number) => {
+    try {
+      const updated = await debtorsApi.recordPayment(debtorId, amountPaid);
+      setDebtors(debtors.map((d) => (d.id === debtorId ? updated : d)));
+    } catch (error) {
+      console.error('Failed to record debtor payment', error);
+      alert(error instanceof Error ? error.message : 'Failed to record debtor payment');
+    }
   };
 
   /** Records a new operating expense entry */
-  const handleAddExpense = (expense: ExpenseRecord) => {
-    setExpenses([expense, ...expenses]);
+  const handleAddExpense = async (expense: ExpenseRecord) => {
+    try {
+      const created = await expensesApi.create(expense);
+      setExpenses([created, ...expenses]);
+    } catch (error) {
+      console.error('Failed to add expense', error);
+      alert(error instanceof Error ? error.message : 'Failed to add expense');
+    }
   };
 
   return (
@@ -232,67 +351,71 @@ export const App: React.FC = () => {
 
         {/* Content View Area */}
         <main className="flex-1 overflow-y-auto">
-          {currentTab === 'dashboard' && (
-            <DashboardView
-              onNavigate={handleNavigate}
-              memberCount={christians.filter((c) => c.status === 'Active').length}
-            />
-          )}
+          {!isAuthenticated && !isAuthChecking ? (
+            <AuthView onSuccessAuth={() => void handleAuthSuccess()} />
+          ) : (
+            <>
+              {currentTab === 'dashboard' && (
+                <DashboardView
+                  onNavigate={handleNavigate}
+                  memberCount={christians.filter((c) => c.status === 'Active').length}
+                />
+              )}
 
-          {currentTab === 'christian' && (
-            <ChristianView
-              christians={christians}
-              onAddChristian={handleAddChristian}
-              onDeleteChristian={handleDeleteChristian}
-              onSelectMemberForSacrament={handleSelectMemberForSacrament}
-              onSelectMemberForPayment={handleSelectMemberForPayment}
-              initialSubTab={christianSubTab}
-            />
-          )}
+              {currentTab === 'christian' && (
+                <ChristianView
+                  christians={christians}
+                  onAddChristian={handleAddChristian}
+                  onDeleteChristian={handleDeleteChristian}
+                  onSelectMemberForSacrament={handleSelectMemberForSacrament}
+                  onSelectMemberForPayment={handleSelectMemberForPayment}
+                  initialSubTab={christianSubTab}
+                />
+              )}
 
-          {currentTab === 'activities' && (
-            <ActivitiesView
-              christians={christians}
-              selectedMember={selectedMember}
-              initialSubTab={activitiesSubTab}
-              onRecordPayment={handleRecordPayment}
-              onTransferChristian={handleTransferChristian}
-            />
-          )}
+              {currentTab === 'activities' && (
+                <ActivitiesView
+                  christians={christians}
+                  selectedMember={selectedMember}
+                  initialSubTab={activitiesSubTab}
+                  onRecordPayment={handleRecordPayment}
+                  onTransferChristian={handleTransferChristian}
+                />
+              )}
 
-          {currentTab === 'sacraments' && (
-            <SacramentsView
-              christians={christians}
-              selectedMember={selectedMember}
-              deathRecords={deathRecords}
-              initialSubTab={sacramentsSubTab}
-              onUpdateSacraments={handleUpdateSacraments}
-              onRecordDeath={handleRecordDeath}
-            />
-          )}
+              {currentTab === 'sacraments' && (
+                <SacramentsView
+                  christians={christians}
+                  selectedMember={selectedMember}
+                  deathRecords={deathRecords}
+                  initialSubTab={sacramentsSubTab}
+                  onUpdateSacraments={handleUpdateSacraments}
+                  onRecordDeath={handleRecordDeath}
+                />
+              )}
 
-          {currentTab === 'finance' && (
-            <FinanceView
-              deposits={deposits}
-              creditors={creditors}
-              debtors={debtors}
-              expenses={expenses}
-              initialSubTab={financeSubTab}
-              onAddDeposit={handleAddDeposit}
-              onAddCreditor={handleAddCreditor}
-              onMarkCreditorPaid={handleMarkCreditorPaid}
-              onRecordDebtorPayment={handleRecordDebtorPayment}
-              onAddExpense={handleAddExpense}
-            />
-          )}
+              {currentTab === 'finance' && (
+                <FinanceView
+                  deposits={deposits}
+                  creditors={creditors}
+                  debtors={debtors}
+                  expenses={expenses}
+                  initialSubTab={financeSubTab}
+                  onAddDeposit={handleAddDeposit}
+                  onAddCreditor={handleAddCreditor}
+                  onMarkCreditorPaid={handleMarkCreditorPaid}
+                  onRecordDebtorPayment={handleRecordDebtorPayment}
+                  onAddExpense={handleAddExpense}
+                />
+              )}
 
-          {currentTab === 'ledgers' && <LedgersView />}
-          {currentTab === 'inventory' && <InventoryView />}
-          {currentTab === 'reports' && <ReportsView />}
-          {currentTab === 'hr' && <HRView />}
-          {currentTab === 'administration' && <AdminView />}
-          {currentTab === 'auth' && (
-            <AuthView onSuccessAuth={() => setCurrentTab('dashboard')} />
+              {currentTab === 'ledgers' && <LedgersView />}
+              {currentTab === 'inventory' && <InventoryView />}
+              {currentTab === 'reports' && <ReportsView />}
+              {currentTab === 'hr' && <HRView />}
+              {currentTab === 'administration' && <AdminView />}
+              {currentTab === 'auth' && <AuthView onSuccessAuth={() => void handleAuthSuccess()} />}
+            </>
           )}
 
           <Footer />

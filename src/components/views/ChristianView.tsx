@@ -64,10 +64,9 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       return;
     }
 
-    const nextIdNumber = christians.length + 1043;
     const newRecord: ChristianRecord = {
       id: `c_${Date.now()}`,
-      regNo: `REG-2026-00${nextIdNumber}`,
+      regNo: '',
       nationalId: formData.nationalId || 'N/A',
       baptismalName: formData.baptismalName,
       secondName: formData.secondName,
@@ -174,7 +173,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
               BIODATA INPUT FORM
             </h3>
             <span className="text-xs font-mono bg-[#f4f3f3] text-[#1e1e1e] px-2.5 py-1 rounded border border-[#e1e3e3]">
-              Registration No: REG-2026-00{christians.length + 1043}
+              Registration No: auto-generated on save
             </span>
           </div>
 

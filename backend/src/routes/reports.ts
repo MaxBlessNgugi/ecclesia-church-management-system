@@ -5,6 +5,15 @@ import { requireAuth } from '../middleware/auth.js';
 const router = Router();
 router.use(requireAuth);
 
+function parseOptionalJson<T>(value: string | null | undefined): T | undefined {
+  if (!value) return undefined;
+  try {
+    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
+  } catch {
+    return undefined;
+  }
+}
+
 router.get('/sacraments', async (req, res, next) => {
   try {
     const { sacramentType, localChurch, scc } = req.query as Record<string, string | undefined>;
@@ -15,10 +24,14 @@ router.get('/sacraments', async (req, res, next) => {
     const rows = await prisma.christian.findMany({ where });
     const result = rows.map((c) => {
       let date = '';
-      if (sacramentType === 'baptism' && c.baptism) date = (c.baptism as any).date ?? '';
-      else if (sacramentType === 'eucharist' && c.eucharist) date = (c.eucharist as any).date ?? '';
-      else if (sacramentType === 'confirmation' && c.confirmation) date = (c.confirmation as any).date ?? '';
-      else if (sacramentType === 'marriage' && c.marriage) date = (c.marriage as any).date ?? '';
+      const baptism = parseOptionalJson<any>(c.baptism);
+      const eucharist = parseOptionalJson<any>(c.eucharist);
+      const confirmation = parseOptionalJson<any>(c.confirmation);
+      const marriage = parseOptionalJson<any>(c.marriage);
+      if (sacramentType === 'baptism' && baptism) date = baptism.date ?? '';
+      else if (sacramentType === 'eucharist' && eucharist) date = eucharist.date ?? '';
+      else if (sacramentType === 'confirmation' && confirmation) date = confirmation.date ?? '';
+      else if (sacramentType === 'marriage' && marriage) date = marriage.date ?? '';
       return {
         name: `${c.baptismalName} ${c.secondName} ${c.sirName}`.trim(),
         dob: '',
@@ -38,8 +51,8 @@ router.get('/contributions', async (req, res, next) => {
     let result = rows.map((r) => {
       let categories: string[] = [];
       let tracker: Record<string, boolean> = {};
-      try { categories = JSON.parse(r.categories); } catch {}
-      try { tracker = JSON.parse(r.monthlyTracker); } catch {}
+      try { categories = JSON.parse(r.categories); } catch { }
+      try { tracker = JSON.parse(r.monthlyTracker); } catch { }
       return {
         memberName: r.memberName,
         category: categories.join(', '),

@@ -16,12 +16,14 @@ router.post('/', async (req, res, next) => {
   try {
     const data = z.object({
       name: z.string(),
-      code: z.string(),
+      code: z.string().optional(),
       type: z.string(),
       cashier: z.string(),
       balance: z.number().default(0),
     }).parse(req.body);
-    const created = await prisma.ledger.create({ data });
+    const count = await prisma.ledger.count();
+    const code = data.code && data.code.length > 0 ? data.code : `LDR-${String(count + 1).padStart(3, '0')}`;
+    const created = await prisma.ledger.create({ data: { ...data, code } });
     res.status(201).json(created);
   } catch (e) { next(e); }
 });

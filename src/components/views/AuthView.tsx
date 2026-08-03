@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authApi } from '../../services/api';
 
 interface AuthViewProps {
   onSuccessAuth: () => void;
@@ -6,13 +7,45 @@ interface AuthViewProps {
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('fr.thomas@stmarysparish.org');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('maxblessngugi@ecclesia.local');
+  const [password, setPassword] = useState('ChangeMeImmediately123!');
   const [role, setRole] = useState('Parish Administrator');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSuccessAuth();
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      if (mode === 'register') {
+        const existingToken = localStorage.getItem('ecclesia_token');
+        if (!existingToken) {
+          const loginRes = await authApi.login({ email, password });
+          localStorage.setItem('ecclesia_token', loginRes.token);
+        }
+
+        const roleValue = role.includes('Administrator') ? 'admin' : role.includes('Accountant') ? 'staff' : 'staff';
+        const registerRes = await authApi.register({
+          email,
+          password,
+          name: email.split('@')[0],
+          role: roleValue,
+        });
+        localStorage.setItem('ecclesia_token', registerRes.token);
+      } else {
+        const loginRes = await authApi.login({ email, password });
+        localStorage.setItem('ecclesia_token', loginRes.token);
+      }
+
+      onSuccessAuth();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign in.';
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -36,24 +69,27 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
           <button
             type="button"
             onClick={() => setMode('login')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
-              mode === 'login' ? 'bg-[#1e1e1e] text-white shadow-2xs' : 'text-[#444748]'
-            }`}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${mode === 'login' ? 'bg-[#1e1e1e] text-white shadow-2xs' : 'text-[#444748]'
+              }`}
           >
             SIGN IN
           </button>
           <button
             type="button"
             onClick={() => setMode('register')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
-              mode === 'register' ? 'bg-[#1e1e1e] text-white shadow-2xs' : 'text-[#444748]'
-            }`}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${mode === 'register' ? 'bg-[#1e1e1e] text-white shadow-2xs' : 'text-[#444748]'
+              }`}
           >
             REGISTER STAFF
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {errorMessage && (
+            <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+              {errorMessage}
+            </div>
+          )}
           <div>
             <label className="block text-[#1a1c1c] font-medium mb-1">Email Address</label>
             <input
@@ -102,10 +138,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
 
           <button
             type="submit"
-            className="w-full py-2.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+            className="w-full py-2.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
           >
             <span className="material-symbols-outlined text-base">login</span>
-            {mode === 'login' ? 'Sign In to Central Altar' : 'Create Staff Account'}
+            {isSubmitting ? 'Authenticating...' : mode === 'login' ? 'Sign In to Central Altar' : 'Create Staff Account'}
           </button>
         </form>
 

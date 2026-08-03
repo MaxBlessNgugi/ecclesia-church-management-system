@@ -1,18 +1,12 @@
-import React, { useState } from 'react';
-import { InventorySubTab } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { InventorySubTab, InventoryItem, DeliveryRecord, SaleRecord, StockTakeRecord, StockIssueRecord } from '../../types';
+import { inventoryApi } from '../../services/api';
 
 export const InventoryView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<InventorySubTab>('inward');
 
   // Stock inventory list
-  const [items, setItems] = useState([
-    { id: '1', name: 'Altar Wine (Reserve Premium)', sku: 'LIT-044', category: 'Liturgical Supplies', cost: 12.5, price: 18.0, stock: 42, reorder: 24 },
-    { id: '2', name: 'Beeswax Altar Candles (12")', sku: 'LIT-001', category: 'Liturgical Supplies', cost: 8.0, price: 12.0, stock: 140, reorder: 30 },
-    { id: '3', name: 'Communion Wafers (Pack 500)', sku: 'LIT-012', category: 'Sacramental', cost: 15.0, price: 25.0, stock: 9, reorder: 5 },
-    { id: '4', name: 'Incense Charcoal (Rolls)', sku: 'SUP-089', category: 'Liturgical Supplies', cost: 4.0, price: 7.5, stock: 60, reorder: 15 },
-    { id: '5', name: 'Sunday Missal 2024', sku: 'BK-101', category: 'Books', cost: 10.0, price: 15.0, stock: 110, reorder: 20 },
-    { id: '6', name: 'Certificate Issuance', sku: 'SRV-001', category: 'Sacramental Documents', cost: 0.0, price: 15.0, stock: 999, reorder: 0 }
-  ]);
+  const [items, setItems] = useState<InventoryItem[]>([]);
 
   // Notifications
   const [notification, setNotification] = useState<string | null>(null);
@@ -22,117 +16,175 @@ export const InventoryView: React.FC = () => {
   };
 
   // Sub-tab 1: Goods Inward state
-  const [supplierName, setSupplierName] = useState('Sacramental Wine Co.');
-  const [invoiceRef, setInvoiceRef] = useState('INV-2023-001');
-  const [inwardItem, setInwardItem] = useState('Altar Wine (Reserve Premium)');
-  const [dateReceived, setDateReceived] = useState('29/07/2026');
+  const [supplierName, setSupplierName] = useState('');
+  const [invoiceRef, setInvoiceRef] = useState('');
+  const [inwardItem, setInwardItem] = useState('');
+  const [dateReceived, setDateReceived] = useState('');
   const [qtyReceived, setQtyReceived] = useState<number>(0);
   const [unitCost, setUnitCost] = useState<number>(0);
 
-  const [deliveries, setDeliveries] = useState([
-    { id: 'd1', supplier: 'Sacramental Wine Co.', inv: '#SW-9921', date: 'Oct 24, 2023', units: 12, cat: 'Liturgy Supplies', total: 144.0 },
-    { id: 'd2', supplier: 'Vesper Candle Works', inv: '#VC-4402', date: 'Oct 22, 2023', units: 50, cat: 'Altar Candles', total: 250.0 },
-    { id: 'd3', supplier: 'Grace Publishing', inv: '#GP-1109', date: 'Oct 20, 2023', units: 100, cat: 'Parish Bulletins', total: 85.0 }
-  ]);
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
 
-  const handleGoodsInwardSubmit = (e: React.FormEvent) => {
+  const handleGoodsInwardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (qtyReceived <= 0) {
       alert('Please enter a valid quantity.');
       return;
     }
-    const newDel = {
-      id: Date.now().toString(),
-      supplier: supplierName,
-      inv: invoiceRef,
-      date: 'Today',
-      units: qtyReceived,
-      cat: 'Supplier Stock',
-      total: qtyReceived * unitCost
-    };
-    setDeliveries([newDel, ...deliveries]);
-    setQtyReceived(0);
-    showNotif(`Received ${qtyReceived} units of ${inwardItem} into inventory!`);
+    try {
+      await inventoryApi.deliveries.create({
+        supplier: supplierName,
+        inv: invoiceRef,
+        date: dateReceived || new Date().toLocaleDateString('en-GB'),
+        units: qtyReceived,
+        cat: inwardItem,
+        total: qtyReceived * unitCost
+      });
+      const [delRows, itemRows] = await Promise.all([inventoryApi.deliveries.list(), inventoryApi.items.list()]);
+      setDeliveries(delRows);
+      setItems(itemRows);
+      setQtyReceived(0);
+      showNotif(`Received ${qtyReceived} units of ${inwardItem} into inventory!`);
+    } catch (error) {
+      console.error('Failed to record delivery', error);
+      alert(error instanceof Error ? error.message : 'Failed to record delivery');
+    }
   };
 
   // Sub-tab 2: Sale state
-  const [saleItem, setSaleItem] = useState('Altar Wine (Reserve Premium)');
+  const [saleItem, setSaleItem] = useState('');
   const [saleQty, setSaleQty] = useState<number>(1);
-  const [salePrice, setSalePrice] = useState<number>(18.0);
+  const [salePrice, setSalePrice] = useState<number>(0);
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
 
-  const [salesHistory, setSalesHistory] = useState([
-    { id: 's1', item: 'Missal 2024', time: '09:15 AM • Cash', amount: 25.0 },
-    { id: 's2', item: 'Baptismal Search', time: '10:42 AM • EFT', amount: 50.0 },
-    { id: 's3', item: 'Votive Candles (x10)', time: 'Yesterday • Cash', amount: 15.0 }
-  ]);
+  const [salesHistory, setSalesHistory] = useState<SaleRecord[]>([]);
 
-  const handleProcessSale = (e: React.FormEvent) => {
+  const handleProcessSale = async (e: React.FormEvent) => {
     e.preventDefault();
     const total = saleQty * salePrice;
-    const newSale = {
-      id: Date.now().toString(),
-      item: saleItem,
-      time: `Just Now • ${paymentMethod}`,
-      amount: total
-    };
-    setSalesHistory([newSale, ...salesHistory]);
-    setCustomerName('');
-    showNotif(`Processed sale of $${total.toFixed(2)} for ${saleItem}!`);
+    try {
+      await inventoryApi.sales.create({
+        item: saleItem,
+        time: new Date().toLocaleString(),
+        amount: total
+      });
+      const [saleRows, itemRows] = await Promise.all([inventoryApi.sales.list(), inventoryApi.items.list()]);
+      setSalesHistory(saleRows);
+      setItems(itemRows);
+      setCustomerName('');
+      showNotif(`Processed sale of $${total.toFixed(2)} for ${saleItem}!`);
+    } catch (error) {
+      console.error('Failed to process sale', error);
+      alert(error instanceof Error ? error.message : 'Failed to process sale');
+    }
   };
 
   // Sub-tab 3: Stock Take state
-  const [stockTake, setStockTake] = useState([
-    { id: 'st1', name: 'Beeswax Altar Candles (12")', sku: 'LIT-001', system: 142, physical: 140, notes: '' },
-    { id: 'st2', name: 'Sacramental Wine (750ml)', sku: 'LIT-044', system: 24, physical: 24, notes: '' },
-    { id: 'st3', name: 'Communion Wafers (Pack 500)', sku: 'LIT-012', system: 8, physical: 9, notes: 'Found unrecorded box in vestry' },
-    { id: 'st4', name: 'Incense Charcoal (Rolls)', sku: 'SUP-089', system: 60, physical: 60, notes: '' }
-  ]);
+  const [stockTake, setStockTake] = useState<StockTakeRecord[]>([]);
 
-  const handleUpdatePhysicalCount = (id: string, count: number) => {
-    setStockTake(
-      stockTake.map((st) => (st.id === id ? { ...st, physical: count } : st))
-    );
+  const handleUpdatePhysicalCount = async (id: string, count: number) => {
+    try {
+      const updated = await inventoryApi.stockTakes.updatePhysical(id, count);
+      setStockTake(stockTake.map((st) => (st.id === id ? updated : st)));
+    } catch (error) {
+      console.error('Failed to update physical count', error);
+      alert(error instanceof Error ? error.message : 'Failed to update physical count');
+    }
   };
 
   // Sub-tab 4: Stock Issue state
-  const [issueItem, setIssueItem] = useState('Sacramental Wine (750ml)');
+  const [issueItem, setIssueItem] = useState('');
   const [issueQty, setIssueQty] = useState<number>(1);
   const [issueReason, setIssueReason] = useState('Liturgical Use');
-  const [recipientDept, setRecipientDept] = useState('Main Sacristy');
+  const [recipientDept, setRecipientDept] = useState('');
   const [auditNotes, setAuditNotes] = useState('');
 
-  const [issueTrail, setIssueTrail] = useState([
-    { id: 'i1', item: '6x Altar Wine', dest: 'To: Main Sacristy • Liturgical Use' },
-    { id: 'i2', item: '12x Loaves (Artisanal)', dest: 'To: Parish Outreach • Donation' }
-  ]);
+  const [issueTrail, setIssueTrail] = useState<StockIssueRecord[]>([]);
 
-  const handleConfirmIssue = (e: React.FormEvent) => {
+  const handleConfirmIssue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (issueQty <= 0) return;
-    const newIssue = {
-      id: Date.now().toString(),
-      item: `${issueQty}x ${issueItem}`,
-      dest: `To: ${recipientDept} • ${issueReason}`
-    };
-    setIssueTrail([newIssue, ...issueTrail]);
-    showNotif(`Issued ${issueQty} units of ${issueItem} to ${recipientDept}.`);
+    try {
+      await inventoryApi.issues.create({
+        item: `${issueQty}x ${issueItem}`,
+        dest: `To: ${recipientDept} • ${issueReason}`
+      });
+      const rows = await inventoryApi.issues.list();
+      setIssueTrail(rows);
+      showNotif(`Issued ${issueQty} units of ${issueItem} to ${recipientDept}.`);
+    } catch (error) {
+      console.error('Failed to record stock issue', error);
+      alert(error instanceof Error ? error.message : 'Failed to record stock issue');
+    }
   };
 
   // Sub-tab 5: Edit Item / Service state
-  const [editName, setEditName] = useState('Altar Wine (Reserve Premium)');
-  const [editCategory, setEditCategory] = useState('Liturgical Supplies');
-  const [editCost, setEditCost] = useState<number>(12.5);
-  const [editPrice, setEditPrice] = useState<number>(18.0);
-  const [editReorder, setEditReorder] = useState<number>(24);
+  const [editId, setEditId] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editCost, setEditCost] = useState<number>(0);
+  const [editPrice, setEditPrice] = useState<number>(0);
+  const [editReorder, setEditReorder] = useState<number>(0);
   const [allowPartial, setAllowPartial] = useState(true);
   const [taxExempt, setTaxExempt] = useState(false);
   const [requireAdmin, setRequireAdmin] = useState(true);
 
-  const handleUpdateItem = (e: React.FormEvent) => {
+  useEffect(() => {
+    (async () => {
+      try {
+        const [itemRows, delRows, saleRows, stockRows, issueRows] = await Promise.all([
+          inventoryApi.items.list(),
+          inventoryApi.deliveries.list(),
+          inventoryApi.sales.list(),
+          inventoryApi.stockTakes.list(),
+          inventoryApi.issues.list()
+        ]);
+        setItems(itemRows);
+        setDeliveries(delRows);
+        setSalesHistory(saleRows);
+        setStockTake(stockRows);
+        setIssueTrail(issueRows);
+        if (itemRows.length > 0) {
+          const first = itemRows[0];
+          setInwardItem(first.name);
+          setSaleItem(first.name);
+          setSalePrice(first.price);
+          setIssueItem(first.name);
+          setEditId(first.id);
+          setEditName(first.name);
+          setEditCategory(first.category);
+          setEditCost(first.cost);
+          setEditPrice(first.price);
+          setEditReorder(first.reorder);
+        }
+      } catch (error) {
+        console.error('Failed to load inventory', error);
+      }
+    })();
+  }, []);
+
+  const handleUpdateItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    showNotif(`Updated details for "${editName}"!`);
+    if (!editId) {
+      alert('No inventory item selected for editing. Please add an item first.');
+      return;
+    }
+    try {
+      await inventoryApi.items.update(editId, {
+        name: editName,
+        category: editCategory,
+        cost: editCost,
+        price: editPrice,
+        reorder: editReorder
+      });
+      const rows = await inventoryApi.items.list();
+      setItems(rows);
+      showNotif(`Updated details for "${editName}"!`);
+    } catch (error) {
+      console.error('Failed to update item', error);
+      alert(error instanceof Error ? error.message : 'Failed to update item');
+    }
   };
 
   return (
@@ -561,15 +613,15 @@ export const InventoryView: React.FC = () => {
             <div className="flex gap-6">
               <div>
                 <span className="text-[10px] text-[#444748] uppercase block">TOTAL ITEMS AUDITED</span>
-                <span className="font-bold text-[#1a1c1c]">234</span>
+                <span className="font-bold text-[#1a1c1c]">{stockTake.length}</span>
               </div>
               <div>
                 <span className="text-[10px] text-[#444748] uppercase block">NET VARIANCE</span>
-                <span className="font-bold text-rose-700">-1</span>
+                <span className="font-bold text-rose-700">{stockTake.reduce((acc, st) => acc + (st.physical - st.system), 0)}</span>
               </div>
             </div>
             <div className="text-[11px] text-[#444748]">
-              LAST SYNCED: 24 Oct 2023, 09:12 AM
+              LAST SYNCED: {new Date().toLocaleString()}
             </div>
           </div>
         </div>
@@ -599,7 +651,7 @@ export const InventoryView: React.FC = () => {
                   ))}
                 </select>
                 <p className="text-[10px] text-[#444748] italic mt-1 uppercase tracking-wider">
-                  CURRENT STOCK: 24 UNITS AVAILABLE IN VAULT A
+                  CURRENT STOCK: {(items.find((it) => it.name === issueItem)?.stock ?? 0)} UNITS
                 </p>
               </div>
 
@@ -815,15 +867,15 @@ export const InventoryView: React.FC = () => {
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-[#444748]">Current Stock</span>
-                  <span className="font-bold text-[#1a1c1c]">42 Units</span>
+                  <span className="font-bold text-[#1a1c1c]">{items.find((it) => it.name === editName)?.stock ?? 0} Units</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#444748]">Last Restocked</span>
-                  <span className="italic text-[#1a1c1c]">Oct 12, 2023</span>
+                  <span className="text-[#444748]">Unit Cost</span>
+                  <span className="italic text-[#1a1c1c]">${editCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-[#e1e3e3]">
-                  <span className="text-[#444748]">Asset Value</span>
-                  <span className="font-bold text-[#1e1e1e]">$525.00</span>
+                  <span className="text-[#444748]">Stock Value</span>
+                  <span className="font-bold text-[#1e1e1e]">${((items.find((it) => it.name === editName)?.stock ?? 0) * editCost).toFixed(2)}</span>
                 </div>
               </div>
             </div>

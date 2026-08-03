@@ -1,6 +1,6 @@
-import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import 'dotenv/config';
 
 const prisma = new PrismaClient();
 
@@ -40,7 +40,7 @@ async function main() {
     where: { id: 'default' },
     create: {
       id: 'default',
-      panels: {
+      panels: JSON.stringify({
         christian: true,
         activities: true,
         sacraments: true,
@@ -50,8 +50,8 @@ async function main() {
         reports: true,
         hr: true,
         administration: true,
-      },
-      actions: { view: true, edit: true, delete: true },
+      }),
+      actions: JSON.stringify({ view: true, edit: true, delete: true }),
     },
     update: {},
   });

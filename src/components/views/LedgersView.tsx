@@ -1,40 +1,56 @@
-import React, { useState } from 'react';
-import { LedgersSubTab } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { LedgersSubTab, LedgerRecord, LedgerMovement, EmployeeRecord } from '../../types';
+import { ledgersApi, hrApi } from '../../services/api';
 
 export const LedgersView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<LedgersSubTab>('mgmt');
 
   // Ledger state
-  const [ledgers, setLedgers] = useState([
-    { id: '1', name: 'Parish Main Cash', code: 'LDR-101', type: 'Asset', cashier: 'Mary Magdalene', balance: 12450.0 },
-    { id: '2', name: 'Weekly Tithes', code: 'LDR-205', type: 'Revenue', cashier: 'Peter Fisher', balance: 8920.0 },
-    { id: '3', name: 'Youth Outreach Fund', code: 'LDR-310', type: 'Petty Cash', cashier: 'John Beloved', balance: 1200.0 },
-    { id: '4', name: 'Emergency Repair', code: 'LDR-99', type: 'Asset', cashier: 'Mary Magdalene', balance: 2850.0 },
-    { id: '5', name: 'Liturgical Maintenance', code: 'LDR-402', type: 'Expense', cashier: 'Sarah Jenkins', balance: 3400.0 }
-  ]);
+  const [ledgers, setLedgers] = useState<LedgerRecord[]>([]);
 
   // Create Ledger Form State
   const [ledgerName, setLedgerName] = useState('');
   const [accountType, setAccountType] = useState('Asset');
-  const [assignedCashier, setAssignedCashier] = useState('Mary Magdalene');
+  const [assignedCashier, setAssignedCashier] = useState('');
   const [initialBalance, setInitialBalance] = useState<string>('');
   const [description, setDescription] = useState('');
 
   // Inter-Ledger Transfer Form State
-  const [sourceLedger, setSourceLedger] = useState('Parish Main Cash');
-  const [destLedger, setDestLedger] = useState('Liturgical Maintenance');
+  const [sourceLedger, setSourceLedger] = useState('');
+  const [destLedger, setDestLedger] = useState('');
   const [transferAmount, setTransferAmount] = useState<string>('');
-  const [transferDate, setTransferDate] = useState('24th Oct, 2023');
+  const [transferDate, setTransferDate] = useState('');
   const [transferNotes, setTransferNotes] = useState('');
 
   // Recent Movements Log
-  const [movements, setMovements] = useState([
-    { id: 'm1', amount: 1200.0, time: 'Today, 09:12 AM', from: 'Gen. Fund', to: 'Maintenance' },
-    { id: 'm2', amount: 5500.0, time: 'Yesterday', from: 'Donations', to: 'Restoration' },
-    { id: 'm3', amount: 450.0, time: '22 Oct', from: 'Petty Cash', to: 'Office Supp.' }
-  ]);
+  const [movements, setMovements] = useState<LedgerMovement[]>([]);
+
+  // Employees for cashier assignment
+  const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
 
   const [notification, setNotification] = useState<string | null>(null);
+
+  const loadLedgers = async () => {
+    try {
+      const [ledgerRows, movementRows] = await Promise.all([ledgersApi.list(), ledgersApi.movements()]);
+      setLedgers(ledgerRows);
+      setMovements(movementRows);
+      if (ledgerRows.length > 0) {
+        setSourceLedger(ledgerRows[0].name);
+        setDestLedger(ledgerRows[ledgerRows.length - 1]?.name ?? ledgerRows[0].name);
+      }
+    } catch (error) {
+      console.error('Failed to load ledgers', error);
+    }
+  };
+
+  useEffect(() => {
+    void loadLedgers();
+    hrApi.employees
+      .list()
+      .then(setEmployees)
+      .catch((error) => console.error('Failed to load employees', error));
+  }, []);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -47,41 +63,54 @@ export const LedgersView: React.FC = () => {
     setDescription('');
   };
 
-  const handleSaveLedger = (e: React.FormEvent) => {
+  const handleSaveLedger = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ledgerName) return;
-    const newCode = `LDR-${Math.floor(100 + Math.random() * 900)}`;
-    const newLedger = {
-      id: Date.now().toString(),
-      name: ledgerName,
-      code: newCode,
-      type: accountType,
-      cashier: assignedCashier,
-      balance: parseFloat(initialBalance) || 0.0
-    };
-    setLedgers([newLedger, ...ledgers]);
-    handleClearForm();
-    showNotification(`Ledger "${ledgerName}" created with code ${newCode}!`);
+    try {
+      const created = await ledgersApi.create({
+        name: ledgerName,
+        code: '',
+        type: accountType,
+        cashier: assignedCashier || 'Unassigned',
+        balance: parseFloat(initialBalance) || 0.0
+      });
+      setLedgers([created, ...ledgers]);
+      handleClearForm();
+      showNotification(`Ledger "${ledgerName}" created with code ${created.code}!`);
+    } catch (error) {
+      console.error('Failed to create ledger', error);
+      alert(error instanceof Error ? error.message : 'Failed to create ledger');
+    }
   };
 
-  const handleExecuteTransfer = (e: React.FormEvent) => {
+  const handleExecuteTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(transferAmount);
     if (!amt || amt <= 0) {
       alert('Please enter a valid transfer amount.');
       return;
     }
-    const newMv = {
-      id: Date.now().toString(),
-      amount: amt,
-      time: 'Just Now',
-      from: sourceLedger.split(' ')[0],
-      to: destLedger.split(' ')[0]
-    };
-    setMovements([newMv, ...movements]);
-    setTransferAmount('');
-    setTransferNotes('');
-    showNotification(`Inter-ledger transfer of $${amt.toFixed(2)} executed from ${sourceLedger} to ${destLedger}!`);
+    const fromLedger = ledgers.find((l) => l.name === sourceLedger);
+    const toLedger = ledgers.find((l) => l.name === destLedger);
+    if (!fromLedger || !toLedger) {
+      alert('Please select valid source and destination ledgers.');
+      return;
+    }
+    try {
+      await ledgersApi.transfer({
+        fromLedgerId: fromLedger.id,
+        toLedgerId: toLedger.id,
+        amount: amt,
+        notes: transferNotes || undefined
+      });
+      await loadLedgers();
+      setTransferAmount('');
+      setTransferNotes('');
+      showNotification(`Inter-ledger transfer of $${amt.toFixed(2)} executed from ${sourceLedger} to ${destLedger}!`);
+    } catch (error) {
+      console.error('Failed to execute transfer', error);
+      alert(error instanceof Error ? error.message : 'Failed to execute transfer');
+    }
   };
 
   return (
@@ -200,10 +229,12 @@ export const LedgersView: React.FC = () => {
                     onChange={(e) => setAssignedCashier(e.target.value)}
                     className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                   >
-                    <option value="Mary Magdalene">Mary Magdalene</option>
-                    <option value="Peter Fisher">Peter Fisher</option>
-                    <option value="John Beloved">John Beloved</option>
-                    <option value="Sarah Jenkins">Sarah Jenkins</option>
+                    <option value="">— Unassigned —</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.name}>
+                        {emp.name} ({emp.role})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -296,7 +327,7 @@ export const LedgersView: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-between text-xs text-[#444748] pt-2">
-                <span>Showing {ledgers.length} of 12 ledgers</span>
+                <span>Showing {ledgers.length} ledgers</span>
                 <div className="flex gap-1">
                   <button className="px-2 py-1 border border-[#e1e3e3] rounded hover:bg-[#f4f3f3]">
                     &lt;
@@ -356,7 +387,7 @@ export const LedgersView: React.FC = () => {
                     ))}
                   </select>
                   <p className="text-[10px] text-[#444748] italic mt-1">
-                    Available balance: $42,250.00
+                    Available balance: ${(ledgers.find((l) => l.name === sourceLedger)?.balance ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
 

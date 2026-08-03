@@ -1,20 +1,15 @@
-import React, { useState } from 'react';
-import { HRSubTab } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { HRSubTab, EmployeeRecord } from '../../types';
+import { hrApi } from '../../services/api';
 
 export const HRView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<HRSubTab>('directory');
 
   // Employee directory state
-  const [employees, setEmployees] = useState([
-    { id: 'emp1', code: 'EMP001', name: 'Fr. Mark Davis', role: 'Parish Priest', phone: '+254 700 000123', email: 'fr.mark@stmarys.org', hireDate: '2019-03-15' },
-    { id: 'emp2', code: 'EMP002', name: 'Sarah Jenkins', role: 'Head Cashier', phone: '+254 700 000124', email: 's.jenkins@stmarys.org', hireDate: '2021-06-01' },
-    { id: 'emp3', code: 'EMP003', name: 'Peter Njuguna', role: 'Inventory Clerk', phone: '+254 700 000125', email: 'p.njuguna@stmarys.org', hireDate: '2022-01-10' },
-    { id: 'emp4', code: 'EMP004', name: 'Sr. Beatrice', role: 'Pastoral Coordinator', phone: '+254 700 000126', email: 'sr.beatrice@stmarys.org', hireDate: '2020-09-20' },
-    { id: 'emp5', code: 'EMP005', name: 'John Kamau', role: 'Sacristan', phone: '+254 700 000127', email: 'j.kamau@stmarys.org', hireDate: '2023-04-12' }
-  ]);
+  const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
 
   // Selected Employee for view/edit
-  const [selectedEmpId, setSelectedEmpId] = useState<string>('emp1');
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
 
   // New Employee Form State
   const [natId, setNatId] = useState('');
@@ -22,7 +17,7 @@ export const HRView: React.FC = () => {
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [designation, setDesignation] = useState('Parish Priest');
-  const [hireDate, setHireDate] = useState('2024-08-01');
+  const [hireDate, setHireDate] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [nokName, setNokName] = useState('');
@@ -36,30 +31,51 @@ export const HRView: React.FC = () => {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleSavePersonnel = (e: React.FormEvent) => {
+  useEffect(() => {
+    hrApi.employees
+      .list()
+      .then((rows) => {
+        setEmployees(rows);
+        if (rows.length > 0) setSelectedEmpId(rows[0].id);
+      })
+      .catch((error) => console.error('Failed to load employees', error));
+  }, []);
+
+  const handleSavePersonnel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!surname || !firstName) {
       alert('Please enter surname and first name.');
       return;
     }
-    const newCode = `EMP00${employees.length + 1}`;
-    const newEmp = {
-      id: Date.now().toString(),
-      code: newCode,
-      name: `${firstName} ${surname}`,
-      role: designation,
-      phone: phone || '+254 700 000000',
-      email: email || `${firstName.toLowerCase()}@stmarys.org`,
-      hireDate: hireDate
-    };
-    setEmployees([newEmp, ...employees]);
-    setSurname('');
-    setFirstName('');
-    setMiddleName('');
-    setEmail('');
-    setPhone('');
-    showNotif(`Personnel record for ${newEmp.name} (${newCode}) saved successfully!`);
-    setActiveSubTab('directory');
+    try {
+      const created = await hrApi.employees.create({
+        nationalId: natId,
+        surname,
+        firstName,
+        middleName: middleName || undefined,
+        designation,
+        hireDate,
+        email,
+        phone,
+        nextOfKinName: nokName || undefined,
+        nextOfKinRelation: nokRel || undefined,
+        nextOfKinPhone: nokPhone || undefined
+      });
+      setEmployees([created, ...employees]);
+      setSelectedEmpId(created.id);
+      setSurname('');
+      setFirstName('');
+      setMiddleName('');
+      setEmail('');
+      setPhone('');
+      setNatId('');
+      setHireDate('');
+      showNotif(`Personnel record for ${created.name} (${created.code}) saved successfully!`);
+      setActiveSubTab('directory');
+    } catch (error) {
+      console.error('Failed to save personnel', error);
+      alert(error instanceof Error ? error.message : 'Failed to save personnel');
+    }
   };
 
   return (
@@ -187,7 +203,7 @@ export const HRView: React.FC = () => {
 
           {/* Bottom Action Bar */}
           <div className="flex flex-col sm:flex-row justify-between items-center text-xs text-[#444748] pt-2 gap-3">
-            <span>Showing {employees.length} of 42 employees</span>
+            <span>Showing {employees.length} {employees.length === 1 ? 'employee' : 'employees'}</span>
 
             <div className="flex gap-2">
               <button
@@ -444,7 +460,9 @@ export const HRView: React.FC = () => {
           <div className="p-4 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg text-xs space-y-2">
             <div className="flex justify-between items-center">
               <div>
-                <span className="font-bold text-[#1a1c1c]">Fr. Mark Davis</span>
+                <span className="font-bold text-[#1a1c1c]">
+                  {employees.find((e) => e.id === selectedEmpId)?.name ?? '—'}
+                </span>
                 <span className="text-[#444748] ml-2">• Diocesan Spiritual Retreat (7 Days)</span>
               </div>
               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold">APPROVED</span>

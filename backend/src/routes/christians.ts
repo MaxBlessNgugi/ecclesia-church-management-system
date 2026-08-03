@@ -12,8 +12,22 @@ const sacramentSchema = z.object({
   place: z.string().optional(),
 }).optional();
 
+function parseOptionalJson<T>(value: string | null | undefined): T | undefined {
+  if (!value) return undefined;
+  try {
+    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeOptionalJson<T>(value: T | undefined): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
 const christianSchema = z.object({
-  regNo: z.string().min(1),
+  regNo: z.string().optional(),
   nationalId: z.string().min(1),
   baptismalName: z.string().min(1),
   secondName: z.string().min(1),
@@ -44,11 +58,19 @@ function mapChristian(c: any) {
     localChurch: c.localChurch,
     scc: c.scc,
     status: c.status,
-    baptism: c.baptism ?? undefined,
-    eucharist: c.eucharist ?? undefined,
-    confirmation: c.confirmation ?? undefined,
-    marriage: c.marriage ?? undefined,
+    baptism: parseOptionalJson(c.baptism) ?? undefined,
+    eucharist: parseOptionalJson(c.eucharist) ?? undefined,
+    confirmation: parseOptionalJson(c.confirmation) ?? undefined,
+    marriage: parseOptionalJson(c.marriage) ?? undefined,
   };
+}
+
+/** Generates the next sequential registration number server-side (guarantees uniqueness). */
+async function nextRegNo(): Promise<string> {
+  const last = await prisma.christian.findFirst({ orderBy: { regNo: 'desc' } });
+  const match = last?.regNo?.match(/(\d+)$/);
+  const next = match ? parseInt(match[1], 10) + 1 : 1043;
+  return `REG-${new Date().getFullYear()}-${String(next).padStart(6, '0')}`;
 }
 
 router.get('/', async (req, res, next) => {
@@ -87,14 +109,16 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const data = christianSchema.parse(req.body);
+    const { regNo: _clientRegNo, ...rest } = data;
     const created = await prisma.christian.create({
       data: {
-        ...data,
+        ...rest,
+        regNo: await nextRegNo(),
         status: data.status ?? 'Active',
-        baptism: data.baptism ?? undefined,
-        eucharist: data.eucharist ?? undefined,
-        confirmation: data.confirmation ?? undefined,
-        marriage: data.marriage ?? undefined,
+        baptism: serializeOptionalJson(data.baptism),
+        eucharist: serializeOptionalJson(data.eucharist),
+        confirmation: serializeOptionalJson(data.confirmation),
+        marriage: serializeOptionalJson(data.marriage),
       },
     });
     res.status(201).json(mapChristian(created));
@@ -110,10 +134,10 @@ router.put('/:id', async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         ...data,
-        baptism: data.baptism ?? undefined,
-        eucharist: data.eucharist ?? undefined,
-        confirmation: data.confirmation ?? undefined,
-        marriage: data.marriage ?? undefined,
+        baptism: serializeOptionalJson(data.baptism),
+        eucharist: serializeOptionalJson(data.eucharist),
+        confirmation: serializeOptionalJson(data.confirmation),
+        marriage: serializeOptionalJson(data.marriage),
       },
     });
     res.json(mapChristian(updated));
@@ -134,10 +158,10 @@ router.patch('/:id/sacraments', async (req, res, next) => {
     const updated = await prisma.christian.update({
       where: { id: req.params.id },
       data: {
-        baptism: body.baptism ?? undefined,
-        eucharist: body.eucharist ?? undefined,
-        confirmation: body.confirmation ?? undefined,
-        marriage: body.marriage ?? undefined,
+        baptism: serializeOptionalJson(body.baptism),
+        eucharist: serializeOptionalJson(body.eucharist),
+        confirmation: serializeOptionalJson(body.confirmation),
+        marriage: serializeOptionalJson(body.marriage),
       },
     });
     res.json(mapChristian(updated));
