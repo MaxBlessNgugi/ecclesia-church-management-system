@@ -86,7 +86,7 @@ export const ReportsView: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => alert("Printing master summary report...")}
+            onClick={() => window.print()}
             className="px-3 py-1.5 text-xs font-semibold text-[#1a1c1c] bg-[#ffffff] border border-[#c4c7c7] hover:bg-[#f4f3f3] rounded cursor-pointer flex items-center gap-1.5"
           >
             <span className="material-symbols-outlined text-base">print</span>

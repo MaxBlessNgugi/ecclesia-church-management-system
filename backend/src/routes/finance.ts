@@ -13,6 +13,13 @@ router.get('/deposits', async (_req, res, next) => {
   } catch (e) { next(e); }
 });
 
+async function nextDepositRefNo(): Promise<string> {
+  const last = await prisma.deposit.findFirst({ orderBy: { refNo: 'desc' } });
+  const match = last?.refNo?.match(/(\d+)$/);
+  const next = match ? parseInt(match[1], 10) + 1 : 1;
+  return `DEP-${String(next).padStart(5, '0')}`;
+}
+
 router.post('/deposits', async (req, res, next) => {
   try {
     const data = z.object({
@@ -21,10 +28,15 @@ router.post('/deposits', async (req, res, next) => {
       bankName: z.string(),
       accountNo: z.string(),
       sourceOfCash: z.string(),
-      refNo: z.string(),
+      refNo: z.string().optional(),
       depositedBy: z.string(),
     }).parse(req.body);
-    const created = await prisma.deposit.create({ data });
+    const created = await prisma.deposit.create({
+      data: {
+        ...data,
+        refNo: data.refNo && data.refNo.trim() ? data.refNo : await nextDepositRefNo(),
+      },
+    });
     res.status(201).json(created);
   } catch (e) { next(e); }
 });
@@ -123,6 +135,13 @@ router.get('/expenses', async (_req, res, next) => {
   } catch (e) { next(e); }
 });
 
+async function nextExpenseVoucherNo(): Promise<string> {
+  const last = await prisma.expense.findFirst({ orderBy: { voucherNo: 'desc' } });
+  const match = last?.voucherNo?.match(/(\d+)$/);
+  const next = match ? parseInt(match[1], 10) + 1 : 1;
+  return `EXP-${String(next).padStart(5, '0')}`;
+}
+
 router.post('/expenses', async (req, res, next) => {
   try {
     const data = z.object({
@@ -131,9 +150,14 @@ router.post('/expenses', async (req, res, next) => {
       description: z.string(),
       amount: z.number().positive(),
       paymentMethod: z.string(),
-      voucherNo: z.string(),
+      voucherNo: z.string().optional(),
     }).parse(req.body);
-    const created = await prisma.expense.create({ data });
+    const created = await prisma.expense.create({
+      data: {
+        ...data,
+        voucherNo: data.voucherNo && data.voucherNo.trim() ? data.voucherNo : await nextExpenseVoucherNo(),
+      },
+    });
     res.status(201).json(created);
   } catch (e) { next(e); }
 });

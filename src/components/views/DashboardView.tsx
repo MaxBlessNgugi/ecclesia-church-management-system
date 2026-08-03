@@ -1,12 +1,13 @@
 import React from 'react';
-import { NavigationTab } from '../../types';
+import { NavigationTab, PanelKey } from '../../types';
 
 interface DashboardViewProps {
   onNavigate: (tab: NavigationTab, subTab?: string) => void;
   memberCount: number;
+  allowedPanels?: PanelKey[];
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, memberCount }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, memberCount, allowedPanels }) => {
   const panels = [
     {
       id: 'christian' as NavigationTab,
@@ -99,6 +100,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
     }
   ];
 
+  const visiblePanels =
+    allowedPanels && allowedPanels.length > 0
+      ? panels.filter((p) => (allowedPanels as string[]).includes(p.id))
+      : panels;
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-200">
       {/* Sanctuary Banner Header */}
@@ -109,7 +115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
             <span>† Central Altar</span>
           </div>
           <h2 className="text-2xl font-serif font-bold text-[#1a1c1c]">
-            St. Mary's Parish
+            Ecclesia Church Management
           </h2>
           <p className="text-xs text-[#444748] leading-relaxed">
             A peaceful sanctuary for management. Access the sacred and administrative duties of the parish from this central altar.
@@ -119,10 +125,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
             <span className="flex items-center gap-1.5 bg-[#f4f3f3] px-3 py-1 rounded-md border border-[#e1e3e3]">
               <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
               {memberCount} Active Parishioners
-            </span>
-            <span className="flex items-center gap-1.5 bg-[#f4f3f3] px-3 py-1 rounded-md border border-[#e1e3e3]">
-              <span className="material-symbols-outlined text-sm text-[#1e1e1e]">church</span>
-              Archdiocese of Nairobi
             </span>
           </div>
         </div>
@@ -138,7 +140,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {panels.map((panel) => (
+          {visiblePanels.map((panel) => (
             <div
               key={panel.id}
               className="bg-[#ffffff] border border-[#e1e3e3] hover:border-[#1e1e1e] rounded-xl p-5 transition-all shadow-2xs hover:shadow-md flex flex-col justify-between group"
@@ -197,8 +199,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span className="font-medium text-[#1a1c1c]">Database Sync: Active</span>
           </div>
-          <span className="text-[#c4c7c7]">|</span>
-          <div>Last Backup: 4h ago</div>
         </div>
 
         <p className="italic text-[#1a1c1c] font-serif text-center md:text-right">

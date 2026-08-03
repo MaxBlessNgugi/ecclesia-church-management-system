@@ -12,8 +12,11 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
+  title        String?
   role         String   @default("staff")
   isActive     Boolean  @default(true)
+  panels       String?
+  actions      String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

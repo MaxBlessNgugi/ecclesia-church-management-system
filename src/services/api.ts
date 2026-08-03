@@ -26,7 +26,9 @@ import {
   SalesReportRow,
   StockIssueRecord,
   StockTakeRecord,
-  TransferRecord
+  TransferRecord,
+  UserAccount,
+  UserRole
 } from '../types';
 
 /**
@@ -262,6 +264,22 @@ export const adminApi = {
     get: () => request<PanelPermissions>('/admin/rights'),
     update: (body: PanelPermissions) =>
       request<PanelPermissions>('/admin/rights', { method: 'PUT', body: JSON.stringify(body) })
+  },
+  users: {
+    list: () => request<UserAccount[]>('/admin/users'),
+    create: (body: { name: string; email: string; password: string; role: UserRole; title?: string }) =>
+      request<UserAccount>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Partial<UserAccount> & { password?: string }) =>
+      request<UserAccount>(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+  },
+  permissions: {
+    get: (userId: string) => request<PanelPermissions>(`/admin/users/${userId}/permissions`),
+    update: (userId: string, body: PanelPermissions) =>
+      request<PanelPermissions>(`/admin/users/${userId}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify(body)
+      })
   },
   pushPayments: {
     get: () => request<PushPaymentSettings>('/admin/push-payments'),

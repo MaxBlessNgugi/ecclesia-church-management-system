@@ -27,10 +27,10 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
     secondName: '',
     sirName: '',
     phone: '',
-    diocese: 'Archdiocese of Nairobi',
-    parish: "St. Mary's Parish",
-    localChurch: 'Our Lady of Sorrows',
-    scc: 'St. Jude'
+    diocese: '',
+    parish: '',
+    localChurch: '',
+    scc: ''
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -50,28 +50,37 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       secondName: '',
       sirName: '',
       phone: '',
-      diocese: 'Archdiocese of Nairobi',
-      parish: "St. Mary's Parish",
-      localChurch: 'Our Lady of Sorrows',
-      scc: 'St. Jude'
+      diocese: '',
+      parish: '',
+      localChurch: '',
+      scc: ''
     });
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.baptismalName || !formData.sirName) {
-      alert('Please fill in at least Baptismal Name and Sir Name.');
+    if (
+      !formData.baptismalName ||
+      !formData.sirName ||
+      !formData.nationalId ||
+      !formData.phone ||
+      !formData.diocese ||
+      !formData.parish ||
+      !formData.localChurch ||
+      !formData.scc
+    ) {
+      alert('Please complete all required fields: names, National ID, phone, diocese, parish, local church and SCC.');
       return;
     }
 
     const newRecord: ChristianRecord = {
       id: `c_${Date.now()}`,
       regNo: '',
-      nationalId: formData.nationalId || 'N/A',
+      nationalId: formData.nationalId,
       baptismalName: formData.baptismalName,
       secondName: formData.secondName,
       sirName: formData.sirName,
-      phone: formData.phone || '+254 700 000 000',
+      phone: formData.phone,
       diocese: formData.diocese,
       parish: formData.parish,
       localChurch: formData.localChurch,
@@ -159,7 +168,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
         <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-base">check_circle</span>
-            <span>Christian record registered successfully into St. Mary's Parish Roll!</span>
+            <span>Christian record registered successfully into the Parish Roll!</span>
           </div>
           <button onClick={() => setSavedSuccess(false)} className="cursor-pointer">✕</button>
         </div>
@@ -261,6 +270,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                   onChange={(e) => setFormData({ ...formData, diocese: e.target.value })}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
                 >
+                  <option value="">Select Diocese...</option>
                   <option value="Archdiocese of Nairobi">Archdiocese of Nairobi</option>
                   <option value="Diocese of Nakuru">Diocese of Nakuru</option>
                   <option value="Diocese of Machakos">Diocese of Machakos</option>
@@ -278,6 +288,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                   onChange={(e) => setFormData({ ...formData, parish: e.target.value })}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
                 >
+                  <option value="">Select Parish...</option>
                   <option value="St. Mary's Parish">St. Mary's Parish</option>
                   <option value="St. Joseph Parish">St. Joseph Parish</option>
                   <option value="Holy Family Cathedral">Holy Family Cathedral</option>
@@ -294,6 +305,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                   onChange={(e) => setFormData({ ...formData, localChurch: e.target.value })}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
                 >
+                  <option value="">Select Local Church...</option>
                   <option value="Our Lady of Sorrows">Our Lady of Sorrows</option>
                   <option value="St. Peters Center">St. Peters Center</option>
                   <option value="St. Teresa Chapel">St. Teresa Chapel</option>
@@ -310,6 +322,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                   onChange={(e) => setFormData({ ...formData, scc: e.target.value })}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
                 >
+                  <option value="">Select SCC / Jumuiya...</option>
                   <option value="St. Jude">St. Jude</option>
                   <option value="St. Francis">St. Francis</option>
                   <option value="St. Anne">St. Anne</option>

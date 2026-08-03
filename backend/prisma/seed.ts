@@ -8,9 +8,14 @@ async function main() {
   const email = process.env.SUPER_ADMIN_EMAIL || 'maxblessngugi@ecclesia.local';
   const password = process.env.SUPER_ADMIN_PASSWORD || 'ChangeMeImmediately123!';
   const name = process.env.SUPER_ADMIN_NAME || 'Max Bless Ngugi';
+  const title = process.env.SUPER_ADMIN_TITLE || 'Primary Developer';
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { name, title },
+    });
     console.log(`Super admin already exists: ${email}`);
   } else {
     const passwordHash = await bcrypt.hash(password, 12);
@@ -19,6 +24,7 @@ async function main() {
         email,
         passwordHash,
         name,
+        title,
         role: 'super_admin',
         isActive: true,
       },

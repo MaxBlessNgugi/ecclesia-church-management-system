@@ -20,7 +20,7 @@ export type LedgersSubTab = 'mgmt' | 'transfer';
 export type InventorySubTab = 'inward' | 'sale' | 'stock_take' | 'issue' | 'edit';
 export type ReportsSubTab = 'sacraments' | 'contributions' | 'sales' | 'cashiers';
 export type HRSubTab = 'directory' | 'onboarding' | 'payroll' | 'leave' | 'recruitment';
-export type AdminSubTab = 'rights' | 'push_payments';
+export type AdminSubTab = 'rights' | 'users' | 'push_payments';
 
 export interface SacramentData {
   date?: string;
@@ -283,6 +283,18 @@ export interface PushPaymentSettings {
   testAmount: string;
 }
 
+export type UserRole = 'super_admin' | 'admin' | 'staff' | 'viewer';
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  title: string | null;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+}
+
 // ---------- Dashboard ----------
 
 export interface DashboardSummary {
@@ -312,12 +324,16 @@ export interface RegisterRequest {
   role: string;
 }
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  title: string | null;
+  role: UserRole;
+  permissions: PanelPermissions;
+}
+
 export interface AuthSession {
   token: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
+  user: AuthUser;
 }

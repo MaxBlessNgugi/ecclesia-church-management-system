@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavigationTab } from '../types';
+import { AuthUser, NavigationTab } from '../types';
 
 /**
  * Header component props interface.
@@ -11,6 +11,7 @@ interface HeaderProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
   onOpenSearch: () => void;
+  user?: AuthUser | null;
 }
 
 /**
@@ -21,7 +22,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   onSelectTab,
   onToggleSidebar,
-  onOpenSearch
+  onOpenSearch,
+  user
 }) => {
   // Controls visibility of the administrator profile dropdown menu
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -91,13 +93,15 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2.5 pl-2 pr-3 py-1 rounded-full hover:bg-[#f4f3f3] border border-[#e1e3e3] transition-colors cursor-pointer"
           >
             <div className="w-8 h-8 rounded-full bg-[#1e1e1e] text-white flex items-center justify-center font-medium text-xs">
-              FT
+              {user ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : '?'}
             </div>
             <div className="hidden sm:block text-left">
               <div className="text-xs font-semibold text-[#1a1c1c] leading-tight">
-                Fr. Thomas
+                {user?.name ?? 'Guest'}
               </div>
-              <div className="text-[10px] text-[#444748]">Administrator</div>
+              <div className="text-[10px] text-[#444748]">
+                {user ? (user.title ?? user.role[0].toUpperCase() + user.role.slice(1).replace('_', ' ')) : 'Not signed in'}
+              </div>
             </div>
             <span className="material-symbols-outlined text-sm text-[#444748]">
               expand_more
@@ -108,10 +112,10 @@ export const Header: React.FC<HeaderProps> = ({
           {showProfileMenu && (
             <div className="absolute right-0 mt-2 w-56 bg-white border border-[#e1e3e3] rounded-lg shadow-lg py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="px-4 py-2.5 border-b border-[#e1e3e3] bg-[#f4f3f3]">
-                <p className="text-xs font-bold text-[#1a1c1c]">Fr. Thomas</p>
-                <p className="text-[11px] text-[#444748]">fr.thomas@stmarysparish.org</p>
+                <p className="text-xs font-bold text-[#1a1c1c]">{user?.name ?? 'Guest'}</p>
+                <p className="text-[11px] text-[#444748]">{user?.email ?? 'Not signed in'}</p>
                 <span className="inline-block mt-1 px-2 py-0.5 text-[9px] bg-[#1e1e1e] text-white rounded font-medium">
-                  St. Mary's Parish Admin
+                  {user ? (user.title ?? user.role[0].toUpperCase() + user.role.slice(1).replace('_', ' ')) : 'Guest'}
                 </span>
               </div>
 

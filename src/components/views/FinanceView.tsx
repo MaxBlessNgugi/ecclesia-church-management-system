@@ -35,20 +35,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   const [subTab, setSubTab] = useState<FinanceSubTab>(initialSubTab);
 
   // 1. Deposit Form State
-  const [depositDate, setDepositDate] = useState('2024-05-18');
-  const [depositAmount, setDepositAmount] = useState<number>(3450);
-  const [bankName, setBankName] = useState("St. Jude's Mercantile");
-  const [accountNo, setAccountNo] = useState('ac-9081');
-  const [sourceOfCash, setSourceOfCash] = useState('Weekly Mass Offerings');
-  const [refNo, setRefNo] = useState('DEP-88391');
-  const [depositedBy, setDepositedBy] = useState('Fr. Thomas');
+  const [depositDate, setDepositDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [bankName, setBankName] = useState('');
+  const [accountNo, setAccountNo] = useState('');
+  const [sourceOfCash, setSourceOfCash] = useState('');
+  const [refNo, setRefNo] = useState('');
+  const [depositedBy, setDepositedBy] = useState('');
 
   // 2. Log New Creditor Modal
   const [showCreditorModal, setShowCreditorModal] = useState(false);
   const [newVendor, setNewVendor] = useState('');
   const [newVendorDesc, setNewVendorDesc] = useState('');
   const [newInvoiceNo, setNewInvoiceNo] = useState('');
-  const [newVendorAmount, setNewVendorAmount] = useState<number>(1000);
+  const [newVendorAmount, setNewVendorAmount] = useState<number>(0);
   const [newVendorDueDate, setNewVendorDueDate] = useState('');
 
   // 3. Record Debtor Payment Modal
@@ -57,15 +57,19 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   const [debtorPayAmount, setDebtorPayAmount] = useState<number>(100);
 
   // 4. Expense Form State
-  const [expenseDate, setExpenseDate] = useState('2024-05-20');
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [expenseCategory, setExpenseCategory] = useState('Utilities');
-  const [expensePayee, setExpensePayee] = useState('Altar Wine Supplies Ltd.');
-  const [expenseAmount, setExpenseAmount] = useState<number>(450);
+  const [expensePayee, setExpensePayee] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState<number>(0);
   const [expenseMethod, setExpenseMethod] = useState('Check / Voucher');
-  const [expenseVoucher, setExpenseVoucher] = useState('VCH-2024-001');
+  const [expenseVoucher, setExpenseVoucher] = useState('');
 
   const handleDepositSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!depositAmount || depositAmount <= 0 || !bankName || !accountNo || !sourceOfCash || !depositedBy) {
+      alert('Please complete all deposit fields.');
+      return;
+    }
     const newDep: DepositRecord = {
       id: `dep_${Date.now()}`,
       date: depositDate,
@@ -73,21 +77,31 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
       bankName,
       accountNo,
       sourceOfCash,
-      refNo,
+      refNo: refNo.trim(),
       depositedBy
     };
     onAddDeposit(newDep);
-    alert(`Deposit slip ${refNo} ($${depositAmount.toFixed(2)}) recorded into parish accounts!`);
+    alert(`Deposit slip ($${depositAmount.toFixed(2)}) recorded into parish accounts!`);
+    setDepositAmount(0);
+    setBankName('');
+    setAccountNo('');
+    setSourceOfCash('');
+    setRefNo('');
+    setDepositedBy('');
   };
 
   const handleAddCreditorSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVendor) return;
+    if (!newInvoiceNo) {
+      alert('Please enter the vendor invoice number.');
+      return;
+    }
     const newCred: CreditorRecord = {
       id: `cr_${Date.now()}`,
       vendor: newVendor,
       description: newVendorDesc || 'Parish Services',
-      invoiceNo: newInvoiceNo || `#INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      invoiceNo: newInvoiceNo,
       amountOwed: newVendorAmount,
       dueDate: newVendorDueDate || 'Next Month',
       status: 'Pending'
@@ -95,11 +109,19 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     onAddCreditor(newCred);
     setShowCreditorModal(false);
     setNewVendor('');
+    setNewVendorDesc('');
+    setNewInvoiceNo('');
+    setNewVendorAmount(0);
+    setNewVendorDueDate('');
     alert(`New debt invoice recorded for ${newVendor}!`);
   };
 
   const handleExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!expensePayee || !expenseAmount || expenseAmount <= 0) {
+      alert('Please enter a payee and a positive amount.');
+      return;
+    }
     const newExp: ExpenseRecord = {
       id: `exp_${Date.now()}`,
       date: expenseDate,
@@ -107,14 +129,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
       description: expensePayee,
       amount: expenseAmount,
       paymentMethod: expenseMethod,
-      voucherNo: expenseVoucher
+      voucherNo: expenseVoucher.trim()
     };
     onAddExpense(newExp);
-    alert(`Expense voucher ${expenseVoucher} ($${expenseAmount.toFixed(2)}) saved!`);
+    alert(`Expense voucher ($${expenseAmount.toFixed(2)}) saved!`);
+    setExpensePayee('');
+    setExpenseAmount(0);
+    setExpenseVoucher('');
   };
 
   const totalCreditorsOwed = creditors.reduce((sum, c) => sum + (c.status !== 'Paid' ? c.amountOwed : 0), 0);
   const totalDebtorsOwed = debtors.reduce((sum, d) => sum + (d.status !== 'Paid' ? d.amount : 0), 0);
+  const overdueCreditors = creditors.filter((c) => c.status === 'Overdue').length;
+  const paidDebtors = debtors.filter((d) => d.status === 'Paid').length;
+  const collectionRate = debtors.length > 0 ? Math.round((paidDebtors / debtors.length) * 1000) / 10 : 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
@@ -233,7 +261,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   onChange={(e) => setBankName(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                 >
-                  <option value="St. Jude's Mercantile">St. Jude's Mercantile</option>
+                  <option value="">Select Bank...</option>
                   <option value="National Catholic Bank">National Catholic Bank</option>
                   <option value="Ecclesia Trust Bank">Ecclesia Trust Bank</option>
                 </select>
@@ -248,9 +276,10 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   onChange={(e) => setAccountNo(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                 >
-                  <option value="ac-9081">ac-9081 (General Parish Operating)</option>
-                  <option value="ac-4011">ac-4011 (Building & Restoration)</option>
-                  <option value="ac-7720">ac-7720 (Diocesan Development)</option>
+                  <option value="">Select Account...</option>
+                  <option value="General Parish Operating">General Parish Operating</option>
+                  <option value="Building & Restoration">Building & Restoration</option>
+                  <option value="Diocesan Development">Diocesan Development</option>
                 </select>
               </div>
 
@@ -263,6 +292,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   onChange={(e) => setSourceOfCash(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                 >
+                  <option value="">Select Source...</option>
                   <option value="Weekly Mass Offerings">Weekly Mass Offerings</option>
                   <option value="Tithe Direct">Tithe Direct</option>
                   <option value="Building Fund Pledges">Building Fund Pledges</option>
@@ -276,6 +306,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 </label>
                 <input
                   type="text"
+                  placeholder="Auto-generated if left blank"
                   value={refNo}
                   onChange={(e) => setRefNo(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -362,7 +393,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   CREDITORS & ACCOUNTS PAYABLE
                 </h3>
                 <span className="px-2 py-0.5 text-[10px] bg-red-100 text-red-800 rounded font-bold">
-                  3 Invoices Overdue
+                  {overdueCreditors} {overdueCreditors === 1 ? 'Invoice' : 'Invoices'} Overdue
                 </span>
               </div>
               <p className="text-xs text-[#444748] mt-1">
@@ -453,12 +484,12 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 <strong className="text-[#1a1c1c] text-sm">
                   ${totalDebtorsOwed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </strong>{' '}
-                • Collection Rate: 82.5%
+                • Collection Rate: {collectionRate}%
               </p>
             </div>
 
             <div className="w-48 bg-[#f4f3f3] h-3 rounded-full overflow-hidden border border-[#e1e3e3]">
-              <div className="bg-[#1e1e1e] h-full w-[82.5%]" />
+              <div className="bg-[#1e1e1e] h-full" style={{ width: `${collectionRate}%` }} />
             </div>
           </div>
 
@@ -607,6 +638,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 </label>
                 <input
                   type="text"
+                  placeholder="Auto-generated if left blank"
                   value={expenseVoucher}
                   onChange={(e) => setExpenseVoucher(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -686,6 +718,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   placeholder="e.g. Roof Repair"
                   value={newVendorDesc}
                   onChange={(e) => setNewVendorDesc(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-[#444748] mb-1">Invoice #</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. INV-2024-0012"
+                  value={newInvoiceNo}
+                  onChange={(e) => setNewInvoiceNo(e.target.value)}
                   className="w-full px-3 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded"
                 />
               </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivitiesSubTab,
+  AuthUser,
   ChristianRecord,
   ChristianSubTab,
   ContributionRecord,
@@ -11,6 +12,7 @@ import {
   ExpenseRecord,
   FinanceSubTab,
   NavigationTab,
+  PanelKey,
   SacramentsSubTab
 } from './types';
 
@@ -67,6 +69,9 @@ export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
+  // Currently signed-in user (with per-user panel/action permissions)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+
   // Selected parishioner context passed across multi-step action views (e.g. sacrament update, contribution receipt)
   const [selectedMember, setSelectedMember] = useState<ChristianRecord | null>(null);
 
@@ -92,6 +97,12 @@ export const App: React.FC = () => {
   };
 
   const handleAuthSuccess = async () => {
+    try {
+      const me = await authApi.me();
+      setCurrentUser(me);
+    } catch {
+      setCurrentUser(null);
+    }
     setIsAuthenticated(true);
     setCurrentTab('dashboard');
     await loadDashboardData();
@@ -108,7 +119,8 @@ export const App: React.FC = () => {
       }
 
       try {
-        await authApi.me();
+        const me = await authApi.me();
+        setCurrentUser(me);
         setIsAuthenticated(true);
         setCurrentTab('dashboard');
         await loadDashboardData();
@@ -156,6 +168,14 @@ export const App: React.FC = () => {
    * Switches the active top-level navigation view and optionally sets the active sub-tab.
    */
   const handleNavigate = (tab: NavigationTab, subTab?: string) => {
+    if (tab === 'auth') {
+      localStorage.removeItem('ecclesia_token');
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setCurrentTab('auth');
+      return;
+    }
+    if (tab !== 'dashboard' && !canAccessTab(tab)) return;
     setCurrentTab(tab);
     if (subTab) {
       if (tab === 'christian') setChristianSubTab(subTab as ChristianSubTab);
@@ -164,6 +184,22 @@ export const App: React.FC = () => {
       if (tab === 'finance') setFinanceSubTab(subTab as FinanceSubTab);
     }
   };
+
+  /**
+   * Whether the signed-in user may open the given management panel.
+   * Dashboard and Auth are always reachable; everything else maps to a panel permission.
+   */
+  const canAccessTab = (tab: NavigationTab): boolean => {
+    if (tab === 'dashboard' || tab === 'auth') return true;
+    if (!currentUser) return false;
+    const key = tab as PanelKey;
+    return currentUser.permissions.panels[key] !== false;
+  };
+
+  // Panels the current user is allowed to see (used to filter the sidebar + dashboard grid)
+  const allowedPanels: PanelKey[] = (Object.keys(currentUser?.permissions.panels ?? {}) as PanelKey[]).filter(
+    (k) => currentUser?.permissions.panels[k]
+  );
 
   /** Adds a newly registered parishioner to the central register (persists to the backend). */
   const handleAddChristian = async (newMember: ChristianRecord) => {
@@ -328,6 +364,18 @@ export const App: React.FC = () => {
     }
   };
 
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f9f9f9]">
+        <p className="text-xs text-[#444748] animate-pulse">Loading Ecclesia CMS...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthView onSuccessAuth={() => void handleAuthSuccess()} />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f9f9f9] text-[#1a1c1c] font-serif selection:bg-[#1e1e1e] selection:text-white">
       {/* Top Header */}
@@ -337,6 +385,7 @@ export const App: React.FC = () => {
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onOpenSearch={() => setIsSearchOpen(true)}
+        user={currentUser}
       />
 
       {/* Main Body Container */}
@@ -347,76 +396,71 @@ export const App: React.FC = () => {
           onSelectTab={(tab) => handleNavigate(tab)}
           isOpen={isSidebarOpen}
           onCloseMobile={() => setIsSidebarOpen(false)}
+          allowedPanels={allowedPanels}
         />
 
         {/* Content View Area */}
         <main className="flex-1 overflow-y-auto">
-          {!isAuthenticated && !isAuthChecking ? (
-            <AuthView onSuccessAuth={() => void handleAuthSuccess()} />
-          ) : (
-            <>
-              {currentTab === 'dashboard' && (
-                <DashboardView
-                  onNavigate={handleNavigate}
-                  memberCount={christians.filter((c) => c.status === 'Active').length}
-                />
-              )}
-
-              {currentTab === 'christian' && (
-                <ChristianView
-                  christians={christians}
-                  onAddChristian={handleAddChristian}
-                  onDeleteChristian={handleDeleteChristian}
-                  onSelectMemberForSacrament={handleSelectMemberForSacrament}
-                  onSelectMemberForPayment={handleSelectMemberForPayment}
-                  initialSubTab={christianSubTab}
-                />
-              )}
-
-              {currentTab === 'activities' && (
-                <ActivitiesView
-                  christians={christians}
-                  selectedMember={selectedMember}
-                  initialSubTab={activitiesSubTab}
-                  onRecordPayment={handleRecordPayment}
-                  onTransferChristian={handleTransferChristian}
-                />
-              )}
-
-              {currentTab === 'sacraments' && (
-                <SacramentsView
-                  christians={christians}
-                  selectedMember={selectedMember}
-                  deathRecords={deathRecords}
-                  initialSubTab={sacramentsSubTab}
-                  onUpdateSacraments={handleUpdateSacraments}
-                  onRecordDeath={handleRecordDeath}
-                />
-              )}
-
-              {currentTab === 'finance' && (
-                <FinanceView
-                  deposits={deposits}
-                  creditors={creditors}
-                  debtors={debtors}
-                  expenses={expenses}
-                  initialSubTab={financeSubTab}
-                  onAddDeposit={handleAddDeposit}
-                  onAddCreditor={handleAddCreditor}
-                  onMarkCreditorPaid={handleMarkCreditorPaid}
-                  onRecordDebtorPayment={handleRecordDebtorPayment}
-                  onAddExpense={handleAddExpense}
-                />
-              )}
-
-              {currentTab === 'ledgers' && <LedgersView />}
-              {currentTab === 'inventory' && <InventoryView />}
-              {currentTab === 'reports' && <ReportsView />}
-              {currentTab === 'hr' && <HRView />}
-              {currentTab === 'administration' && <AdminView />}
-              {currentTab === 'auth' && <AuthView onSuccessAuth={() => void handleAuthSuccess()} />}
-            </>
+          {currentTab === 'dashboard' && (
+            <DashboardView
+              onNavigate={handleNavigate}
+              memberCount={christians.filter((c) => c.status === 'Active').length}
+              allowedPanels={allowedPanels}
+            />
           )}
+
+          {currentTab === 'christian' && (
+            <ChristianView
+              christians={christians}
+              onAddChristian={handleAddChristian}
+              onDeleteChristian={handleDeleteChristian}
+              onSelectMemberForSacrament={handleSelectMemberForSacrament}
+              onSelectMemberForPayment={handleSelectMemberForPayment}
+              initialSubTab={christianSubTab}
+            />
+          )}
+
+          {currentTab === 'activities' && (
+            <ActivitiesView
+              christians={christians}
+              selectedMember={selectedMember}
+              initialSubTab={activitiesSubTab}
+              onRecordPayment={handleRecordPayment}
+              onTransferChristian={handleTransferChristian}
+            />
+          )}
+
+          {currentTab === 'sacraments' && (
+            <SacramentsView
+              christians={christians}
+              selectedMember={selectedMember}
+              deathRecords={deathRecords}
+              initialSubTab={sacramentsSubTab}
+              onUpdateSacraments={handleUpdateSacraments}
+              onRecordDeath={handleRecordDeath}
+            />
+          )}
+
+          {currentTab === 'finance' && (
+            <FinanceView
+              deposits={deposits}
+              creditors={creditors}
+              debtors={debtors}
+              expenses={expenses}
+              initialSubTab={financeSubTab}
+              onAddDeposit={handleAddDeposit}
+              onAddCreditor={handleAddCreditor}
+              onMarkCreditorPaid={handleMarkCreditorPaid}
+              onRecordDebtorPayment={handleRecordDebtorPayment}
+              onAddExpense={handleAddExpense}
+            />
+          )}
+
+          {currentTab === 'ledgers' && <LedgersView />}
+          {currentTab === 'inventory' && <InventoryView />}
+          {currentTab === 'reports' && <ReportsView />}
+          {currentTab === 'hr' && <HRView />}
+          {currentTab === 'administration' && <AdminView currentUserId={currentUser?.id ?? null} />}
 
           <Footer />
         </main>

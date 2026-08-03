@@ -14,7 +14,7 @@ export const Footer: React.FC = () => {
         <div className="flex items-center gap-2">
           <span className="font-bold text-[#1a1c1c]">† Ecclesia CMS</span>
           <span className="text-[#c4c7c7]">|</span>
-          <span>St. Mary's Parish Administration</span>
+          <span>Parish Administration</span>
         </div>
 
         {/* Center: Inspirational parish governance quote */}

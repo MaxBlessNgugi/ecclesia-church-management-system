@@ -15,8 +15,46 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().min(1),
+  title: z.string().max(100).optional(),
   role: z.enum(['admin', 'staff', 'viewer']).default('staff'),
 });
+
+const defaultPanels = {
+  christian: true,
+  activities: true,
+  sacraments: true,
+  finance: true,
+  ledgers: true,
+  inventory: true,
+  reports: true,
+  hr: true,
+  administration: true,
+};
+
+const defaultActions = { view: true, edit: true, delete: true };
+
+function parseJson<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function session(user: any) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    title: user.title ?? null,
+    role: user.role,
+    permissions: {
+      panels: parseJson(user.panels, defaultPanels),
+      actions: parseJson(user.actions, defaultActions),
+    },
+  };
+}
 
 router.post('/login', async (req, res, next) => {
   try {
@@ -29,10 +67,7 @@ router.post('/login', async (req, res, next) => {
     if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
 
     const token = signToken({ id: user.id, email: user.email, role: user.role });
-    res.json({
-      token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    });
+    res.json({ token, user: session(user) });
   } catch (e) {
     next(e);
   }
@@ -62,10 +97,7 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
     });
 
     const token = signToken({ id: user.id, email: user.email, role: user.role });
-    res.status(201).json({
-      token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    });
+    res.status(201).json({ token, user: session(user) });
   } catch (e) {
     next(e);
   }
@@ -75,7 +107,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user || !user.isActive) return res.status(401).json({ error: 'User not found' });
-    res.json({ id: user.id, name: user.name, email: user.email, role: user.role });
+    res.json(session(user));
   } catch (e) {
     next(e);
   }

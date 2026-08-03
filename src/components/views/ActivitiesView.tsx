@@ -768,7 +768,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
             </div>
 
             <div className="text-center text-[10px] italic text-[#444748] pt-2">
-              "Thank you for supporting the sanctuary and mission of St. Mary's Parish."
+              "Thank you for supporting the sanctuary and mission of our Parish."
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-[#e1e3e3]">

@@ -436,16 +436,20 @@ export const HRView: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div className="p-4 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg">
-              <span className="text-[10px] font-bold text-[#444748] uppercase">MONTHLY DISBURSEMENT</span>
-              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">$8,450.00</div>
+              <span className="text-[10px] font-bold text-[#444748] uppercase">TOTAL STAFF RECORDS</span>
+              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">{employees.length}</div>
             </div>
             <div className="p-4 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg">
-              <span className="text-[10px] font-bold text-[#444748] uppercase">CLERGY STIPENDS</span>
-              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">4 Vouchers</div>
+              <span className="text-[10px] font-bold text-[#444748] uppercase">ROLES ON FILE</span>
+              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">
+                {new Set(employees.map((e) => e.role)).size}
+              </div>
             </div>
             <div className="p-4 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg">
               <span className="text-[10px] font-bold text-[#444748] uppercase">PAYROLL STATUS</span>
-              <div className="text-xl font-serif font-bold text-emerald-800 mt-1">Approved Q3</div>
+              <div className="text-xl font-serif font-bold text-emerald-800 mt-1">
+                {employees.length > 0 ? 'Records Ready' : 'No Staff Yet'}
+              </div>
             </div>
           </div>
         </div>
@@ -481,7 +485,7 @@ export const HRView: React.FC = () => {
             <div className="flex justify-between items-center">
               <div>
                 <span className="font-bold text-[#1a1c1c]">Assistant Catechist (Volunteer)</span>
-                <span className="text-[#444748] ml-2">• 3 Applicants Pending Screening</span>
+                <span className="text-[#444748] ml-2">• 0 Applicants Pending Screening</span>
               </div>
               <button
                 onClick={() => alert("Opening applicant review board...")}

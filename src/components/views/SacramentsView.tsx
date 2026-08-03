@@ -70,7 +70,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   const [placeOfDeath, setPlaceOfDeath] = useState('');
   const [dateOfDeath, setDateOfDeath] = useState('');
   const [dateOfBurial, setDateOfBurial] = useState('');
-  const [deathMinister, setDeathMinister] = useState('Rev. Fr. Thomas');
+  const [deathMinister, setDeathMinister] = useState('');
   const [remarks, setRemarks] = useState('');
 
   const handleSaveSacraments = (e: React.FormEvent) => {
@@ -243,7 +243,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. St. Mary's Parish"
+                      placeholder="e.g. your Parish"
                       value={baptism.place}
                       onChange={(e) => setBaptism({ ...baptism, place: e.target.value })}
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -278,7 +278,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Rev. Fr. Thomas"
+                      placeholder="e.g. Rev. Fr. Name"
                       value={eucharist.minister}
                       onChange={(e) => setEucharist({ ...eucharist, minister: e.target.value })}
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -290,7 +290,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. St. Mary's Parish"
+                      placeholder="e.g. your Parish"
                       value={eucharist.place}
                       onChange={(e) => setEucharist({ ...eucharist, place: e.target.value })}
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -372,7 +372,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Rev. Fr. Thomas"
+                      placeholder="e.g. Rev. Fr. Name"
                       value={marriage.minister}
                       onChange={(e) => setMarriage({ ...marriage, minister: e.target.value })}
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -384,7 +384,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. St. Mary's Parish"
+                      placeholder="e.g. your Parish"
                       value={marriage.place}
                       onChange={(e) => setMarriage({ ...marriage, place: e.target.value })}
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -487,7 +487,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Rev. Fr. Thomas"
+                    placeholder="e.g. Rev. Fr. Name"
                     value={deathMinister}
                     onChange={(e) => setDeathMinister(e.target.value)}
                     className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -501,7 +501,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="e.g. Requiem Mass celebrated at St. Mary's Parish..."
+                  placeholder="e.g. Requiem Mass celebrated at the Parish..."
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
@@ -591,8 +591,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
             <div className="pt-6 border-t border-[#1e1e1e] flex justify-between items-end text-xs">
               <div>
-                <p className="font-bold">Fr. Thomas</p>
-                <p className="text-[10px] text-[#444748]">Parish Administrator & Seal</p>
+                <p className="font-bold">Parish Administrator</p>
+                <p className="text-[10px] text-[#444748]">Parish Seal & Signature</p>
               </div>
 
               <div className="flex gap-2 font-sans">

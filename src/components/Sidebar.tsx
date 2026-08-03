@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationTab } from '../types';
+import { NavigationTab, PanelKey } from '../types';
 
 /**
  * Interface properties for Sidebar navigation drawer component.
@@ -13,6 +13,8 @@ interface SidebarProps {
   isOpen: boolean;
   /** Callback to dismiss sidebar on mobile overlay click */
   onCloseMobile: () => void;
+  /** Panels the signed-in user is permitted to access (empty = show all) */
+  allowedPanels?: PanelKey[];
 }
 
 /**
@@ -33,10 +35,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
   isOpen,
-  onCloseMobile
+  onCloseMobile,
+  allowedPanels
 }) => {
   // Main management navigation menu items configuration
-  const navItems: NavItem[] = [
+  const allNavItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
     { id: 'christian', label: 'Christian', icon: 'person_search' },
     { id: 'activities', label: 'Activities', icon: 'payments' },
@@ -48,6 +51,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'hr', label: 'HR', icon: 'groups' },
     { id: 'administration', label: 'Administration', icon: 'admin_panel_settings' }
   ];
+
+  const navItems: NavItem[] =
+    allowedPanels && allowedPanels.length > 0
+      ? allNavItems.filter(
+          (item) => item.id === 'dashboard' || (allowedPanels as string[]).includes(item.id)
+        )
+      : allNavItems;
 
   // Handles navigation item click and automatically collapses mobile overlay
   const handleSelect = (tab: NavigationTab) => {
@@ -128,9 +138,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="p-3 rounded-lg bg-[#ffffff] border border-[#e1e3e3] text-center space-y-1">
               <div className="text-xs font-semibold text-[#1a1c1c] flex items-center justify-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                St. Mary's Parish
+                System Online
               </div>
-              <p className="text-[10px] text-[#444748]">Ecclesia CMS v2.4 Active</p>
+              <p className="text-[10px] text-[#444748]">Ecclesia CMS</p>
               <button
                 onClick={() => handleSelect('auth')}
                 className="mt-2 w-full py-1 text-[11px] text-[#1e1e1e] bg-[#f4f3f3] hover:bg-[#eeeeee] border border-[#c4c7c7] rounded transition-colors font-medium cursor-pointer"
