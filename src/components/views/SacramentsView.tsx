@@ -449,7 +449,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. St. Jude Medical Center"
+                     placeholder="e.g. Hospital or Home"
                     value={placeOfDeath}
                     onChange={(e) => setPlaceOfDeath(e.target.value)}
                     className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"

@@ -86,7 +86,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
           <input
             type="text"
             autoFocus
-            placeholder="Search parishioners by name, reg no (e.g. REG-2026-001042), phone..."
+             placeholder="Search parishioners by name, reg no, phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-1 text-sm text-[#1a1c1c] outline-none placeholder-[#444748] bg-transparent"

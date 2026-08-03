@@ -57,16 +57,16 @@ Single source of truth for the backend. The frontend client in
   "nationalId": "12345678",
   "baptismalName": "Maria",
   "secondName": "Magdalene",
-  "sirName": "Smith",
-  "phone": "+254 700 000 000",
+  "sirName": "Surname",
+  "phone": "+254 7XX XXX XXX",
   "diocese": "Archdiocese of Nairobi",
-  "parish": "St. Mary's Parish",
-  "localChurch": "Our Lady of Sorrows",
-  "scc": "St. Jude",
+  "parish": "Your Parish",
+  "localChurch": "Your Local Church",
+  "scc": "Your SCC",
   "status": "Active",
-  "baptism":  { "date": "2010-04-15", "minister": "Rev. Fr. Joseph", "place": "St. Mary's Parish" },
-  "eucharist":   { "date": "2012-05-20", "minister": "Rev. Fr. Thomas", "place": "St. Mary's Parish" },
-  "confirmation":{ "date": "2016-10-12", "minister": "His Lordship Bishop Paul", "place": "Cathedral of St. Peter" },
+  "baptism":  { "date": "2010-04-15", "minister": "Rev. Fr. Name", "place": "Your Parish" },
+  "eucharist":   { "date": "2012-05-20", "minister": "Rev. Fr. Name", "place": "Your Parish" },
+  "confirmation":{ "date": "2016-10-12", "minister": "Bishop Name", "place": "Cathedral" },
   "marriage":    { "date": "", "minister": "", "place": "" }
 }
 ```
@@ -87,10 +87,10 @@ Single source of truth for the backend. The frontend client in
 {
   "id": "con1",
   "christianId": "c1",
-  "memberName": "Maria Magdalene Smith",
-  "regNo": "REG-2026-001042",
+  "memberName": "Member Name",
+  "regNo": "REG-YYYY-NNNN",
   "categories": ["10% Tithing"],
-  "monthlyTracker": { "JAN": true, "FEB": true, "MAR": true, "APR": false, "MAY": true, "JUN": false },
+  "monthlyTracker": { "JAN": true, "FEB": true, "MAR": true },
   "amountKES": 1500,
   "date": "2026-07-15"
 }
@@ -100,7 +100,7 @@ Single source of truth for the backend. The frontend client in
 {
   "id": "b1",
   "christianId": "c5",
-  "memberName": "Cecilia Vance",
+  "memberName": "Member Name",
   "isWalkIn": false,
   "category": "Certificates",
   "item": "Baptismal Certificate",
@@ -139,13 +139,13 @@ Single source of truth for the backend. The frontend client in
 ```json
 {
   "id": "dep1",
-  "date": "2024-05-18",
+  "date": "2026-07-15",
   "amount": 3450,
-  "bankName": "St. Jude's Mercantile",
-  "accountNo": "ac-9081",
-  "sourceOfCash": "Weekly Mass Offerings",
-  "refNo": "DEP-88391",
-  "depositedBy": "Fr. Thomas"
+  "bankName": "Parish Bank",
+  "accountNo": "General Operating",
+  "sourceOfCash": "Sunday Collection",
+  "refNo": "DEP-NNNN",
+  "depositedBy": "Depositor Name"
 }
 ```
 
@@ -188,9 +188,9 @@ status: `"Outstanding" | "Partially Paid" | "Paid"`.
 ```json
 {
   "id": "1",
-  "name": "Altar Wine (Reserve Premium)",
-  "sku": "LIT-044",
-  "category": "Liturgical Supplies",
+  "name": "Item Name",
+  "sku": "SKU-NNNN",
+  "category": "Category",
   "cost": 12.5,
   "price": 18,
   "stock": 42,
@@ -251,14 +251,14 @@ Row shapes: `SacramentReportRow { name, dob, date, scc, status }`,
 
 ```json
 {
-  "activeMembers": 7,
-  "totalChristians": 8,
-  "totalDeposits": 3450,
-  "totalExpenses": 450,
-  "pendingCreditors": 3,
-  "outstandingDebtors": 3,
-  "lowStockItems": 2,
-  "totalEmployees": 5,
+  "activeMembers": 0,
+  "totalChristians": 0,
+  "totalDeposits": 0,
+  "totalExpenses": 0,
+  "pendingCreditors": 0,
+  "outstandingDebtors": 0,
+  "lowStockItems": 0,
+  "totalEmployees": 0,
   "recentDeposits": [],
   "recentExpenses": []
 }

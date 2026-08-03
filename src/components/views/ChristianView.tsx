@@ -209,7 +209,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Maria"
+                   placeholder="First name"
                   required
                   value={formData.baptismalName}
                   onChange={(e) => setFormData({ ...formData, baptismalName: e.target.value })}
@@ -224,7 +224,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Magdalene"
+                   placeholder="Second name"
                   value={formData.secondName}
                   onChange={(e) => setFormData({ ...formData, secondName: e.target.value })}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
@@ -450,7 +450,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
               DELETE / DEACTIVATE CHRISTIAN RECORD
             </h3>
             <p className="text-xs text-[#444748] mt-1">
-              Search by Reg No (e.g. REG-2026-001042) or National ID to delete or archive a record.
+               Search by Reg No or National ID to delete or archive a record.
             </p>
           </div>
 
@@ -461,7 +461,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="e.g. REG-2026-001042"
+                 placeholder="e.g. REG-YYYY-NNNN"
                 value={deleteSearch}
                 onChange={(e) => setDeleteSearch(e.target.value)}
                 className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
