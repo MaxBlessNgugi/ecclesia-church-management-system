@@ -3,6 +3,16 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+.env
+.env.local
 !.env.example
 .vscode/
+
+# Backend SQLite & build
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/prisma/*.db
+backend/prisma/*.db-journal
+*.db
+*.db-journal

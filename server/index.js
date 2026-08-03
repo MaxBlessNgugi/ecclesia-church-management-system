@@ -675,3 +675,5 @@ app.listen(PORT, () => {
   console.log(`Ecclesia reference API listening on http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
 });
+
+// DEPRECATED: use ../backend instead (npm run backend)

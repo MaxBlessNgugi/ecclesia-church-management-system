@@ -1,0 +1,289 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("staff")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+model PanelPermissions {
+  id      String @id @default("default")
+  panels  Json
+  actions Json
+
+  @@map("panel_permissions")
+}
+
+model PushPaymentSettings {
+  id             String @id @default("default")
+  paybill        String @default("")
+  accountFormat  String @default("")
+  consumerKey    String @default("")
+  consumerSecret String @default("")
+  testPhone      String @default("")
+  testAmount     String @default("")
+
+  @@map("push_payment_settings")
+}
+
+model Christian {
+  id            String   @id @default(uuid())
+  regNo         String   @unique
+  nationalId    String
+  baptismalName String
+  secondName    String
+  sirName       String
+  phone         String
+  diocese       String
+  parish        String
+  localChurch   String
+  scc           String
+  status        String   @default("Active")
+  baptism       Json?
+  eucharist     Json?
+  confirmation  Json?
+  marriage      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  contributions Contribution[]
+  transfers     Transfer[]
+  billedItems   BilledItem[]
+  deaths        Death[]
+
+  @@index([status])
+  @@index([scc])
+  @@index([localChurch])
+  @@map("christians")
+}
+
+model Contribution {
+  id             String    @id @default(uuid())
+  christianId    String
+  christian      Christian @relation(fields: [christianId], references: [id])
+  memberName     String
+  regNo          String
+  categories     String
+  otherCategory  String?
+  monthlyTracker String
+  amountKES      Float
+  date           String
+  createdAt      DateTime  @default(now())
+
+  @@index([christianId])
+  @@map("contributions")
+}
+
+model Transfer {
+  id           String    @id @default(uuid())
+  christianId  String
+  christian    Christian @relation(fields: [christianId], references: [id])
+  memberName   String
+  diocese      String
+  parish       String
+  localChurch  String
+  scc          String
+  date         String
+  createdAt    DateTime  @default(now())
+
+  @@index([christianId])
+  @@map("transfers")
+}
+
+model BilledItem {
+  id           String     @id @default(uuid())
+  christianId  String?
+  christian    Christian? @relation(fields: [christianId], references: [id])
+  memberName   String
+  isWalkIn     Boolean    @default(false)
+  category     String
+  item         String
+  unitFee      Float
+  quantity     Int
+  totalAmount  Float
+  date         String
+  createdAt    DateTime   @default(now())
+
+  @@map("billed_items")
+}
+
+model Death {
+  id            String    @id @default(uuid())
+  christianId   String
+  christian     Christian @relation(fields: [christianId], references: [id])
+  memberName    String
+  placeOfDeath  String
+  dateOfDeath   String
+  dateOfBurial  String
+  ministerName  String
+  remarks       String    @default("")
+  createdAt     DateTime  @default(now())
+
+  @@index([christianId])
+  @@map("deaths")
+}
+
+model Deposit {
+  id           String   @id @default(uuid())
+  date         String
+  amount       Float
+  bankName     String
+  accountNo    String
+  sourceOfCash String
+  refNo        String
+  depositedBy  String
+  createdAt    DateTime @default(now())
+
+  @@map("deposits")
+}
+
+model Creditor {
+  id          String   @id @default(uuid())
+  vendor      String
+  description String
+  invoiceNo   String
+  amountOwed  Float
+  dueDate     String
+  status      String   @default("Pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("creditors")
+}
+
+model Debtor {
+  id               String   @id @default(uuid())
+  memberName       String
+  contributionType String
+  amount           Float
+  status           String   @default("Outstanding")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("debtors")
+}
+
+model Expense {
+  id            String   @id @default(uuid())
+  date          String
+  category      String
+  description   String
+  amount        Float
+  paymentMethod String
+  voucherNo     String
+  createdAt     DateTime @default(now())
+
+  @@map("expenses")
+}
+
+model Ledger {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  type      String
+  cashier   String
+  balance   Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ledgers")
+}
+
+model LedgerMovement {
+  id        String   @id @default(uuid())
+  amount    Float
+  time      String
+  from      String
+  to        String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@map("ledger_movements")
+}
+
+model InventoryItem {
+  id        String   @id @default(uuid())
+  name      String
+  sku       String   @unique
+  category  String
+  cost      Float
+  price     Float
+  stock     Int      @default(0)
+  reorder   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("inventory_items")
+}
+
+model Delivery {
+  id        String   @id @default(uuid())
+  supplier  String
+  inv       String
+  date      String
+  units     Int
+  cat       String
+  total     Float
+  createdAt DateTime @default(now())
+
+  @@map("deliveries")
+}
+
+model Sale {
+  id        String   @id @default(uuid())
+  item      String
+  time      String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  @@map("sales")
+}
+
+model StockTake {
+  id        String   @id @default(uuid())
+  name      String
+  sku       String
+  system    Int
+  physical  Int
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("stock_takes")
+}
+
+model StockIssue {
+  id        String   @id @default(uuid())
+  item      String
+  dest      String
+  createdAt DateTime @default(now())
+
+  @@map("stock_issues")
+}
+
+model Employee {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  role      String
+  phone     String
+  email     String
+  hireDate  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employees")
+}

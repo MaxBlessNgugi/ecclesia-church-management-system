@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "server": "node server/index.js",
+    "backend": "npm run dev --prefix backend",
+    "backend:setup": "npm install --prefix backend && npm run db:push --prefix backend && npm run db:seed --prefix backend",
+    "setup": "npm install && npm run backend:setup",
+    "server": "npm run backend",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
