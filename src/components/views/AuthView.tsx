@@ -8,6 +8,7 @@ interface AuthViewProps {
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -59,15 +60,27 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
           </div>
 
           <div>
-            <label className="block text-[#1a1c1c] font-medium mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-            />
-          </div>
+             <label className="block text-[#1a1c1c] font-medium mb-1">Password</label>
+             <div className="flex items-center gap-2">
+               <input
+                 type={showPassword ? 'text' : 'password'}
+                 required
+                 value={password}
+                 onChange={(e) => setPassword(e.target.value)}
+                 className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+               />
+               <button
+                 type="button"
+                 onClick={() => setShowPassword(!showPassword)}
+                 className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                 title={showPassword ? 'Hide password' : 'Show password'}
+               >
+                 <span className="material-symbols-outlined text-sm">
+                   {showPassword ? 'visibility_off' : 'visibility'}
+                 </span>
+               </button>
+             </div>
+           </div>
 
           <div className="flex items-center justify-between text-[11px] text-[#444748]">
             <label className="flex items-center gap-1.5 cursor-pointer">
