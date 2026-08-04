@@ -35,6 +35,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,38 +222,74 @@ export const Header: React.FC<HeaderProps> = ({
                  {passwordError}
                </div>
              )}
-             <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
-               <div>
-                 <label className="block text-[#1a1c1c] font-medium mb-1">Current Password</label>
-                 <input
-                   type="password"
-                   required
-                   value={currentPassword}
-                   onChange={(e) => setCurrentPassword(e.target.value)}
-                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                 />
-               </div>
-               <div>
-                 <label className="block text-[#1a1c1c] font-medium mb-1">New Password</label>
-                 <input
-                   type="password"
-                   required
-                   minLength={8}
-                   value={newPassword}
-                   onChange={(e) => setNewPassword(e.target.value)}
-                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                 />
-               </div>
-               <div>
-                 <label className="block text-[#1a1c1c] font-medium mb-1">Confirm New Password</label>
-                 <input
-                   type="password"
-                   required
-                   value={confirmPassword}
-                   onChange={(e) => setConfirmPassword(e.target.value)}
-                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                 />
-               </div>
+              <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-[#1a1c1c] font-medium mb-1">Current Password</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={showCurrentPw ? 'text' : 'password'}
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPw(!showCurrentPw)}
+                      className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                      title={showCurrentPw ? 'Hide password' : 'Show password'}
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        {showCurrentPw ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[#1a1c1c] font-medium mb-1">New Password</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={showNewPw ? 'text' : 'password'}
+                      required
+                      minLength={8}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPw(!showNewPw)}
+                      className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                      title={showNewPw ? 'Hide password' : 'Show password'}
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        {showNewPw ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[#1a1c1c] font-medium mb-1">Confirm New Password</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={showConfirmPw ? 'text' : 'password'}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPw(!showConfirmPw)}
+                      className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                      title={showConfirmPw ? 'Hide password' : 'Show password'}
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        {showConfirmPw ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
                <div className="flex justify-end gap-2 pt-3 border-t border-[#e1e3e3]">
                  <button
                    type="button"
