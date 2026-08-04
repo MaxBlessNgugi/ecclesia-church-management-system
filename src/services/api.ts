@@ -104,7 +104,9 @@ export const authApi = {
     request<AuthSession>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   register: (body: RegisterRequest) =>
     request<AuthSession>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
-  me: () => request<AuthSession['user']>('/auth/me')
+  me: () => request<AuthSession['user']>('/auth/me'),
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    request<{ message: string }>('/auth/change-password', { method: 'PUT', body: JSON.stringify(body) }),
 };
 
 // ---------- Christians (member registry) ----------

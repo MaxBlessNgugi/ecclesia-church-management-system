@@ -56,6 +56,11 @@ function session(user: any) {
   };
 }
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
 router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
@@ -108,6 +113,23 @@ router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user || !user.isActive) return res.status(401).json({ error: 'User not found' });
     res.json(session(user));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.put('/change-password', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const ok = await verifyPassword(currentPassword, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+
+    const newHash = await hashPassword(newPassword);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
+    res.json({ message: 'Password updated successfully' });
   } catch (e) {
     next(e);
   }

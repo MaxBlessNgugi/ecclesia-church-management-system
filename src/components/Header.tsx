@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuthUser, NavigationTab } from '../types';
+import { authApi } from '../services/api';
 
 /**
  * Header component props interface.
@@ -27,6 +28,40 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   // Controls visibility of the administrator profile dropdown menu
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters.');
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
+      setPasswordSuccess('Password updated successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setShowChangePassword(false), 2000);
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Failed to change password');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   return (
     <header className="h-16 bg-white border-b border-[#e1e3e3] px-4 flex items-center justify-between sticky top-0 z-30 shadow-xs select-none">
@@ -141,22 +176,105 @@ export const Header: React.FC<HeaderProps> = ({
                 Rights & Permissions
               </button>
 
-              <div className="border-t border-[#e1e3e3] my-1" />
+               <button
+                 onClick={() => {
+                   setShowProfileMenu(false);
+                   setShowChangePassword(true);
+                 }}
+                 className="w-full text-left px-4 py-2 text-xs text-[#1a1c1c] hover:bg-[#f4f3f3] flex items-center gap-2 cursor-pointer"
+               >
+                 <span className="material-symbols-outlined text-sm">lock_reset</span>
+                 Change Password
+               </button>
 
-              <button
-                onClick={() => {
-                  setShowProfileMenu(false);
-                  onSelectTab('auth');
-                }}
-                className="w-full text-left px-4 py-2 text-xs text-[#ba1a1a] hover:bg-[#fce8e8] flex items-center gap-2 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">logout</span>
-                Sign Out / Switch User
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-};
+               <div className="border-t border-[#e1e3e3] my-1" />
+
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onSelectTab('auth');
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs text-[#ba1a1a] hover:bg-[#fce8e8] flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">logout</span>
+                  Sign Out / Switch User
+                </button>
+             </div>
+           )}
+         </div>
+       </div>
+
+       {/* CHANGE PASSWORD MODAL */}
+       {showChangePassword && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
+           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-xl space-y-4">
+             <h4 className="text-sm font-bold text-[#1a1c1c] uppercase">Change Password</h4>
+             {passwordSuccess && (
+               <div className="p-3 bg-emerald-50 border border-emerald-300 rounded text-xs text-emerald-800">
+                 {passwordSuccess}
+               </div>
+             )}
+             {passwordError && (
+               <div className="p-3 bg-red-50 border border-red-300 rounded text-xs text-red-700">
+                 {passwordError}
+               </div>
+             )}
+             <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+               <div>
+                 <label className="block text-[#1a1c1c] font-medium mb-1">Current Password</label>
+                 <input
+                   type="password"
+                   required
+                   value={currentPassword}
+                   onChange={(e) => setCurrentPassword(e.target.value)}
+                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                 />
+               </div>
+               <div>
+                 <label className="block text-[#1a1c1c] font-medium mb-1">New Password</label>
+                 <input
+                   type="password"
+                   required
+                   minLength={8}
+                   value={newPassword}
+                   onChange={(e) => setNewPassword(e.target.value)}
+                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                 />
+               </div>
+               <div>
+                 <label className="block text-[#1a1c1c] font-medium mb-1">Confirm New Password</label>
+                 <input
+                   type="password"
+                   required
+                   value={confirmPassword}
+                   onChange={(e) => setConfirmPassword(e.target.value)}
+                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                 />
+               </div>
+               <div className="flex justify-end gap-2 pt-3 border-t border-[#e1e3e3]">
+                 <button
+                   type="button"
+                   onClick={() => {
+                     setShowChangePassword(false);
+                     setPasswordError('');
+                     setPasswordSuccess('');
+                   }}
+                   className="px-3 py-1.5 text-[#444748] bg-gray-100 rounded cursor-pointer"
+                 >
+                   Cancel
+                 </button>
+                 <button
+                   type="submit"
+                   disabled={isChangingPassword}
+                   className="px-4 py-1.5 font-bold text-white bg-[#1e1e1e] rounded cursor-pointer disabled:opacity-70"
+                 >
+                   {isChangingPassword ? 'Updating...' : 'Update Password'}
+                 </button>
+               </div>
+             </form>
+           </div>
+         </div>
+       )}
+     </header>
+   );
+ };
