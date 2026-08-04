@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
+import { appPrisma } from '../lib/prisma.js';
+import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { softDelete, resolveActor } from '../lib/audit.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -67,7 +68,7 @@ function mapChristian(c: any) {
 
 /** Generates the next sequential registration number server-side (guarantees uniqueness). */
 async function nextRegNo(): Promise<string> {
-  const last = await prisma.christian.findFirst({ orderBy: { regNo: 'desc' } });
+  const last = await appPrisma.christian.findFirst({ orderBy: { regNo: 'desc' } });
   const match = last?.regNo?.match(/(\d+)$/);
   const next = match ? parseInt(match[1], 10) + 1 : 1043;
   return `REG-${new Date().getFullYear()}-${String(next).padStart(6, '0')}`;
@@ -81,7 +82,7 @@ router.get('/', async (req, res, next) => {
     const where: any = {};
     if (status) where.status = status;
     // SQLite: filter in memory for case-insensitive search
-    const rows = await prisma.christian.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const rows = await appPrisma.christian.findMany({ where, orderBy: { createdAt: 'desc' } });
     let result = rows;
     if (q) {
       const lower = q.toLowerCase();
@@ -98,7 +99,7 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const c = await prisma.christian.findUnique({ where: { id: req.params.id } });
+    const c = await appPrisma.christian.findUnique({ where: { id: req.params.id } });
     if (!c) return res.status(404).json({ error: 'Christian not found' });
     res.json(mapChristian(c));
   } catch (e) {
@@ -110,7 +111,7 @@ router.post('/', async (req, res, next) => {
   try {
     const data = christianSchema.parse(req.body);
     const { regNo: _clientRegNo, ...rest } = data;
-    const created = await prisma.christian.create({
+    const created = await appPrisma.christian.create({
       data: {
         ...rest,
         regNo: await nextRegNo(),
@@ -130,7 +131,7 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const data = christianSchema.partial().parse(req.body);
-    const updated = await prisma.christian.update({
+    const updated = await appPrisma.christian.update({
       where: { id: req.params.id },
       data: {
         ...data,
@@ -155,7 +156,7 @@ router.patch('/:id/sacraments', async (req, res, next) => {
       marriage: sacramentSchema,
     }).parse(req.body);
 
-    const updated = await prisma.christian.update({
+    const updated = await appPrisma.christian.update({
       where: { id: req.params.id },
       data: {
         baptism: serializeOptionalJson(body.baptism),
@@ -170,12 +171,10 @@ router.patch('/:id/sacraments', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    await prisma.christian.update({
-      where: { id: req.params.id },
-      data: { status: 'Inactive' },
-    });
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Christian', req.params.id, actor);
     res.status(204).send();
   } catch (e) {
     next(e);

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
+import { appPrisma, prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword, signToken } from '../lib/auth.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 
@@ -64,7 +64,7 @@ const changePasswordSchema = z.object({
 router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await appPrisma.user.findUnique({ where: { email } });
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -88,11 +88,12 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
       return res.status(403).json({ error: 'Only the super admin can add new users' });
     }
     const data = registerSchema.parse(req.body);
+    // Check the unfiltered table so soft-deleted users keep their email reserved.
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) return res.status(409).json({ error: 'Email already registered' });
 
     const passwordHash = await hashPassword(data.password);
-    const user = await prisma.user.create({
+    const user = await appPrisma.user.create({
       data: {
         email: data.email,
         passwordHash,
@@ -110,7 +111,7 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
 
 router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    const user = await appPrisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user || !user.isActive) return res.status(401).json({ error: 'User not found' });
     res.json(session(user));
   } catch (e) {
@@ -121,14 +122,14 @@ router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
 router.put('/change-password', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
-    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    const user = await appPrisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const ok = await verifyPassword(currentPassword, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
 
     const newHash = await hashPassword(newPassword);
-    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
+    await appPrisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
     res.json({ message: 'Password updated successfully' });
   } catch (e) {
     next(e);

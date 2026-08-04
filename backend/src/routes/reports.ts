@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
+import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -21,7 +21,7 @@ router.get('/sacraments', async (req, res, next) => {
     if (localChurch) where.localChurch = localChurch;
     if (scc) where.scc = scc;
 
-    const rows = await prisma.christian.findMany({ where });
+    const rows = await appPrisma.christian.findMany({ where });
     const result = rows.map((c) => {
       let date = '';
       const baptism = parseOptionalJson<any>(c.baptism);
@@ -47,7 +47,7 @@ router.get('/sacraments', async (req, res, next) => {
 router.get('/contributions', async (req, res, next) => {
   try {
     const { category, month } = req.query as Record<string, string | undefined>;
-    const rows = await prisma.contribution.findMany({ orderBy: { createdAt: 'desc' } });
+    const rows = await appPrisma.contribution.findMany({ orderBy: { createdAt: 'desc' } });
     let result = rows.map((r) => {
       let categories: string[] = [];
       let tracker: Record<string, boolean> = {};
@@ -74,7 +74,7 @@ router.get('/sales', async (req, res, next) => {
     const where: any = {};
     if (item) where.item = { contains: item };
     if (date) where.time = { startsWith: date };
-    const rows = await prisma.sale.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const rows = await appPrisma.sale.findMany({ where, orderBy: { createdAt: 'desc' } });
     res.json(rows.map((r) => ({
       item: r.item,
       quantity: 1,
@@ -86,7 +86,7 @@ router.get('/sales', async (req, res, next) => {
 
 router.get('/cashiers', async (_req, res, next) => {
   try {
-    const ledgers = await prisma.ledger.findMany();
+    const ledgers = await appPrisma.ledger.findMany();
     const result = ledgers.map((l) => ({
       cashier: l.cashier,
       sessions: 1,

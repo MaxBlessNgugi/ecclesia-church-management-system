@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
+import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -8,7 +8,7 @@ router.use(requireAuth);
 
 router.get('/employees', async (_req, res, next) => {
   try {
-    res.json(await prisma.employee.findMany({ orderBy: { code: 'asc' } }));
+    res.json(await appPrisma.employee.findMany({ orderBy: { code: 'asc' } }));
   } catch (e) { next(e); }
 });
 
@@ -29,10 +29,10 @@ router.post('/employees', async (req, res, next) => {
     }).parse(req.body);
 
     const name = [data.firstName, data.middleName, data.surname].filter(Boolean).join(' ');
-    const count = await prisma.employee.count();
+    const count = await appPrisma.employee.count();
     const code = `EMP-${String(count + 1).padStart(4, '0')}`;
 
-    const created = await prisma.employee.create({
+    const created = await appPrisma.employee.create({
       data: {
         code,
         name,
@@ -55,7 +55,7 @@ router.put('/employees/:id', async (req, res, next) => {
       email: z.string().email().optional(),
       hireDate: z.string().optional(),
     }).parse(req.body);
-    const updated = await prisma.employee.update({ where: { id: req.params.id }, data });
+    const updated = await appPrisma.employee.update({ where: { id: req.params.id }, data });
     res.json(updated);
   } catch (e) { next(e); }
 });

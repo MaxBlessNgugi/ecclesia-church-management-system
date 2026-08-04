@@ -523,7 +523,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
               <strong className="text-[#1a1c1c]">
                 {memberToDelete.baptismalName} {memberToDelete.sirName}
               </strong>{' '}
-              ({memberToDelete.regNo})? This action cannot be undone.
+              ({memberToDelete.regNo})? The record will be soft-deleted and can be restored from Trash &amp; Audit.
             </p>
 
             <div className="flex justify-end gap-3 pt-3 border-t border-[#e1e3e3]">

@@ -8,17 +8,19 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String    @id @default(uuid())
+  email        String    @unique
   passwordHash String
   name         String
   title        String?
-  role         String   @default("staff")
-  isActive     Boolean  @default(true)
+  role         String    @default("staff")
+  isActive     Boolean   @default(true)
   panels       String?
   actions      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("users")
 }
@@ -60,6 +62,8 @@ model Christian {
   eucharist     String?
   confirmation  String?
   marriage      String?
+  isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   contributions Contribution[]
@@ -84,6 +88,8 @@ model Contribution {
   monthlyTracker String
   amountKES      Float
   date           String
+  isDeleted      Boolean  @default(false)
+  deletedAt      DateTime?
   createdAt      DateTime  @default(now())
 
   @@index([christianId])
@@ -100,6 +106,8 @@ model Transfer {
   localChurch  String
   scc          String
   date         String
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
   createdAt    DateTime  @default(now())
 
   @@index([christianId])
@@ -118,6 +126,8 @@ model BilledItem {
   quantity     Int
   totalAmount  Float
   date         String
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
   createdAt    DateTime   @default(now())
 
   @@map("billed_items")
@@ -133,10 +143,27 @@ model Death {
   dateOfBurial  String
   ministerName  String
   remarks       String    @default("")
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
   createdAt     DateTime  @default(now())
 
   @@index([christianId])
   @@map("deaths")
+}
+
+model AuditLog {
+  id               String   @id @default(uuid())
+  entityName       String
+  entityId         String
+  action           String   @default("DELETE")
+  deletedBy        String?
+  deletedByName    String?
+  metadataSnapshot String
+  createdAt        DateTime @default(now())
+
+  @@index([entityName])
+  @@index([entityId])
+  @@map("audit_logs")
 }
 
 model Deposit {
@@ -148,6 +175,8 @@ model Deposit {
   sourceOfCash String
   refNo        String
   depositedBy  String
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
 
   @@map("deposits")
@@ -161,6 +190,8 @@ model Creditor {
   amountOwed  Float
   dueDate     String
   status      String   @default("Pending")
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -173,6 +204,8 @@ model Debtor {
   contributionType String
   amount           Float
   status           String   @default("Outstanding")
+  isDeleted        Boolean  @default(false)
+  deletedAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -187,6 +220,8 @@ model Expense {
   amount        Float
   paymentMethod String
   voucherNo     String
+  isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
   createdAt     DateTime @default(now())
 
   @@map("expenses")
@@ -199,6 +234,8 @@ model Ledger {
   type      String
   cashier   String
   balance   Float    @default(0)
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -212,6 +249,8 @@ model LedgerMovement {
   from      String
   to        String
   notes     String?
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
 
   @@map("ledger_movements")
@@ -226,6 +265,8 @@ model InventoryItem {
   price     Float
   stock     Int      @default(0)
   reorder   Int      @default(0)
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -240,6 +281,8 @@ model Delivery {
   units     Int
   cat       String
   total     Float
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
 
   @@map("deliveries")
@@ -250,6 +293,8 @@ model Sale {
   item      String
   time      String
   amount    Float
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
 
   @@map("sales")
@@ -262,6 +307,8 @@ model StockTake {
   system    Int
   physical  Int
   notes     String   @default("")
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -272,6 +319,8 @@ model StockIssue {
   id        String   @id @default(uuid())
   item      String
   dest      String
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
 
   @@map("stock_issues")
@@ -285,6 +334,8 @@ model Employee {
   phone     String
   email     String
   hireDate  String
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
+import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -9,12 +9,12 @@ router.use(requireAuth);
 // Deposits
 router.get('/deposits', async (_req, res, next) => {
   try {
-    res.json(await prisma.deposit.findMany({ orderBy: { createdAt: 'desc' } }));
+    res.json(await appPrisma.deposit.findMany({ orderBy: { createdAt: 'desc' } }));
   } catch (e) { next(e); }
 });
 
 async function nextDepositRefNo(): Promise<string> {
-  const last = await prisma.deposit.findFirst({ orderBy: { refNo: 'desc' } });
+  const last = await appPrisma.deposit.findFirst({ orderBy: { refNo: 'desc' } });
   const match = last?.refNo?.match(/(\d+)$/);
   const next = match ? parseInt(match[1], 10) + 1 : 1;
   return `DEP-${String(next).padStart(5, '0')}`;
@@ -31,7 +31,7 @@ router.post('/deposits', async (req, res, next) => {
       refNo: z.string().optional(),
       depositedBy: z.string(),
     }).parse(req.body);
-    const created = await prisma.deposit.create({
+    const created = await appPrisma.deposit.create({
       data: {
         ...data,
         refNo: data.refNo && data.refNo.trim() ? data.refNo : await nextDepositRefNo(),
@@ -44,7 +44,7 @@ router.post('/deposits', async (req, res, next) => {
 // Creditors
 router.get('/creditors', async (_req, res, next) => {
   try {
-    res.json(await prisma.creditor.findMany({ orderBy: { createdAt: 'desc' } }));
+    res.json(await appPrisma.creditor.findMany({ orderBy: { createdAt: 'desc' } }));
   } catch (e) { next(e); }
 });
 
@@ -58,7 +58,7 @@ router.post('/creditors', async (req, res, next) => {
       dueDate: z.string(),
       status: z.enum(['Pending', 'Overdue', 'Scheduled', 'Paid']).optional(),
     }).parse(req.body);
-    const created = await prisma.creditor.create({
+    const created = await appPrisma.creditor.create({
       data: { ...data, status: data.status ?? 'Pending' },
     });
     res.status(201).json(created);
@@ -75,14 +75,14 @@ router.put('/creditors/:id', async (req, res, next) => {
       dueDate: z.string().optional(),
       status: z.enum(['Pending', 'Overdue', 'Scheduled', 'Paid']).optional(),
     }).parse(req.body);
-    const updated = await prisma.creditor.update({ where: { id: req.params.id }, data });
+    const updated = await appPrisma.creditor.update({ where: { id: req.params.id }, data });
     res.json(updated);
   } catch (e) { next(e); }
 });
 
 router.patch('/creditors/:id/paid', async (req, res, next) => {
   try {
-    const updated = await prisma.creditor.update({
+    const updated = await appPrisma.creditor.update({
       where: { id: req.params.id },
       data: { status: 'Paid' },
     });
@@ -93,7 +93,7 @@ router.patch('/creditors/:id/paid', async (req, res, next) => {
 // Debtors
 router.get('/debtors', async (_req, res, next) => {
   try {
-    res.json(await prisma.debtor.findMany({ orderBy: { createdAt: 'desc' } }));
+    res.json(await appPrisma.debtor.findMany({ orderBy: { createdAt: 'desc' } }));
   } catch (e) { next(e); }
 });
 
@@ -105,7 +105,7 @@ router.post('/debtors', async (req, res, next) => {
       amount: z.number().positive(),
       status: z.enum(['Outstanding', 'Partially Paid', 'Paid']).optional(),
     }).parse(req.body);
-    const created = await prisma.debtor.create({
+    const created = await appPrisma.debtor.create({
       data: { ...data, status: data.status ?? 'Outstanding' },
     });
     res.status(201).json(created);
@@ -115,12 +115,12 @@ router.post('/debtors', async (req, res, next) => {
 router.post('/debtors/:id/payments', async (req, res, next) => {
   try {
     const { amountPaid } = z.object({ amountPaid: z.number().positive() }).parse(req.body);
-    const debtor = await prisma.debtor.findUnique({ where: { id: req.params.id } });
+    const debtor = await appPrisma.debtor.findUnique({ where: { id: req.params.id } });
     if (!debtor) return res.status(404).json({ error: 'Debtor not found' });
 
     const newAmount = Math.max(0, debtor.amount - amountPaid);
     const status = newAmount === 0 ? 'Paid' : 'Partially Paid';
-    const updated = await prisma.debtor.update({
+    const updated = await appPrisma.debtor.update({
       where: { id: req.params.id },
       data: { amount: newAmount, status },
     });
@@ -131,12 +131,12 @@ router.post('/debtors/:id/payments', async (req, res, next) => {
 // Expenses
 router.get('/expenses', async (_req, res, next) => {
   try {
-    res.json(await prisma.expense.findMany({ orderBy: { createdAt: 'desc' } }));
+    res.json(await appPrisma.expense.findMany({ orderBy: { createdAt: 'desc' } }));
   } catch (e) { next(e); }
 });
 
 async function nextExpenseVoucherNo(): Promise<string> {
-  const last = await prisma.expense.findFirst({ orderBy: { voucherNo: 'desc' } });
+  const last = await appPrisma.expense.findFirst({ orderBy: { voucherNo: 'desc' } });
   const match = last?.voucherNo?.match(/(\d+)$/);
   const next = match ? parseInt(match[1], 10) + 1 : 1;
   return `EXP-${String(next).padStart(5, '0')}`;
@@ -152,7 +152,7 @@ router.post('/expenses', async (req, res, next) => {
       paymentMethod: z.string(),
       voucherNo: z.string().optional(),
     }).parse(req.body);
-    const created = await prisma.expense.create({
+    const created = await appPrisma.expense.create({
       data: {
         ...data,
         voucherNo: data.voucherNo && data.voucherNo.trim() ? data.voucherNo : await nextExpenseVoucherNo(),

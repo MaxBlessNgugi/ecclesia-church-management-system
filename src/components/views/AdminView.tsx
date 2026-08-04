@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   AdminSubTab,
+  AuditLogEntry,
   PanelPermissions,
   PushPaymentSettings,
   UserAccount,
@@ -44,6 +45,42 @@ const ALL_PANELS: PanelPermissions['panels'] = {
   hr: true,
   administration: true
 };
+
+const ENTITY_LABELS: Record<string, string> = {
+  User: 'User Account',
+  Christian: 'Christian',
+  Contribution: 'Contribution',
+  Transfer: 'Transfer',
+  BilledItem: 'Billed Item',
+  Death: 'Death Record',
+  Deposit: 'Deposit',
+  Creditor: 'Creditor',
+  Debtor: 'Debtor',
+  Expense: 'Expense',
+  Ledger: 'Ledger',
+  LedgerMovement: 'Ledger Movement',
+  InventoryItem: 'Inventory Item',
+  Delivery: 'Delivery',
+  Sale: 'Sale',
+  StockTake: 'Stock Take',
+  StockIssue: 'Stock Issue',
+  Employee: 'Employee'
+};
+
+const SKIP_KEYS = new Set(['id', 'isDeleted', 'deletedAt', 'createdAt', 'updatedAt', 'passwordHash']);
+
+function snapshotPreview(meta: Record<string, unknown> | null): string {
+  if (!meta) return '—';
+  const entries = Object.entries(meta)
+    .filter(([k]) => !SKIP_KEYS.has(k))
+    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`);
+  return entries.slice(0, 6).join(', ') + (entries.length > 6 ? '…' : '');
+}
+
+function formatDateTime(value: string): string {
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? value : d.toLocaleString();
+}
 
 export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentUserId }) => {
   const [activeSubTab, setActiveSubTab] = useState<AdminSubTab>('rights');
@@ -89,6 +126,13 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   const [testPhone, setTestPhone] = useState('254700000000');
   const [testAmount, setTestAmount] = useState('100');
 
+  // Trash & Audit state
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditEntity, setAuditEntity] = useState('');
+  const [auditAction, setAuditAction] = useState('');
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
   const [notification, setNotification] = useState<string | null>(null);
 
   const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
@@ -123,6 +167,21 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
     }
   };
 
+  const loadAudit = async () => {
+    setAuditLoading(true);
+    try {
+      const rows = await adminApi.audit.list({
+        entity: auditEntity || undefined,
+        action: auditAction || undefined
+      });
+      setAuditLogs(rows);
+    } catch (error) {
+      console.error('Failed to load audit logs', error);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadUsers();
     adminApi.pushPayments
@@ -137,6 +196,26 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
       })
       .catch((error) => console.error('Failed to load push payment settings', error));
   }, []);
+
+  useEffect(() => {
+    void loadAudit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auditEntity, auditAction]);
+
+  const handleRestore = async (log: AuditLogEntry) => {
+    if (!confirm(`Restore this ${ENTITY_LABELS[log.entityName] ?? log.entityName}?`)) return;
+    setRestoringId(log.id);
+    try {
+      await adminApi.audit.restore(log.id);
+      showNotif(`${ENTITY_LABELS[log.entityName] ?? log.entityName} restored successfully.`);
+      void loadAudit();
+    } catch (error) {
+      console.error('Failed to restore record', error);
+      alert(error instanceof Error ? error.message : 'Failed to restore record');
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   const handleSelectUser = async (userId: string) => {
     setSelectedUserId(userId);
@@ -228,7 +307,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Remove this user account permanently? This action cannot be undone.')) return;
+    if (!confirm('Remove this user account? It will be soft-deleted and can be restored from Trash & Audit.')) return;
     try {
       await adminApi.users.remove(userId);
       setUsers(users.filter((u) => u.id !== userId));
@@ -335,6 +414,16 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
           }`}
         >
           PUSH PAYMENTS
+        </button>
+        <button
+          onClick={() => setActiveSubTab('audit')}
+          className={`pb-2 transition-colors cursor-pointer ${
+            activeSubTab === 'audit'
+              ? 'border-b-2 border-[#1e1e1e] text-[#1a1c1c]'
+              : 'text-[#444748] hover:text-[#1a1c1c]'
+          }`}
+        >
+          TRASH &amp; AUDIT
         </button>
       </div>
 
@@ -557,10 +646,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
            {deleteTargetId && (
              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
                <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-sm w-full shadow-xl space-y-4">
-                 <h4 className="text-sm font-bold text-[#1a1c1c]">Remove User Account</h4>
-                 <p className="text-xs text-[#444748]">
-                   Are you sure you want to permanently remove this user? This action cannot be undone.
-                 </p>
+                  <h4 className="text-sm font-bold text-[#1a1c1c]">Remove User Account</h4>
+                  <p className="text-xs text-[#444748]">
+                    This user will be soft-deleted and moved to Trash &amp; Audit. The record can be restored at any time.
+                  </p>
                  <div className="flex justify-end gap-2 pt-2">
                    <button
                      onClick={() => setDeleteTargetId(null)}
@@ -685,6 +774,120 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
           </div>
         </div>
       )}
+
+       {/* 4. TRASH & AUDIT HISTORY */}
+       {activeSubTab === 'audit' && (
+         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
+           <div>
+             <h3 className="text-xl font-serif font-bold text-[#1a1c1c]">Trash &amp; Audit History</h3>
+             <p className="text-xs text-[#444748] mt-1">
+               Every deleted record is soft-deleted, kept in the database, and logged here with its original data
+               and the person who deleted it. Restore any record to bring it back into normal use.
+             </p>
+           </div>
+
+           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+             <label className="flex items-center gap-2 text-xs text-[#1a1c1c]">
+               <span className="font-semibold">Entity</span>
+               <select
+                 value={auditEntity}
+                 onChange={(e) => setAuditEntity(e.target.value)}
+                 className="px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-[11px] text-[#1a1c1c]"
+               >
+                 <option value="">All entities</option>
+                 {Object.entries(ENTITY_LABELS).map(([value, label]) => (
+                   <option key={value} value={value}>
+                     {label}
+                   </option>
+                 ))}
+               </select>
+             </label>
+             <label className="flex items-center gap-2 text-xs text-[#1a1c1c]">
+               <span className="font-semibold">Action</span>
+               <select
+                 value={auditAction}
+                 onChange={(e) => setAuditAction(e.target.value)}
+                 className="px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-[11px] text-[#1a1c1c]"
+               >
+                 <option value="">All actions</option>
+                 <option value="DELETE">Deleted</option>
+                 <option value="RESTORE">Restored</option>
+               </select>
+             </label>
+           </div>
+
+           <div className="overflow-x-auto border border-[#e1e3e3] rounded-lg">
+             <table className="w-full text-left border-collapse text-xs">
+               <thead>
+                 <tr className="bg-[#f4f3f3] border-b border-[#e1e3e3] text-[10px] font-bold text-[#444748] uppercase tracking-wider">
+                   <th className="p-3">Entity</th>
+                   <th className="p-3">Action</th>
+                   <th className="p-3">Deleted / Acted By</th>
+                   <th className="p-3">When</th>
+                   <th className="p-3">Original Details</th>
+                   <th className="p-3 text-right">Actions</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-[#e1e3e3]">
+                 {auditLoading ? (
+                   <tr>
+                     <td colSpan={6} className="p-6 text-center text-[#444748]">
+                       Loading audit history…
+                     </td>
+                   </tr>
+                 ) : auditLogs.length === 0 ? (
+                   <tr>
+                     <td colSpan={6} className="p-6 text-center text-[#444748]">
+                       No audit records found. Deleted items will appear here.
+                     </td>
+                   </tr>
+                 ) : (
+                   auditLogs.map((log) => (
+                     <tr key={log.id} className="hover:bg-[#f9f9f9]">
+                       <td className="p-3 font-semibold text-[#1a1c1c]">
+                         {ENTITY_LABELS[log.entityName] ?? log.entityName}
+                       </td>
+                       <td className="p-3">
+                         <span
+                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                             log.action === 'DELETE'
+                               ? 'bg-red-100 text-red-800'
+                               : 'bg-emerald-100 text-emerald-800'
+                           }`}
+                         >
+                           {log.action === 'DELETE' ? 'DELETED' : 'RESTORED'}
+                         </span>
+                       </td>
+                       <td className="p-3 text-[#444748]">
+                         {log.deletedByName ?? log.deletedBy ?? '—'}
+                       </td>
+                       <td className="p-3 text-[#444748] whitespace-nowrap">
+                         {formatDateTime(log.createdAt)}
+                       </td>
+                       <td className="p-3 text-[#444748] max-w-md">
+                         <span title={log.metadata ? JSON.stringify(log.metadata, null, 2) : undefined}>
+                           {snapshotPreview(log.metadata)}
+                         </span>
+                       </td>
+                       <td className="p-3 text-right">
+                         {log.action === 'DELETE' && (
+                           <button
+                             onClick={() => void handleRestore(log)}
+                             disabled={restoringId === log.id}
+                             className="px-2.5 py-1 text-[11px] font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded cursor-pointer disabled:opacity-60"
+                           >
+                             {restoringId === log.id ? 'Restoring…' : 'Restore'}
+                           </button>
+                         )}
+                       </td>
+                     </tr>
+                   ))
+                 )}
+               </tbody>
+             </table>
+           </div>
+         </div>
+       )}
 
        {/* EDIT USER MODAL */}
        {showEditUser && (

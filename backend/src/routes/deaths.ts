@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
+import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -8,7 +8,7 @@ router.use(requireAuth);
 
 router.get('/', async (_req, res, next) => {
   try {
-    const rows = await prisma.death.findMany({ orderBy: { createdAt: 'desc' } });
+    const rows = await appPrisma.death.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(rows);
   } catch (e) { next(e); }
 });
@@ -25,8 +25,8 @@ router.post('/', async (req, res, next) => {
       remarks: z.string().default(''),
     }).parse(req.body);
 
-    const created = await prisma.death.create({ data });
-    await prisma.christian.update({
+    const created = await appPrisma.death.create({ data });
+    await appPrisma.christian.update({
       where: { id: data.christianId },
       data: { status: 'Deceased' },
     });

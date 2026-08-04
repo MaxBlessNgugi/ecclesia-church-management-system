@@ -27,6 +27,7 @@ import {
   StockIssueRecord,
   StockTakeRecord,
   TransferRecord,
+  AuditLogEntry,
   UserAccount,
   UserRole
 } from '../types';
@@ -289,6 +290,15 @@ export const adminApi = {
       request<PushPaymentSettings>('/admin/push-payments', {
         method: 'PUT',
         body: JSON.stringify(body)
+      })
+  },
+  audit: {
+    list: (params?: { entity?: string; action?: string }) =>
+      request<AuditLogEntry[]>(`/admin/audit-logs${buildQuery(params)}`),
+    restore: (id: string) =>
+      request<{ message: string }>(`/admin/audit-logs/${id}/restore`, {
+        method: 'POST',
+        body: JSON.stringify({})
       })
   }
 };

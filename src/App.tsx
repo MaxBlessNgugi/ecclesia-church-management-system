@@ -212,11 +212,11 @@ export const App: React.FC = () => {
     }
   };
 
-  /** Marks a Christian record as inactive rather than permanently removing historical data */
+  /** Soft-deletes a Christian record (hidden from lists, restorable from Trash & Audit) */
   const handleDeleteChristian = async (id: string) => {
     try {
       await christiansApi.remove(id);
-      setChristians(christians.map((c) => (c.id === id ? { ...c, status: 'Inactive' } : c)));
+      setChristians(christians.filter((c) => c.id !== id));
     } catch (error) {
       console.error('Failed to delete christian', error);
       alert(error instanceof Error ? error.message : 'Failed to delete christian record');

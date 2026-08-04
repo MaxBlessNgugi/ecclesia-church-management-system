@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
+import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -17,7 +17,7 @@ function parseJson<T>(raw: string, fallback: T): T {
 // ── Contributions ──
 router.get('/contributions', async (_req, res, next) => {
   try {
-    const rows = await prisma.contribution.findMany({ orderBy: { createdAt: 'desc' } });
+    const rows = await appPrisma.contribution.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(
       rows.map((r) => ({
         id: r.id,
@@ -51,7 +51,7 @@ router.post('/contributions', async (req, res, next) => {
       })
       .parse(req.body);
 
-    const created = await prisma.contribution.create({
+    const created = await appPrisma.contribution.create({
       data: {
         christianId: data.christianId,
         memberName: data.memberName,
@@ -83,7 +83,7 @@ router.post('/contributions', async (req, res, next) => {
 // ── Transfers ──
 router.get('/transfers', async (_req, res, next) => {
   try {
-    const rows = await prisma.transfer.findMany({ orderBy: { createdAt: 'desc' } });
+    const rows = await appPrisma.transfer.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(rows);
   } catch (e) {
     next(e);
@@ -104,8 +104,8 @@ router.post('/transfers', async (req, res, next) => {
       })
       .parse(req.body);
 
-    const created = await prisma.transfer.create({ data });
-    await prisma.christian.update({
+    const created = await appPrisma.transfer.create({ data });
+    await appPrisma.christian.update({
       where: { id: data.christianId },
       data: {
         status: 'Transferred',
@@ -124,7 +124,7 @@ router.post('/transfers', async (req, res, next) => {
 // ── Billed Items ──
 router.get('/billed-items', async (_req, res, next) => {
   try {
-    const rows = await prisma.billedItem.findMany({ orderBy: { createdAt: 'desc' } });
+    const rows = await appPrisma.billedItem.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(
       rows.map((r) => ({
         id: r.id,
@@ -160,7 +160,7 @@ router.post('/billed-items', async (req, res, next) => {
       })
       .parse(req.body);
 
-    const created = await prisma.billedItem.create({
+    const created = await appPrisma.billedItem.create({
       data: {
         christianId: data.christianId ?? null,
         memberName: data.memberName,

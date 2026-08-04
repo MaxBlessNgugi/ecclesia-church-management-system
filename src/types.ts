@@ -20,7 +20,7 @@ export type LedgersSubTab = 'mgmt' | 'transfer';
 export type InventorySubTab = 'inward' | 'sale' | 'stock_take' | 'issue' | 'edit';
 export type ReportsSubTab = 'sacraments' | 'contributions' | 'sales' | 'cashiers';
 export type HRSubTab = 'directory' | 'onboarding' | 'payroll' | 'leave' | 'recruitment';
-export type AdminSubTab = 'rights' | 'users' | 'push_payments';
+export type AdminSubTab = 'rights' | 'users' | 'push_payments' | 'audit';
 
 export interface SacramentData {
   date?: string;
@@ -293,6 +293,17 @@ export interface UserAccount {
   role: UserRole;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  entityName: string;
+  entityId: string;
+  action: 'DELETE' | 'RESTORE';
+  deletedBy: string | null;
+  deletedByName: string | null;
+  createdAt: string;
+  metadata: Record<string, unknown> | null;
 }
 
 // ---------- Dashboard ----------
