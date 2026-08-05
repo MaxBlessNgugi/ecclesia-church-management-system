@@ -75,6 +75,12 @@ request, any time.
 
 ## 5. First-run checklist for a new parish
 
+**Automated (Windows):** copy the project to the parish PC, then double-click
+`install-parish.cmd`. It generates a strong `JWT_SECRET`, prompts for the admin
+email/password, cleans + rebuilds the DB, builds both sides, registers the app
+to auto-start on boot (NSSM service if installed, else a startup task), and
+opens the app. Manual steps below only for a non-Windows or hands-on install.
+
 1. `npm run setup` (root) — installs, creates DB, seeds super admin.
 2. Copy the printed super admin password; set `SUPER_ADMIN_PASSWORD` env if a
    known value is preferred.
