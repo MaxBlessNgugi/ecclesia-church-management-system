@@ -1,11 +1,27 @@
+// =============================================================================
+// Christian registry routes — /api/christians (all require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET    /                  list w/ optional ?status= and ?q= (search)
+//   GET    /:id               single record
+//   POST   /                  create (server assigns the next REG-<year>-###### no.)
+//   PUT    /:id               full/partial update
+//   PATCH  /:id/sacraments    update sacrament objects (baptism/eucharist/etc.)
+//   DELETE /:id               SOFT delete -> audit_logs + Trash & Audit UI
+//
+// Sacrament fields are stored as JSON TEXT in SQLite (see serializeOptionalJson)
+// and re-parsed on the way out (parseOptionalJson) so the API contract is plain
+// JS objects, not strings.
+// =============================================================================
 import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { requireModule } from '../middleware/perms.js';
 import { softDelete, resolveActor } from '../lib/audit.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireModule('christian'));
 
 const sacramentSchema = z.object({
   date: z.string().optional(),

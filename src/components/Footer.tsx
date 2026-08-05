@@ -1,3 +1,8 @@
+// =============================================================================
+// Footer — presentational bottom bar rendered inside <main> on every panel
+// -----------------------------------------------------------------------------
+// Static branding + quick links. Has no props, state or side effects.
+// =============================================================================
 import React from 'react';
 
 /**

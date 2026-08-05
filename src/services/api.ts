@@ -1,3 +1,16 @@
+// =============================================================================
+// REST API client layer
+// -----------------------------------------------------------------------------
+// Thin typed wrappers over fetch for every backend endpoint. Centralizes:
+//   - BASE_URL resolution (VITE_API_BASE_URL or same-origin /api)
+//   - the `ecclesia_token` Bearer header injection
+//   - JSON error extraction into a typed ApiError (status + message + body)
+//   - query-string building that skips empty/undefined params
+//
+// Views import these objects directly (e.g. christiansApi.list). The shapes
+// returned are the types from src/types.ts — the backend already un-strings the
+// JSON columns, so no parsing is needed here.
+// =============================================================================
 import {
   AuthSession,
   BilledItemReceipt,
@@ -29,7 +42,10 @@ import {
   TransferRecord,
   AuditLogEntry,
   UserAccount,
-  UserRole
+  InventoryPriceAuditLog,
+  UserRole,
+  ExportBundle,
+  DiagnosticsInfo
 } from '../types';
 
 /**
@@ -41,6 +57,9 @@ import {
  *
  * Every resource maps 1:1 to the REST contract documented in `API.md`.
  * The backend developer implements these endpoints; the frontend simply calls them.
+ *
+ * NOTE: `remove` (DELETE) methods call the SOFT-delete endpoints — records are
+ * never physically destroyed; they land in the Admin > Trash & Audit view.
  */
 const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
@@ -61,6 +80,11 @@ export interface QueryParams {
   [key: string]: string | number | boolean | undefined;
 }
 
+/**
+ * Core fetch wrapper. Always attaches the JWT (when present), parses JSON on
+ * success, and normalizes failures into ApiError. A 204 response returns
+ * undefined as T (used by DELETE endpoints).
+ */
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('ecclesia_token');
   const headers: Record<string, string> = {
@@ -88,6 +112,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Builds a `?a=b&c=d` string, dropping undefined and empty-string params. */
 function buildQuery(params?: QueryParams): string {
   if (!params) return '';
   const qs = new URLSearchParams();
@@ -108,6 +133,16 @@ export const authApi = {
   me: () => request<AuthSession['user']>('/auth/me'),
   changePassword: (body: { currentPassword: string; newPassword: string }) =>
     request<{ message: string }>('/auth/change-password', { method: 'PUT', body: JSON.stringify(body) }),
+  forgotPassword: (email: string) =>
+    request<{ ok: boolean }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+  resetPassword: (body: { token: string; newPassword: string }) =>
+    request<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
 };
 
 // ---------- Christians (member registry) ----------
@@ -213,7 +248,15 @@ export const inventoryApi = {
         method: 'PUT',
         body: JSON.stringify(body)
       }),
-    remove: (id: string) => request<void>(`/inventory/items/${id}`, { method: 'DELETE' })
+    remove: (id: string) => request<void>(`/inventory/items/${id}`, { method: 'DELETE' }),
+    history: (id: string) => request<InventoryPriceAuditLog[]>(`/inventory/items/${id}/history`),
+    batchUpdate: (
+      updates: { id: string; name?: string; category?: string; cost?: number; price?: number; reorder?: number }[]
+    ) =>
+      request<InventoryItem[]>('/inventory/items/batch-update', {
+        method: 'POST',
+        body: JSON.stringify({ updates })
+      })
   },
   deliveries: {
     list: () => request<DeliveryRecord[]>('/inventory/deliveries'),
@@ -275,6 +318,11 @@ export const adminApi = {
     update: (id: string, body: Partial<UserAccount> & { password?: string }) =>
       request<UserAccount>(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     remove: (id: string) => request<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+    resetPassword: (id: string) =>
+      request<{ code: string; expiresInMinutes: number }>(`/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      }),
   },
   permissions: {
     get: (userId: string) => request<PanelPermissions>(`/admin/users/${userId}/permissions`),
@@ -293,13 +341,34 @@ export const adminApi = {
       })
   },
   audit: {
-    list: (params?: { entity?: string; action?: string }) =>
+    list: (params?: { entity?: string; action?: string; from?: string; to?: string; actor?: string }) =>
       request<AuditLogEntry[]>(`/admin/audit-logs${buildQuery(params)}`),
+    current: (id: string) =>
+      request<{ current: Record<string, unknown> | null }>(`/admin/audit-logs/${id}/current`),
     restore: (id: string) =>
       request<{ message: string }>(`/admin/audit-logs/${id}/restore`, {
         method: 'POST',
         body: JSON.stringify({})
+      }),
+    restoreBulk: (ids: string[]) =>
+      request<{ restored: number; failed: number }>(`/admin/audit-logs/restore-bulk`, {
+        method: 'POST',
+        body: JSON.stringify({ ids })
       })
+  },
+  ops: {
+    backup: () =>
+      request<{ file: string; sizeBytes: number; at: string }>('/admin/backup', {
+        method: 'POST',
+        body: JSON.stringify({})
+      }),
+    exportData: () => request<ExportBundle>('/admin/export'),
+    importData: (bundle: ExportBundle) =>
+      request<{ message: string }>('/admin/import', {
+        method: 'POST',
+        body: JSON.stringify({ confirm: true, bundle })
+      }),
+    diagnostics: () => request<DiagnosticsInfo>('/admin/diagnostics')
   }
 };
 

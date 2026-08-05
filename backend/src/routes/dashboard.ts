@@ -1,3 +1,11 @@
+// =============================================================================
+// Dashboard routes — mounted at /api/dashboard (require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET /summary  — one response powering all Dashboard stat cards and recent
+//                   lists. Runs the queries in parallel via Promise.all (they are
+//                   independent), derives the low-stock count in JS, and relies
+//                   on appPrisma to exclude soft-deleted rows from every count.
+// =============================================================================
 import { Router } from 'express';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';

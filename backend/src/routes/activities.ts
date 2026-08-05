@@ -1,11 +1,25 @@
+// =============================================================================
+// Activities routes — mounted at /api (all require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET/POST /contributions   member giving records (categories + monthly
+//                             tracker stored as JSON TEXT in SQLite)
+//   GET/POST /transfers       parish transfers — POST also flips the Christian's
+//                             status to "Transferred" and rewrites their parish
+//                             details (single logical operation, no txn needed
+//                             since both writes are independent)
+//   GET/POST /billed-items    paid services; isWalkIn records have no christianId
+// =============================================================================
 import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModule } from '../middleware/perms.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireModule('activities'));
 
+/** Safe JSON parse for `categories`/`monthlyTracker` columns (stored as TEXT). */
 function parseJson<T>(raw: string, fallback: T): T {
   try {
     return JSON.parse(raw) as T;

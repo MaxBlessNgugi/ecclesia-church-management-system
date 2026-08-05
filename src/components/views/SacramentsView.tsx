@@ -1,6 +1,44 @@
+// =============================================================================
+// SacramentsView — Sacrament Register & Memorial panel (update_card / record_death)
+// -----------------------------------------------------------------------------
+// Manages the four sacramental fields (Baptism, Eucharist, Confirmation,
+// Marriage) on a member's Christian card, plus parishioner death records.
+// Persistence happens in App.tsx (christiansApi.updateSacraments / deathsApi.create);
+// this component only assembles payloads and reports through callbacks.
+//
+// Props: christians, selectedMember (optionally pre-selected by ChristianView's
+//        "Sacrament Card" action), deathRecords, initialSubTab, onUpdateSacraments,
+//        onRecordDeath.
+// Data flow: sacrament forms -> handleSaveSacraments -> onUpdateSacraments(memberId, {...}).
+//            death form -> handleDeathSubmit -> onRecordDeath(DeathRecord) -> parent
+//            persists it and flips the member's status to Deceased.
+// Internal state: subTab; activeMember + per-sacrament form slices (baptism/
+//        eucharist/confirmation/marriage) re-synced from activeMember via useEffect;
+//        showCertModal (printable certificate); death-record fields (deceasedMember,
+//        placeOfDeath, dateOfDeath, dateOfBurial, deathMinister, remarks).
+// =============================================================================
 import React, { useState, useEffect } from 'react';
 import { ChristianRecord, SacramentsSubTab, DeathRecord } from '../../types';
+import { usePermissions } from '../../permissions';
 
+/**
+ * Props for the Sacrament Register & Memorial panel.
+ *
+ * @param christians - Full registry list; sources both the member dropdowns and
+ *   the default activeMember/deceasedMember (first / second list entry).
+ * @param selectedMember - Member pre-selected from another panel (e.g. ChristianView's
+ *   "Sacrament Card" action); when set, it overrides activeMember via useEffect.
+ *   Optional — defaults to null.
+ * @param deathRecords - Existing memorial entries rendered in the right-hand
+ *   "Recent Memorial Entries" feed (most-recent-first).
+ * @param initialSubTab - Sub-tab opened on first mount; defaults to 'update_card'.
+ *   Only seeds state — later switches are internal.
+ * @param onUpdateSacraments - Fired on sacrament save with the member id and a
+ *   partial ChristianRecord containing only the four sacrament slices; parent
+ *   merges it back into the member and persists via christiansApi.
+ * @param onRecordDeath - Fired on death-form submit with a fully-built DeathRecord;
+ *   parent persists it and sets the member's status to 'Deceased'.
+ */
 interface SacramentsViewProps {
   christians: ChristianRecord[];
   selectedMember?: ChristianRecord | null;
@@ -18,25 +56,33 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   onUpdateSacraments,
   onRecordDeath
 }) => {
+  const perms = usePermissions();
   const [subTab, setSubTab] = useState<SacramentsSubTab>(initialSubTab);
 
-  // Active member for Sacrament Card
+  // Active member for Sacrament Card — fallback chain: prefer the member
+  // pre-selected by another panel, else the first registry row, else null
+  // (handles an empty registry without crashing the form).
   const [activeMember, setActiveMember] = useState<ChristianRecord | null>(
     propSelectedMember || christians[0] || null
   );
 
+  // Re-sync when the parent hands down a (new) pre-selected member — e.g. clicking
+  // "Sacrament Card" on a row in ChristianView navigates here with selectedMember set.
   useEffect(() => {
     if (propSelectedMember) {
       setActiveMember(propSelectedMember);
     }
   }, [propSelectedMember]);
 
-  // Sacrament Form State
+  // Sacrament Form State — four slices mirroring SacramentData { date, minister, place }.
+  // Kept as draft fields so edits never touch the real record until Save is pressed.
   const [baptism, setBaptism] = useState({ date: '', minister: '', place: '' });
   const [eucharist, setEucharist] = useState({ date: '', minister: '', place: '' });
   const [confirmation, setConfirmation] = useState({ date: '', minister: '', place: '' });
   const [marriage, setMarriage] = useState({ date: '', minister: '', place: '' });
 
+  // When the active member changes (dropdown switch or pre-selection), repopulate
+  // every sacrament slice from that member's record (empty strings when unrecorded).
   useEffect(() => {
     if (activeMember) {
       setBaptism({
@@ -65,7 +111,10 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   // Certificate Modal State
   const [showCertModal, setShowCertModal] = useState(false);
 
-  // Death Record State
+  // Death Record State — default deceasedMember is the SECOND registry entry
+  // (christians[1]) rather than the first, so the death form doesn't pre-select
+  // the same member as the sacrament card by default. Falls back to null on an
+  // empty registry.
   const [deceasedMember, setDeceasedMember] = useState<ChristianRecord | null>(christians[1] || null);
   const [placeOfDeath, setPlaceOfDeath] = useState('');
   const [dateOfDeath, setDateOfDeath] = useState('');
@@ -75,7 +124,10 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
   const handleSaveSacraments = (e: React.FormEvent) => {
     e.preventDefault();
+    // Empty-registry edge case: bail silently if no member is selected.
     if (!activeMember) return;
+    // Partial update — only the four sacrament slices leave this component; the
+    // parent merges them into the member and persists via christiansApi.
     onUpdateSacraments(activeMember.id, {
       baptism,
       eucharist,
@@ -87,8 +139,13 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
   const handleDeathSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Guard: nothing to record if no deceased member is selected.
     if (!deceasedMember) return;
 
+    // Optional death fields fall back to sensible liturgical defaults when left
+    // blank: placeOfDeath -> 'Parish Residence', dateOfDeath -> today (ISO date),
+    // dateOfBurial -> 'Pending', remarks -> a default requiem annotation.
+    // Note dateOfBurial is free text while dateOfDeath is a date input.
     const newDeathRecord: DeathRecord = {
       id: `d_${Date.now()}`,
       christianId: deceasedMember.id,
@@ -100,6 +157,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
       remarks: remarks || 'Liturgy of the Word celebrated'
     };
 
+    // Parent persists the death entry AND flips the member's status to Deceased.
     onRecordDeath(newDeathRecord);
     alert(`Death record logged and Parish Roll updated for ${deceasedMember.baptismalName} ${deceasedMember.sirName}.`);
   };
@@ -117,6 +175,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           </p>
         </div>
 
+        {/* Sub-tab pills — 'update_card' vs 'record_death'; the active pill is
+            inverted (dark bg + light text). Switching unmounts one workflow and
+            mounts the other. */}
         <div className="flex items-center gap-1 bg-[#f4f3f3] p-1 rounded-lg border border-[#e1e3e3]">
           <button
             onClick={() => setSubTab('update_card')}
@@ -141,7 +202,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
         </div>
       </div>
 
-      {/* 1. UPDATE CHRISTIAN CARD */}
+      {/* 1. UPDATE CHRISTIAN CARD — pick a member and edit the four sacrament
+          slices on their card; includes a printable certificate preview. */}
       {subTab === 'update_card' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-[#e1e3e3]">
@@ -154,7 +216,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               </p>
             </div>
 
-            {/* Member selector */}
+            {/* Member selector — switching rows repopulates the form slices below
+                via the activeMember useEffect. */}
             <div className="w-full sm:w-80">
               <select
                 value={activeMember?.id}
@@ -173,7 +236,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
             </div>
           </div>
 
-          {/* Active Member Preview */}
+          {/* Active Member Preview — identity-confirmation header plus the
+              certificate button. Rendered only when a member exists (null on an
+              empty registry). */}
           {activeMember && (
             <div className="p-4 bg-[#f9f9f9] border border-[#e1e3e3] rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -203,7 +268,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           )}
 
           <form onSubmit={handleSaveSacraments} className="space-y-6">
-            {/* 4 Sacraments Grid */}
+            {/* 4 Sacraments Grid — one card per sacrament (Baptism, Eucharist,
+                Confirmation, Marriage), each editing { date, minister, place }. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* BAPTISM */}
               <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-lg space-y-3">
@@ -398,7 +464,10 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
             <div className="pt-4 border-t border-[#e1e3e3] flex justify-end gap-3">
               <button
                 type="submit"
-                className="px-6 py-2.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs cursor-pointer flex items-center gap-2"
+                disabled={!perms.canEdit('sacraments')}
+                className={`px-6 py-2.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs flex items-center gap-2 ${
+                  !perms.canEdit('sacraments') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                }`}
               >
                 <span className="material-symbols-outlined text-sm">save</span>
                 Save & Update Sacramental Registers
@@ -408,7 +477,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
         </div>
       )}
 
-      {/* 2. RECORD DEATH DETAILS */}
+      {/* 2. RECORD DEATH DETAILS — memorial workflow: log a parishioner's demise;
+          submission persists the death entry and marks the member Deceased. */}
       {subTab === 'record_death' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
@@ -511,7 +581,10 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               <div className="pt-4 border-t border-[#e1e3e3] flex justify-end">
                 <button
                   type="submit"
-                  className="px-6 py-2 text-xs font-bold text-white bg-[#ba1a1a] hover:bg-[#961212] rounded transition-colors shadow-2xs cursor-pointer flex items-center gap-2"
+                  disabled={!perms.canEdit('sacraments')}
+                  className={`px-6 py-2 text-xs font-bold text-white bg-[#ba1a1a] hover:bg-[#961212] rounded transition-colors shadow-2xs flex items-center gap-2 ${
+                    !perms.canEdit('sacraments') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
                 >
                   <span className="material-symbols-outlined text-sm">skull</span>
                   Save & Update Status to Deceased
@@ -536,6 +609,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               <h4 className="text-xs font-bold text-[#1a1c1c] uppercase tracking-wider">
                 RECENT MEMORIAL ENTRIES
               </h4>
+              {/* Feed of logged memorial entries; renders nothing (no explicit
+                  empty state) when deathRecords is empty. */}
               <div className="space-y-2">
                 {deathRecords.map((d) => (
                   <div key={d.id} className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3]">
@@ -551,11 +626,22 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
         </div>
       )}
 
-      {/* PRINTABLE SACRAMENT CERTIFICATE MODAL */}
+      {/* PRINTABLE SACRAMENT CERTIFICATE MODAL — read-only preview of the current
+          form slices; Print invokes window.print() on the whole page. Guarded by
+          BOTH showCertModal and a non-null activeMember. */}
       {showCertModal && activeMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
-          <div className="bg-[#faf8f5] border-2 border-[#1e1e1e] rounded-xl p-8 max-w-xl w-full shadow-2xl space-y-6 relative font-serif">
-            <div className="text-center space-y-2 border-b border-[#1e1e1e] pb-4">
+          <div className="bg-[#faf8f5] border-2 border-[#1e1e1e] rounded-xl p-8 max-w-xl w-full shadow-2xl space-y-6 relative font-serif overflow-hidden">
+            {/* Anti-fraud watermark — a faint diagonal parish mark behind the
+                certificate body. It prints with the document so photocopied
+                certificates stay attributable. */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none" aria-hidden="true">
+              <div className="text-[#1a1c1c] opacity-[0.05] text-7xl font-bold tracking-widest whitespace-nowrap -rotate-[25deg]">
+                ST. MARY'S PARISH
+              </div>
+            </div>
+
+            <div className="text-center space-y-2 border-b border-[#1e1e1e] pb-4 relative">
               <div className="text-3xl font-bold text-[#1a1c1c]">† ST. MARY'S PARISH</div>
               <p className="text-xs tracking-widest uppercase font-semibold text-[#444748]">
                 Archdiocese of Nairobi • Sacramental Record Certificate

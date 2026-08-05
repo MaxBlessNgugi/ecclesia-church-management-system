@@ -31,7 +31,7 @@ Health: `curl http://localhost:5000/api/health`
 ## Frontend (run in a second terminal)
 
 ```bash
-cd ecclesia-church-management-system
+cd ECCLESIA-ChMS
 npm install
 echo 'VITE_API_BASE_URL=http://localhost:5000/api' > .env
 npm run dev

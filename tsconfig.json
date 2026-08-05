@@ -1,4 +1,10 @@
 {
+  // Frontend TypeScript configuration (React 19 + Vite 6).
+  // - moduleResolution "bundler" + moduleDetection "force" match Vite's ESM
+  //   bundling; noEmit because Vite/esbuild do the transpiling.
+  // - "@/*" maps to src/* to align with vite.config.ts's alias.
+  // - allowImportingTsExtensions lets source files import './App.tsx' directly.
+  // - backend/, dist/ and node_modules are excluded — the API has its own tsconfig.
   "compilerOptions": {
     "target": "ES2022",
     "strict": true,

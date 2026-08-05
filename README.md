@@ -1,4 +1,4 @@
-# Ecclesia - Church Management System (Parish ERP)
+# ECCLESIA ChMS — Church Management System (Parish ERP)
 
 Full-stack church management system: **React 19 frontend** + **local SQLite backend**.
 
@@ -37,11 +37,38 @@ npm run dev
 
 | Field | Value |
 |-------|--------|
-| Email | `maxblessngugi@ecclesia.local` |
-| Password | `ChangeMeImmediately123!` |
+| Email | `SUPER_ADMIN_EMAIL` from `backend/.env` (default `maxblessngugi@ecclesia.local`) |
+| Password | `SUPER_ADMIN_PASSWORD` if set in `backend/.env`, otherwise **random** — printed **once** on first seed |
 | Role | `super_admin` (full access) |
 
-Only this account can add other users. **Change the password after first login.**
+The seeded account is created with a temporary password and **must be changed at first sign-in**. Only this account can add other users.
+
+---
+
+## Production (one process, one port)
+
+The Express server serves the built frontend **and** the API together:
+
+```bash
+npm run build                 # 1. build the frontend (repo root)
+cd backend
+npm run build                 # 2. compile the backend (TypeScript -> dist/)
+npm start                     # 3. run — serves the app on http://localhost:5000
+```
+
+Before deploying set a strong secret in `backend/.env` and force production mode:
+
+```
+NODE_ENV=production
+JWT_SECRET=<48+ random hex chars>
+```
+
+The backend **refuses to start** in production with a missing or default `JWT_SECRET`
+(see `docs/OPERATIONS.md`). For HTTPS on the LAN or a domain, drop Caddy in front:
+
+```bash
+caddy run          # uses the Caddyfile at the repo root
+```
 
 ---
 
@@ -69,6 +96,7 @@ Only this account can add other users. **Change the password after first login.*
 | `npm run backend` | Start API on port 5000 |
 | `npm run dev` | Start frontend on port 3000 |
 | `npm run build` | Build frontend for production |
+| `npm run backend:build` + `npm start` | Run the whole app as one process (see "Production" above) |
 
 ---
 

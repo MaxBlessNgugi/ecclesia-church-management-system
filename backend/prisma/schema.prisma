@@ -13,11 +13,19 @@ model User {
   passwordHash String
   name         String
   title        String?
-  role         String    @default("staff")
-  isActive     Boolean   @default(true)
-  panels       String?
-  actions      String?
-  isDeleted    Boolean   @default(false)
+  role                  String    @default("staff")
+  isActive              Boolean   @default(true)
+  panels                String?
+  actions               String?
+  resetTokenHash        String?
+  resetTokenExpires     DateTime?
+  resetFailedAttempts   Int       @default(0)
+  mustChangePassword    Boolean   @default(false)
+  loginFailedAttempts   Int       @default(0)
+  lockedUntil           DateTime?
+  lastLoginAt           DateTime?
+  lastActiveAt          DateTime?
+  isDeleted             Boolean   @default(false)
   deletedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -39,6 +47,7 @@ model PushPaymentSettings {
   accountFormat  String @default("")
   consumerKey    String @default("")
   consumerSecret String @default("")
+  mode           String @default("sandbox")
   testPhone      String @default("")
   testAmount     String @default("")
 
@@ -153,11 +162,18 @@ model Death {
 
 model AuditLog {
   id               String   @id @default(uuid())
+  // PascalCase Prisma delegate name of the soft-deleted model (e.g. "Christian").
   entityName       String
+  // Row id of the soft-deleted/restored record within that model.
   entityId         String
+  // "DELETE" or "RESTORE" — drives the Trash & Audit UI.
   action           String   @default("DELETE")
+  // Actor id + cached display name (resolved at write time so the trail survives
+  // the actor's own account being deleted later).
   deletedBy        String?
   deletedByName    String?
+  // Full JSON snapshot of the record at mutation time. passwordHash is stripped
+  // before writing so credentials never persist in the audit trail.
   metadataSnapshot String
   createdAt        DateTime @default(now())
 
@@ -340,4 +356,23 @@ model Employee {
   updatedAt DateTime @updatedAt
 
   @@map("employees")
+}
+
+// Append-only price audit trail: every cost/price change on an inventory item
+// writes one row so administrators can review retail/cost history over time.
+model InventoryPriceAuditLog {
+  id        String   @id @default(uuid())
+  itemId    String
+  itemName  String
+  sku       String
+  oldCost   Float?
+  newCost   Float?
+  oldPrice  Float?
+  newPrice  Float?
+  actorName String
+  createdAt DateTime @default(now())
+
+  @@index([itemId])
+  @@index([createdAt])
+  @@map("inventory_price_audit_logs")
 }

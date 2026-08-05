@@ -1,10 +1,23 @@
+// =============================================================================
+// Ledger routes — mounted at /api/ledgers (all require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET  /                list ledgers (code ascending)
+//   POST /                create ledger; code auto-generated (LDR-###) if blank
+//   GET  /movements       transfer history, newest first
+//   POST /transfer        move money between ledgers as ONE $transaction: debit
+//                         source, credit destination, record the movement — so a
+//                         crash can never leave balances half-applied.
+//                         Guards: 404 unknown ledger, 422 insufficient balance.
+// =============================================================================
 import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModule } from '../middleware/perms.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireModule('ledgers'));
 
 router.get('/', async (_req, res, next) => {
   try {

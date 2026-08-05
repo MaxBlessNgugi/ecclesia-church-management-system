@@ -1,0 +1,30 @@
+# =============================================================================
+# Ecclesia — Caddy reverse proxy (TLS + LAN access)
+# -----------------------------------------------------------------------------
+# The Express server (npm start, port 5000) already serves BOTH the API and the
+# built frontend on one port. Caddy's only job here is HTTPS and, for LAN
+# installs, making the app reachable on the network.
+#
+# HOW TO RUN:
+#   1. Build the frontend:   (repo root)   npm run build
+#   2. Start the backend:    (backend/)    npm run build && npm start
+#   3. Run Caddy from the repo root:       caddy run
+#
+# SETUP A — Internet/domain install: the parish has a domain. Caddy
+#   auto-provisions a real Let's Encrypt certificate. Put your domain in a
+#   caddy.env file:
+#       DOMAIN=ecclesia.example.com
+#
+# SETUP B — LAN-only install: no domain needed. Caddy issues a self-signed cert
+#   and the app is reachable at https://<this-pc-ip> from any device on the
+#   network. Clients must accept the self-signed warning once. Leave DOMAIN
+#   unset and Caddy falls back to the machine's own name.
+# =============================================================================
+
+{$DOMAIN:localhost} {
+	encode gzip
+
+	# Everything — API and static frontend — is proxied to the self-hosted app.
+	# One process on one port; Caddy just wraps it in HTTPS.
+	reverse_proxy 127.0.0.1:5000
+}

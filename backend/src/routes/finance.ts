@@ -1,10 +1,24 @@
+// =============================================================================
+// Finance routes — mounted at /api (all require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET/POST /deposits          bank deposits; refNo auto-generated (DEP-#####)
+//                               when the client omits one.
+//   GET/POST/PUT /creditors     amounts owed to suppliers; PATCH :id/paid marks
+//                               a creditor Paid.
+//   GET/POST /debtors           amounts owed by members; POST :id/payments
+//                               reduces the balance and derives the status
+//                               (Paid when it reaches 0, else Partially Paid).
+//   GET/POST /expenses          spend records; voucherNo auto-generated (EXP-#####).
+// =============================================================================
 import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModule } from '../middleware/perms.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireModule('finance'));
 
 // Deposits
 router.get('/deposits', async (_req, res, next) => {

@@ -1,12 +1,47 @@
+// =============================================================================
+// ActivitiesView — parish activities panel: tithes, transfers & billed items
+// -----------------------------------------------------------------------------
+// Renders three sub-tabs (the ActivitiesSubTab union) above a single lifted
+// `christians` array: RECEIVE PAYMENT (contribution entry), TRANSFER CHRISTIAN
+// (record a move to another diocese/outstation), and BILLED ITEMS PAY (liturgical
+// service receipts). No list fetching happens here — records come in via props.
+//
+// Data flow:
+//   - `onRecordPayment` lifts a ContributionRecord up to App.tsx (client-side
+//     state update only; the contribution API itself is not called here).
+//   - `onTransferChristian` lifts the destination diocese/parish/outstation/SCC.
+//   - BILLED ITEMS is the only sub-tab that hits the network: it POSTs a
+//     BilledItemReceipt via billedItemsApi.create and, on success, displays the
+//     server-persisted receipt in a printable modal.
+//
+// Cross-panel handoff: when a member is chosen elsewhere (e.g. Global Search),
+// App.tsx passes them in as `selectedMember`. A useEffect forwards that
+// selection into ALL three sub-tab forms so the payment / transfer / billed-item
+// forms open pre-filled with the same parishioner.
+//
+// Internal state: `subTab` swaps the rendered panel; each panel owns its local
+// form state (selected categories, monthly tithing tracker, transfer destination,
+// billed item line). `showReceiptModal` + `generatedReceipt` gate the receipt
+// overlay. All record ids are generated client-side with Date.now()/random.
+// =============================================================================
 import React, { useState, useEffect } from 'react';
 import { ChristianRecord, ActivitiesSubTab, ContributionRecord, BilledItemReceipt } from '../../types';
 import { billedItemsApi } from '../../services/api';
+import { usePermissions } from '../../permissions';
 
+/**
+ * Props for the ActivitiesView panel.
+ */
 interface ActivitiesViewProps {
+  /** Full parishioner registry, shared with the parent and used to seed/search all sub-tab forms */
   christians: ChristianRecord[];
+  /** Optional member handed in from another panel (cross-panel handoff) to prefill the active forms */
   selectedMember?: ChristianRecord | null;
+  /** Which sub-tab to open on mount; defaults to 'receive_payment' */
   initialSubTab?: ActivitiesSubTab;
+  /** Callback lifting a completed contribution (payment) record to the parent for storage */
   onRecordPayment: (payment: ContributionRecord) => void;
+  /** Callback lifting a parish transfer (new diocese/parish/outstation/SCC) for a member */
   onTransferChristian: (memberId: string, dest: { diocese: string; parish: string; localChurch: string; scc: string }) => void;
 }
 
@@ -17,15 +52,21 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   onRecordPayment,
   onTransferChristian
 }) => {
+  const perms = usePermissions();
   const [subTab, setSubTab] = useState<ActivitiesSubTab>(initialSubTab);
 
   // Receive Payment state
+  // activeMember is seeded from the cross-panel handoff if present, else the
+  // first registry entry; it becomes the implicit target of the contribution.
   const [activeMember, setActiveMember] = useState<ChristianRecord | null>(
     propSelectedMember || christians[0] || null
   );
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  // Default selection is 10% Tithing so the most common contribution is pre-checked.
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['10% Tithing']);
   const [otherCategoryText, setOtherCategoryText] = useState('');
+  // FY 2024 tracker — JAN..APR default to PAID, the rest DUE; toggling marks a
+  // month paid/unpaid and is embedded into the contribution payload.
   const [monthlyTracker, setMonthlyTracker] = useState<{ [month: string]: boolean }>({
     JAN: true,
     FEB: true,
@@ -62,6 +103,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [generatedReceipt, setGeneratedReceipt] = useState<BilledItemReceipt | null>(null);
 
+  // Syncs the cross-panel member handoff into all three sub-tab forms. Without
+  // this, a member chosen on another panel would not prefill the current tab.
   useEffect(() => {
     if (propSelectedMember) {
       setActiveMember(propSelectedMember);
@@ -70,6 +113,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     }
   }, [propSelectedMember]);
 
+  // Toggle a contribution category on/off in the checked set.
   const toggleCategory = (cat: string) => {
     if (selectedCategories.includes(cat)) {
       setSelectedCategories(selectedCategories.filter((c) => c !== cat));
@@ -78,10 +122,16 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     }
   };
 
+  /** Toggle a month's PAID/DUE state inside the 10% tithing tracker. */
   const toggleMonth = (m: string) => {
     setMonthlyTracker({ ...monthlyTracker, [m]: !monthlyTracker[m] });
   };
 
+  /**
+   * Validates a member is selected, then builds a ContributionRecord from the
+   * current form state (categories, tracker, amount) and lifts it to the parent.
+   * The id is a timestamp-based key; the date is truncated to YYYY-MM-DD.
+   */
   const handleReceivePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeMember) {
@@ -105,6 +155,10 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     alert(`Payment of KES ${paymentAmountKES.toLocaleString()} recorded for ${activeMember.baptismalName} ${activeMember.sirName}!`);
   };
 
+  /**
+   * Builds the destination diocese/parish/outstation/SCC object and lifts it to
+   * the parent via onTransferChristian. The member is chosen from the select.
+   */
   const handleTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!transferMember) return;
@@ -117,6 +171,14 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     alert(`Transfer record updated for ${transferMember.baptismalName} ${transferMember.sirName} to ${destParish}!`);
   };
 
+  /**
+   * Assembles a BilledItemReceipt and POSTs it via billedItemsApi.create.
+   * Edge cases: `christianId` is only set for registered members (walk-ins leave
+   * it undefined — the field is optional in BilledItemReceipt); the member name
+   * falls back to the walk-in name, then to the literal 'Walk-in Client'. On
+   * success the persisted receipt (with server-generated id) drives the receipt
+   * modal; failures surface via alert and console.
+   */
   const handleBilledItemSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = billedClientType === 'member' && billedMember
@@ -146,6 +208,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     }
   };
 
+  // Client-side search over the registry: matches any name part or regNo against
+  // the query. Empty query hides the dropdown entirely (see the JSX guard).
   const filteredMembers = christians.filter((c) => {
     const q = memberSearchQuery.toLowerCase();
     return (
@@ -168,6 +232,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
           </p>
         </div>
 
+        {/* Sub-tab switcher — each button sets subTab and the active one is
+            highlighted (dark bg) via the conditional Tailwind class below. */}
         <div className="flex items-center gap-1 bg-[#f4f3f3] p-1 rounded-lg border border-[#e1e3e3]">
           <button
             onClick={() => setSubTab('receive_payment')}
@@ -202,7 +268,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
         </div>
       </div>
 
-      {/* 1. RECEIVE PAYMENT */}
+      {/* 1. RECEIVE PAYMENT — pick a member, mark contribution categories,
+          tick paid months in the tithing tracker, then submit the amount. */}
       {subTab === 'receive_payment' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-[#e1e3e3]">
@@ -215,7 +282,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
               </p>
             </div>
 
-            {/* Member Picker */}
+            {/* Member Picker — search box that reveals a filtered dropdown;
+                choosing a row sets activeMember and clears the query. */}
             <div className="w-full md:w-80 relative">
               <input
                 type="text"
@@ -248,7 +316,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
             </div>
           </div>
 
-          {/* Active Selected Member Card */}
+          {/* Active Selected Member Card — recap of the payment target; only
+              rendered when a member is actually selected (null-safe). */}
           {activeMember && (
             <div className="p-4 bg-[#f9f9f9] border border-[#e1e3e3] rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -283,6 +352,10 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
               <label className="block text-xs font-bold text-[#1a1c1c] uppercase tracking-wider mb-3">
                 Contribution Categories
               </label>
+              {/* Contribution Categories — checkbox tiles driven by toggleCategory;
+                  the checked (dark) vs unchecked style comes from the conditional
+                  Tailwind classes. Picking 'Other Contribution' reveals a free-text
+                  input whose value is persisted on the record. */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {[
                   '10% Tithing',
@@ -331,7 +404,9 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
               )}
             </div>
 
-            {/* 10% Monthly Tracker Checkboxes */}
+            {/* 10% Monthly Tracker — PAID (emerald) vs DUE (neutral) tiles;
+                each click flips the month in monthlyTracker, and the payload
+                snapshot stores the entire map. */}
             <div>
               <label className="block text-xs font-bold text-[#1a1c1c] uppercase tracking-wider mb-2">
                 10% Tithing Monthly Tracker (FY 2024)
@@ -394,7 +469,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs cursor-pointer flex items-center gap-2"
+                  disabled={!perms.canEdit('activities')}
+                  className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs opacity-50 cursor-not-allowed flex items-center gap-2"
                 >
                   <span className="material-symbols-outlined text-sm">receipt_long</span>
                   Submit Payment
@@ -405,7 +481,9 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
         </div>
       )}
 
-      {/* 2. TRANSFER CHRISTIAN */}
+      {/* 2. TRANSFER CHRISTIAN — select a member, enter the destination
+          diocese/parish/outstation/SCC, and lift the move to the parent.
+          The sidebar widgets are static metric cards (no live data). */}
       {subTab === 'transfer' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
@@ -419,7 +497,9 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
             </div>
 
             <form onSubmit={handleTransferSubmit} className="space-y-6">
-              {/* Select Member to Transfer */}
+              {/* Select Member to Transfer — options are drawn from the lifted
+                  christians array; picking one swaps transferMember, which is
+                  also pre-synced by the cross-panel selectedMember effect. */}
               <div>
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Select Parishioner to Transfer
@@ -494,7 +574,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
               <div className="pt-4 border-t border-[#e1e3e3] flex justify-end">
                 <button
                   type="submit"
-                  className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs cursor-pointer flex items-center gap-2"
+                  disabled={!perms.canEdit('activities')}
+                  className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs opacity-50 cursor-not-allowed flex items-center gap-2"
                 >
                   <span className="material-symbols-outlined text-sm">move_item</span>
                   Save & Update Status
@@ -528,7 +609,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
         </div>
       )}
 
-      {/* 3. BILLED ITEMS PAY */}
+      {/* 3. BILLED ITEMS PAY — step-by-step flow: lookup client, choose item,
+          set quantity, then POST the receipt via billedItemsApi.create. */}
       {subTab === 'billed_items' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-8">
           <form onSubmit={handleBilledItemSubmit} className="space-y-8">
@@ -541,6 +623,9 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                 <span>Christian Lookup</span>
               </div>
 
+              {/* Client-type toggle — 'member' shows a registry select; 'walkin'
+                  shows a free-text name field. The receipt's christianId is only
+                  populated for members (walk-ins keep it undefined). */}
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 text-xs text-[#1a1c1c] font-medium cursor-pointer">
                   <input
@@ -640,6 +725,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
               </div>
 
               {/* Frequently Billed Quick Buttons */}
+              {/* Frequently Billed Quick Buttons — one-click presets that fill
+                  the item name, unit fee, and category fields together. */}
               <div>
                 <label className="block text-[10px] font-bold text-[#444748] uppercase tracking-wider mb-2">
                   Frequently Billed Items
@@ -678,6 +765,9 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                 <span>Transaction Details</span>
               </div>
 
+              {/* Transaction details — unit fee and quantity drive the live
+                  'Amount Due' total shown below (unitFee * quantity). Quantity
+                  is clamped to a minimum of 1. */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
@@ -720,7 +810,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
             <div className="pt-4 border-t border-[#e1e3e3] flex justify-end">
               <button
                 type="submit"
-                className="px-6 py-2.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs cursor-pointer flex items-center gap-2"
+                disabled={!perms.canEdit('activities')}
+                className="px-6 py-2.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs opacity-50 cursor-not-allowed flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-base">print</span>
                 Generate Official Receipt
@@ -730,7 +821,10 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
         </div>
       )}
 
-      {/* PRINTABLE RECEIPT MODAL */}
+      {/* PRINTABLE RECEIPT MODAL — shown only after a successful POST; renders
+          the persisted receipt (server id + client fields) and offers browser
+          print. isWalkIn receipts have no christianId, so the modal only ever
+          reads display fields. */}
       {showReceiptModal && generatedReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">

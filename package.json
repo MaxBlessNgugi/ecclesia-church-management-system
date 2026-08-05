@@ -1,5 +1,5 @@
 {
-  "name": "ecclesia-church-management-system",
+  "name": "ecclesia-chms",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,7 +15,6 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
@@ -39,9 +38,7 @@
     "vite": "^6.2.3"
   },
   "allowScripts": {
-    "@google/genai@2.15.0": true,
     "esbuild@0.25.12": true,
-    "esbuild@0.28.1": true,
-    "protobufjs@7.6.5": true
+    "esbuild@0.28.1": true
   }
 }

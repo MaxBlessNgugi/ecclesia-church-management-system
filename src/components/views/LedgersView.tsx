@@ -1,8 +1,29 @@
+// =============================================================================
+// LedgersView — create general ledgers, assign cashiers, and move funds between
+// ledgers (inter-ledger transfers)
+// -----------------------------------------------------------------------------
+// Self-contained view (no props): unlike the App-lifted views, it fetches its
+// own data on mount via useEffect. API endpoints used:
+//   - GET  /api/ledgers           (ledgersApi.list)
+//   - GET  /api/ledgers/movements (ledgersApi.movements)
+//   - GET  /api/hr/employees      (hrApi.employees.list)
+//   - POST /api/ledgers           (ledgersApi.create)
+//   - POST /api/ledgers/transfer  (ledgersApi.transfer)
+//
+// Internal state flow: on mount, ledgers + the recent-movements feed + the
+// employee list are loaded in parallel (failures are logged only — there is no
+// dedicated loading flag). A sub-tab switch ('mgmt' | 'transfer') selects which
+// form renders. Form submissions mutate server state, then reload ledgers so the
+// directory, balances, and movement feed stay in sync; success/failure surfaces
+// through a transient notification or an alert.
+// =============================================================================
 import React, { useState, useEffect } from 'react';
 import { LedgersSubTab, LedgerRecord, LedgerMovement, EmployeeRecord } from '../../types';
 import { ledgersApi, hrApi } from '../../services/api';
+import { usePermissions } from '../../permissions';
 
 export const LedgersView: React.FC = () => {
+  const perms = usePermissions();
   const [activeSubTab, setActiveSubTab] = useState<LedgersSubTab>('mgmt');
 
   // Ledger state
@@ -30,6 +51,12 @@ export const LedgersView: React.FC = () => {
 
   const [notification, setNotification] = useState<string | null>(null);
 
+  /**
+   * Loads the ledger directory and the recent-movements feed in parallel so both
+   * panels render after a single round trip. When ledgers exist, pre-selects the
+   * first ledger as the transfer source and the last as the destination so the
+   * transfer form is immediately usable. Called on mount and after each transfer.
+   */
   const loadLedgers = async () => {
     try {
       const [ledgerRows, movementRows] = await Promise.all([ledgersApi.list(), ledgersApi.movements()]);
@@ -44,6 +71,9 @@ export const LedgersView: React.FC = () => {
     }
   };
 
+  // On mount, hydrate all view state: ledgers, the movement log, and the
+  // employee list that backs the cashier <select>. Failures are logged only;
+  // the forms stay usable so the user can retry via form actions.
   useEffect(() => {
     void loadLedgers();
     hrApi.employees
@@ -52,17 +82,25 @@ export const LedgersView: React.FC = () => {
       .catch((error) => console.error('Failed to load employees', error));
   }, []);
 
+  /** Displays a transient success banner that auto-clears after 4s. */
   const showNotification = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
   };
 
+  /** Clears only the create-ledger fields, deliberately keeping the assigned cashier. */
   const handleClearForm = () => {
     setLedgerName('');
     setInitialBalance('');
     setDescription('');
   };
 
+  /**
+   * Validates a ledger name, then POSTs a new ledger. The `code` is generated
+   * server-side (input is disabled and placeholder shows the format); an empty
+   * initial balance parses to 0.0. The new ledger is prepended to the directory
+   * and a notification confirms the assigned code.
+   */
   const handleSaveLedger = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ledgerName) return;
@@ -83,6 +121,14 @@ export const LedgersView: React.FC = () => {
     }
   };
 
+  /**
+   * Guard rails before POSTing an inter-ledger transfer:
+   *   - the amount must parse to a positive number
+   *   - source and destination must resolve to existing ledgers (by name)
+   * Notes are optional (undefined is dropped by the request body). After the
+   * transfer, ledgers and the movement feed are reloaded so balances and the
+   * activity log reflect the server-side mutation.
+   */
   const handleExecuteTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(transferAmount);
@@ -139,7 +185,7 @@ export const LedgersView: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub-navigation Tabs */}
+      {/* Sub-navigation Tabs: activeSubTab decides which single-panel form renders below. */}
       <div className="flex border-b border-[#e1e3e3] gap-8 text-xs font-bold tracking-wider uppercase">
         <button
           onClick={() => setActiveSubTab('mgmt')}
@@ -170,7 +216,7 @@ export const LedgersView: React.FC = () => {
         </div>
       )}
 
-      {/* SUB-TAB 1: LEDGER & CASHIER MGMT */}
+      {/* SUB-TAB 1: LEDGER & CASHIER MGMT — create-ledger form (5 cols) + ledger directory (7 cols). */}
       {activeSubTab === 'mgmt' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Create Ledger & Assign Cashier Form (5 Cols) */}
@@ -275,7 +321,8 @@ export const LedgersView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs cursor-pointer"
+                  disabled={!perms.canEdit('ledgers')}
+                  className="flex-1 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs opacity-50 cursor-not-allowed"
                 >
                   Save Ledger Record
                 </button>
@@ -283,8 +330,9 @@ export const LedgersView: React.FC = () => {
             </form>
           </div>
 
-          {/* Active Ledgers Directory & Sacred Stewardship Card (7 Cols) */}
-          <div className="lg:col-span-7 space-y-6">
+              {/* Active Ledgers Directory & Sacred Stewardship Card (7 Cols) */}
+              {/* Directory renders the in-memory ledgers array (new rows appear instantly on create). */}
+              <div className="lg:col-span-7 space-y-6">
             <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-[#e1e3e3] pb-3">
                 <h3 className="text-base font-serif font-bold text-[#1a1c1c]">
@@ -355,7 +403,7 @@ export const LedgersView: React.FC = () => {
         </div>
       )}
 
-      {/* SUB-TAB 2: INTER-LEDGER TRANSFER */}
+      {/* SUB-TAB 2: INTER-LEDGER TRANSFER — transfer form (8 cols) + recent movement feed (4 cols). */}
       {activeSubTab === 'transfer' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Transfer Form (8 Cols) */}
@@ -386,6 +434,7 @@ export const LedgersView: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                  {/* Live available-balance readout for the selected source ledger (0.00 if unresolved). */}
                   <p className="text-[10px] text-[#444748] italic mt-1">
                     Available balance: ${(ledgers.find((l) => l.name === sourceLedger)?.balance ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
@@ -462,7 +511,8 @@ export const LedgersView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  disabled={!perms.canEdit('ledgers')}
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs opacity-50 cursor-not-allowed flex items-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-sm">sync_alt</span>
                   Execute Fund Transfer
@@ -479,6 +529,7 @@ export const LedgersView: React.FC = () => {
                 RECENT INTERNAL MOVEMENTS
               </div>
 
+              {/* Recent movement feed: server log of past transfers (refreshed by loadLedgers). */}
               <div className="space-y-3">
                 {movements.map((mv) => (
                   <div key={mv.id} className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3] space-y-1">

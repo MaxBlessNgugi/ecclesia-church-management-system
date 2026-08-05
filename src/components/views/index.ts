@@ -1,3 +1,4 @@
+// Barrel export for panel views — one import per panel in App.tsx.
 export { DashboardView } from './DashboardView';
 export { ChristianView } from './ChristianView';
 export { ActivitiesView } from './ActivitiesView';

@@ -1,10 +1,19 @@
+// =============================================================================
+// Death records routes — mounted at /api/deaths (require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET /   list death records, newest first
+//   POST /  record a death; ALSO flips the linked Christian's status to
+//           "Deceased" so the registry stays in sync (single logical operation).
+// =============================================================================
 import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModule } from '../middleware/perms.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireModule('sacraments'));
 
 router.get('/', async (_req, res, next) => {
   try {

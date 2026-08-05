@@ -1,3 +1,19 @@
+// =============================================================================
+// Soft-delete + audit logging service
+// -----------------------------------------------------------------------------
+// Central home for the soft-delete workflow used by route handlers:
+//   softDelete()       — mark a row deleted (isDeleted=true, deletedAt=now) and
+//                        snapshot the pre-delete record into audit_logs.
+//   restore()          — un-delete a row by model + id and log a RESTORE entry.
+//   restoreFromLog()   — un-delete a row from the Trash & Audit UI by log id.
+//   listAuditLogs()    — feed for the Admin > Trash & Audit screen.
+// Also exports HttpError, a small typed error the Express error handler maps to
+// proper HTTP status codes (400/403/404/500).
+//
+// This module uses the RAW `prisma` client deliberately: it must read and mutate
+// rows regardless of the `isDeleted` filter that appPrisma applies everywhere
+// else, and it must write to AuditLog itself.
+// =============================================================================
 import { prisma } from './prisma.js';
 
 export class HttpError extends Error {
@@ -136,12 +152,46 @@ export async function restoreFromLog(logId: string, actor?: AuditActor): Promise
 }
 
 /**
- * List audit log entries with the metadata snapshot parsed into an object.
+ * Parses an audit filter date. Date-only values (YYYY-MM-DD, as produced by
+ * <input type="date">) are treated as local calendar days: `from` anchors to
+ * local midnight, `to` extends to the end of the day so a same-day range still
+ * covers the full 24 hours. Full ISO strings pass through untouched.
  */
-export async function listAuditLogs(opts: { entity?: string; action?: string } = {}) {
+function parseFilterDate(value: string, endOfDay: boolean): Date | null {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}`)
+    : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * List audit log entries with the metadata snapshot parsed into an object.
+ * Supports entity/action filters plus a createdAt date range and a substring
+ * match on the actor name (from/to are ISO or date-only strings).
+ */
+export async function listAuditLogs(opts: {
+  entity?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+  actor?: string;
+} = {}) {
   const where: any = {};
   if (opts.entity) where.entityName = opts.entity;
   if (opts.action) where.action = opts.action;
+  if (opts.from || opts.to) {
+    where.createdAt = {};
+    if (opts.from) {
+      const from = parseFilterDate(opts.from, false);
+      if (from) where.createdAt.gte = from;
+    }
+    if (opts.to) {
+      const to = parseFilterDate(opts.to, true);
+      if (to) where.createdAt.lte = to;
+    }
+    if (Object.keys(where.createdAt).length === 0) delete where.createdAt;
+  }
+  if (opts.actor) where.deletedByName = { contains: opts.actor };
 
   const rows = await prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' } });
   return rows.map((r) => ({
@@ -160,4 +210,38 @@ export async function listAuditLogs(opts: { entity?: string; action?: string } =
       }
     })(),
   }));
+}
+
+/**
+ * Loads the CURRENT state of a soft-deletable record by entity + id, so the
+ * audit UI can diff the pre-delete snapshot against what exists now. Returns
+ * null when the record no longer exists.
+ */
+export async function loadCurrentRecord(entityName: string, entityId: string): Promise<Record<string, unknown> | null> {
+  if (!SOFT_DELETABLE.has(entityName)) {
+    throw new HttpError(400, `Model ${entityName} does not support soft deletion`);
+  }
+  const d = (prisma as unknown as Record<string, any>)[entityName];
+  if (!d) throw new HttpError(500, `Prisma delegate for ${entityName} not found`);
+  const record = await d.findFirst({ where: { id: entityId } });
+  return record ? { ...record } : null;
+}
+
+/**
+ * Restores many deleted records by their audit log ids (the bulk Restore action
+ * in Trash & Audit). Each row is attempted independently so one failure never
+ * blocks the rest; returns how many succeeded and how many failed.
+ */
+export async function restoreMany(ids: string[], actor?: AuditActor): Promise<{ restored: number; failed: number }> {
+  let restored = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      await restoreFromLog(id, actor);
+      restored += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { restored, failed };
 }

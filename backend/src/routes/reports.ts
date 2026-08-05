@@ -1,9 +1,26 @@
+// =============================================================================
+// Reports routes — mounted at /api/reports (require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET /sacraments    ?sacramentType=&localChurch=&scc= — pulls the relevant
+//                      sacrament date out of each Christian's JSON fields and
+//                      excludes Inactive members.
+//   GET /contributions ?category=&month= — flattens giving records; a member is
+//                      "Paid" for the month only when their monthlyTracker
+//                      marks that month true.
+//   GET /sales         ?item=&date= — string filters over the sale row.
+//   GET /cashiers      one summary row per ledger (balance treated as collected).
+//
+// These endpoints intentionally do aggregation in JS over full table reads —
+// fine at parish scale, avoids SQLite-specific date/JSON quirks.
+// =============================================================================
 import { Router } from 'express';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModule } from '../middleware/perms.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireModule('reports'));
 
 function parseOptionalJson<T>(value: string | null | undefined): T | undefined {
   if (!value) return undefined;

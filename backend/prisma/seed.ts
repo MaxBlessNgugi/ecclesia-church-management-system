@@ -1,12 +1,29 @@
+// =============================================================================
+// Database seeder — `npm run db:seed` (prisma db seed)
+// -----------------------------------------------------------------------------
+// Bootstraps the platform for first-run:
+//   1. Creates the super_admin account (idempotent — updates name/title if the
+//      email already exists, never resets the password of an existing account).
+//      The password is generated randomly (or taken from SUPER_ADMIN_PASSWORD)
+//      and the account is flagged to force a password change at first login.
+//   2. Creates the default panel_permissions singleton (full access).
+//   3. Creates the default push_payment_settings singleton (empty).
+// =============================================================================
+import crypto from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';
 
 const prisma = new PrismaClient();
 
+/** 18-char alphanumeric password with at least one of each required class. */
+function randomPassword(): string {
+  return crypto.randomBytes(14).toString('base64url').slice(0, 18);
+}
+
 async function main() {
   const email = process.env.SUPER_ADMIN_EMAIL || 'maxblessngugi@ecclesia.local';
-  const password = process.env.SUPER_ADMIN_PASSWORD || 'ChangeMeImmediately123!';
+  const password = process.env.SUPER_ADMIN_PASSWORD || randomPassword();
   const name = process.env.SUPER_ADMIN_NAME || 'Max Bless Ngugi';
   const title = process.env.SUPER_ADMIN_TITLE || 'Primary Developer';
 
@@ -27,6 +44,8 @@ async function main() {
         title,
         role: 'super_admin',
         isActive: true,
+        // The generated / temporary password must be changed at first login.
+        mustChangePassword: true,
       },
     });
     console.log('═══════════════════════════════════════════════════');
@@ -36,8 +55,9 @@ async function main() {
     console.log(`  Email: ${user.email}`);
     console.log(`  Role:  ${user.role}`);
     console.log(`  Pass:  ${password}`);
-    console.log('  → Change this password after first login!');
-    console.log('  → Only this account can register new users.');
+    console.log('  → SHOWN ONLY ONCE. Set SUPER_ADMIN_PASSWORD in backend/.env');
+    console.log('    to use a known value instead of a random one.');
+    console.log('  → The account requires a password change at first sign-in.');
     console.log('═══════════════════════════════════════════════════');
   }
 

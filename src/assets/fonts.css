@@ -1,6 +1,11 @@
-/* Self-hosted fonts — no external requests. Generated from Google Fonts (latin/latin-ext). */
-
-
+/* ===========================================================================
+   Self-hosted fonts — no external network requests at runtime.
+   Fonts are bundled under /public/fonts (woff2, subset per unicode-range):
+   - Libre Franklin     (sans, 300–700, normal + italic) — UI/headings
+   - Source Serif 4     (serif, 200–900, normal + italic) — body text
+   - Material Symbols Outlined — the icon font used by every `material-symbols-...`
+     <span>; requires the ligature CSS in index.css to render.
+   =========================================================================== */
 
 /* latin-ext */
 @font-face {

@@ -1,3 +1,20 @@
+// =============================================================================
+// FinanceView — finance & accounting panel: deposits, creditors, debtors, expenses
+// -----------------------------------------------------------------------------
+// Four sub-tabs (the FinanceSubTab union) each rendering a form + table pair.
+// All list data (deposits, creditors, debtors, expenses) is lifted from the
+// parent via props and every mutation flows back up through callbacks:
+// onAddDeposit, onAddCreditor, onMarkCreditorPaid, onRecordDebtorPayment and
+// onAddExpense. This component makes no API calls — it is a pure stateful form
+// shell over parent-owned records.
+//
+// Internal state: `subTab` swaps the visible panel; each panel owns its local
+// form fields. Two modals are gated by showCreditorModal (new debt invoice) and
+// showDebtorModal (pledge payment), with activeDebtor holding the row being
+// settled. Derived aggregates (totalCreditorsOwed, totalDebtorsOwed, overdue
+// count, collectionRate) are recomputed on every render from the lifted arrays
+// and feed the header badges and the collection-rate progress bar.
+// =============================================================================
 import React, { useState } from 'react';
 import {
   FinanceSubTab,
@@ -6,17 +23,31 @@ import {
   DebtorRecord,
   ExpenseRecord
 } from '../../types';
+import { usePermissions } from '../../permissions';
 
+/**
+ * Props for the FinanceView panel.
+ */
 interface FinanceViewProps {
+  /** All recorded bank deposits (rendered in the MAKE DEPOSIT table) */
   deposits: DepositRecord[];
+  /** All outstanding invoices from vendors (rendered in the CREDITORS table) */
   creditors: CreditorRecord[];
+  /** All outstanding member pledges (rendered in the DEBTORS table) */
   debtors: DebtorRecord[];
+  /** All logged expense vouchers (rendered in the EXPENSES table) */
   expenses: ExpenseRecord[];
+  /** Which sub-tab to open on mount; defaults to 'make_deposit' */
   initialSubTab?: FinanceSubTab;
+  /** Callback lifting a newly recorded bank deposit to the parent */
   onAddDeposit: (deposit: DepositRecord) => void;
+  /** Callback lifting a newly logged vendor invoice to the parent */
   onAddCreditor: (creditor: CreditorRecord) => void;
+  /** Callback marking a creditor invoice as fully settled */
   onMarkCreditorPaid: (creditorId: string) => void;
+  /** Callback recording a partial/full pledge payment against a debtor */
   onRecordDebtorPayment: (debtorId: string, amount: number) => void;
+  /** Callback lifting a newly logged expense voucher to the parent */
   onAddExpense: (expense: ExpenseRecord) => void;
 }
 
@@ -32,6 +63,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   onRecordDebtorPayment,
   onAddExpense
 }) => {
+  const perms = usePermissions();
   const [subTab, setSubTab] = useState<FinanceSubTab>(initialSubTab);
 
   // 1. Deposit Form State
@@ -64,6 +96,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   const [expenseMethod, setExpenseMethod] = useState('Check / Voucher');
   const [expenseVoucher, setExpenseVoucher] = useState('');
 
+  /**
+   * Validates the required deposit fields (amount > 0, bank, account, source,
+   * depositor), builds a DepositRecord with a timestamp-based id, trims the
+   * optional ref number, then lifts it and clears the form for the next entry.
+   */
   const handleDepositSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!depositAmount || depositAmount <= 0 || !bankName || !accountNo || !sourceOfCash || !depositedBy) {
@@ -90,6 +127,12 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     setDepositedBy('');
   };
 
+  /**
+   * Validates vendor and invoice number (both required), then builds a
+   * CreditorRecord. Free-text fields fall back to defaults: empty description
+   * becomes 'Parish Services', empty due date 'Next Month'; status starts at
+   * 'Pending' until it is later marked paid/overdue.
+   */
   const handleAddCreditorSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVendor) return;
@@ -116,6 +159,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     alert(`New debt invoice recorded for ${newVendor}!`);
   };
 
+  /**
+   * Validates a payee and a positive amount, builds an ExpenseRecord (trimming
+   * the optional voucher number), lifts it to the parent, then resets the
+   * payee/amount/voucher fields.
+   */
   const handleExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!expensePayee || !expenseAmount || expenseAmount <= 0) {
@@ -138,6 +186,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     setExpenseVoucher('');
   };
 
+  // Derived metrics recomputed on each render from the lifted arrays. The sums
+  // exclude already-settled rows (status 'Paid'); collectionRate is the share of
+  // debtors fully paid, rounded to one decimal (0 when no debtors exist).
   const totalCreditorsOwed = creditors.reduce((sum, c) => sum + (c.status !== 'Paid' ? c.amountOwed : 0), 0);
   const totalDebtorsOwed = debtors.reduce((sum, d) => sum + (d.status !== 'Paid' ? d.amount : 0), 0);
   const overdueCreditors = creditors.filter((c) => c.status === 'Overdue').length;
@@ -157,6 +208,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
           </p>
         </div>
 
+        {/* Sub-tab switcher — each button flips subTab; the active one gets the
+            dark highlight via the conditional Tailwind class below. */}
         <div className="flex items-center gap-1 bg-[#f4f3f3] p-1 rounded-lg border border-[#e1e3e3]">
           <button
             onClick={() => setSubTab('make_deposit')}
@@ -201,7 +254,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         </div>
       </div>
 
-      {/* 1. MAKE DEPOSIT */}
+      {/* 1. MAKE DEPOSIT — bank deposit form + recent deposits table.
+          The date defaults to today (ISO slice), and the ref/slip number is
+          optional (left blank it just renders as-is on the row). */}
       {subTab === 'make_deposit' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
           <div className="flex justify-between items-center pb-4 border-b border-[#e1e3e3]">
@@ -336,7 +391,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer flex items-center gap-2"
+                disabled={!perms.canEdit('finance')}
+                className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded opacity-50 cursor-not-allowed flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
                 Save & Record Deposit
@@ -344,7 +400,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
             </div>
           </form>
 
-          {/* Recent Deposits Table */}
+          {/* Recent Deposits Table — rendered from the lifted deposits array;
+              if it is empty the tbody renders nothing (no explicit empty state). */}
           <div className="pt-6 border-t border-[#e1e3e3] space-y-3">
             <h4 className="text-xs font-bold text-[#1a1c1c] uppercase tracking-wider">
               RECENT BANK DEPOSITS
@@ -383,7 +440,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         </div>
       )}
 
-      {/* 2. CREDITORS */}
+      {/* 2. CREDITORS — accounts payable: header shows total outstanding and an
+          overdue-count badge; rows are lifted from the creditors array. */}
       {subTab === 'creditors' && (
         <div className="space-y-6">
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -414,7 +472,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
             </button>
           </div>
 
-          {/* Creditors Table */}
+          {/* Creditors Table — status badge is color-coded via the conditional
+              Tailwind classes (emerald=Paid, red=Overdue, amber=Pending).
+              'Mark Paid' is only rendered for unsettled rows. */}
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
             <div className="overflow-x-auto border border-[#e1e3e3] rounded-lg">
               <table className="w-full text-left border-collapse text-xs">
@@ -456,7 +516,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                         {cred.status !== 'Paid' && (
                           <button
                             onClick={() => onMarkCreditorPaid(cred.id)}
-                            className="px-2.5 py-1 text-[11px] font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer"
+                            disabled={!perms.canEdit('finance')}
+                            className="px-2.5 py-1 text-[11px] font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded opacity-50 cursor-not-allowed"
                           >
                             Mark Paid
                           </button>
@@ -471,7 +532,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         </div>
       )}
 
-      {/* 3. DEBTORS */}
+      {/* 3. DEBTORS — pledge receivables: header shows outstanding total plus a
+          collection-rate progress bar driven by the derived metric. */}
       {subTab === 'debtors' && (
         <div className="space-y-6">
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -493,6 +555,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
             </div>
           </div>
 
+          {/* Debtors Table — status badge colors follow Paid/Partially Paid/
+              Outstanding. 'Record Payment' opens the modal and pre-fills the
+              amount with the remaining owed value. */}
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
             <div className="overflow-x-auto border border-[#e1e3e3] rounded-lg">
               <table className="w-full text-left border-collapse text-xs">
@@ -549,7 +614,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         </div>
       )}
 
-      {/* 4. EXPENSES */}
+      {/* 4. EXPENSES — operating expense log: form plus recent voucher table.
+          The voucher number is optional (trimmed on save). */}
       {subTab === 'expenses' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
           <div className="flex justify-between items-center pb-4 border-b border-[#e1e3e3]">
@@ -649,7 +715,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
             <div className="pt-4 border-t border-[#e1e3e3] flex justify-end gap-3">
               <button
                 type="submit"
-                className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer flex items-center gap-2"
+                disabled={!perms.canEdit('finance')}
+                className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded opacity-50 cursor-not-allowed flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-sm">receipt</span>
                 Save & Record Expense
@@ -657,7 +724,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
             </div>
           </form>
 
-          {/* Recent Expenses List */}
+          {/* Recent Expenses List — rendered from the lifted expenses array;
+              empty array yields an empty tbody (no explicit empty state). */}
           <div className="pt-6 border-t border-[#e1e3e3] space-y-3">
             <h4 className="text-xs font-bold text-[#1a1c1c] uppercase tracking-wider">
               RECENT EXPENSE VOUCHERS
@@ -694,7 +762,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         </div>
       )}
 
-      {/* LOG NEW CREDITOR MODAL */}
+      {/* LOG NEW CREDITOR MODAL — controlled form for a new vendor invoice;
+          description and due date are optional and fall back to defaults. */}
       {showCreditorModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-xl space-y-4">
@@ -763,7 +832,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 font-bold text-white bg-[#1e1e1e] rounded cursor-pointer"
+                  disabled={!perms.canEdit('finance')}
+                  className="px-4 py-1.5 font-bold text-white bg-[#1e1e1e] rounded opacity-50 cursor-not-allowed"
                 >
                   Save Debt Invoice
                 </button>
@@ -773,7 +843,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
         </div>
       )}
 
-      {/* RECORD DEBTOR PAYMENT MODAL */}
+      {/* RECORD DEBTOR PAYMENT MODAL — settles a pledge for activeDebtor (the
+          row whose 'Record Payment' was clicked); amount starts at the remaining
+          balance. Confirm lifts the payment via onRecordDebtorPayment. */}
       {showDebtorModal && activeDebtor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-sm w-full shadow-xl space-y-4">
@@ -809,7 +881,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   setActiveDebtor(null);
                   alert(`Pledge payment recorded!`);
                 }}
-                className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] rounded cursor-pointer"
+                disabled={!perms.canEdit('finance')}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] rounded opacity-50 cursor-not-allowed"
               >
                 Confirm Payment
               </button>

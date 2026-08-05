@@ -1,3 +1,13 @@
+// =============================================================================
+// DashboardView — landing page with a grid of management module cards
+// -----------------------------------------------------------------------------
+// Pure presentational component: renders a banner (with the lifted active-member
+// count) plus one card per module. Each card's sub-items navigate via
+// onNavigate(panel, subTab). The card list is filtered by allowedPanels so the
+// user only sees panels they have permission for (Dashboard/Auth are implicit).
+// NOTE: the subTab strings here are display-only labels used for quick nav; the
+// actual per-panel sub-tab unions live in src/types.ts.
+// =============================================================================
 import React from 'react';
 import { NavigationTab, PanelKey } from '../../types';
 

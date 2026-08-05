@@ -1,21 +1,93 @@
-import React, { useState, useEffect } from 'react';
-import { InventorySubTab, InventoryItem, DeliveryRecord, SaleRecord, StockTakeRecord, StockIssueRecord } from '../../types';
+// =============================================================================
+// InventoryView — the Inventory Management panel
+// -----------------------------------------------------------------------------
+// Self-contained data view rendered inside the module shell. It owns ALL of its
+// own state and data flow: on mount it parallel-fetches every inventory
+// collection (items, deliveries, sales, stock-takes, issues) via inventoryApi
+// and stores each in local React state. There is no dedicated loading/error UI —
+// failures are logged to the console and the affected table renders empty.
+//
+// Sub-tabs (InventorySubTab in src/types.ts): inward, sale, stock_take, issue,
+// edit. Switching tabs only flips activeSubTab; every collection stays cached
+// in state. Mutation handlers (create / update) POST/PATCH to the Express API
+// and then re-fetch the affected lists so the tables reflect server truth.
+//
+// NOTE: inventory DELETE (items.remove) is not wired into this view. Deletes
+// are soft deletes server-side — removed records land in Admin > Trash & Audit.
+// =============================================================================
+import React, { useState, useEffect, useMemo } from 'react';
+import { InventorySubTab, InventoryItem, DeliveryRecord, SaleRecord, StockTakeRecord, StockIssueRecord, InventoryPriceAuditLog } from '../../types';
 import { inventoryApi } from '../../services/api';
+import { usePermissions } from '../../permissions';
 
+/**
+ * Inventory Management panel: track sacred vessels, liturgical supplies and
+ * parish goods via the Goods Inward, Sale, Stock Take, Issue and Edit tabs.
+ * All data is loaded and mutated locally through inventoryApi; the component
+ * takes no props and manages its own loading, error and sub-tab state.
+ */
 export const InventoryView: React.FC = () => {
+  const perms = usePermissions();
+  // Active sub-tab routing state — drives which of the five panels renders below.
   const [activeSubTab, setActiveSubTab] = useState<InventorySubTab>('inward');
 
-  // Stock inventory list
+  // Stock inventory list — the source of truth for every item dropdown in the
+  // view (Item Name, Sale item, Issue item, Edit form) and for Stock Insights.
   const [items, setItems] = useState<InventoryItem[]>([]);
 
-  // Notifications
+  // Global quick-search — the header "Search inventory..." box. When a term is
+  // entered it narrows the catalogue (Edit-tab dropdown + Bulk Update list) to
+  // matching items; the transaction forms keep the full list so no item is
+  // ever hidden from data entry. Matches name, SKU or category (case-insensitive).
+  const [inventorySearch, setInventorySearch] = useState('');
+  const filteredItems = useMemo(() => {
+    const q = inventorySearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (it) =>
+        it.name.toLowerCase().includes(q) ||
+        it.sku.toLowerCase().includes(q) ||
+        it.category.toLowerCase().includes(q)
+    );
+  }, [items, inventorySearch]);
+
+  // Notifications — transient success banner, auto-dismissed after 4s.
   const [notification, setNotification] = useState<string | null>(null);
   const showNotif = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Sub-tab 1: Goods Inward state
+  // Low-stock alerts: items whose current stock is at or below their reorder
+  // threshold (a reorder level of 0 with 0 stock is also flagged as "out").
+  const lowStockItems = useMemo(
+    () => items.filter((it) => it.reorder > 0 ? it.stock <= it.reorder : it.stock === 0),
+    [items]
+  );
+
+  // Price-history modal state — one item's append-only audit trail at a time.
+  const [priceHistory, setPriceHistory] = useState<InventoryPriceAuditLog[]>([]);
+  const [historyItemName, setHistoryItemName] = useState('');
+  const [showPriceHistory, setShowPriceHistory] = useState(false);
+
+  // Fetches and opens the price history for the currently selected edit item.
+  const handleOpenPriceHistory = async () => {
+    if (!editId) {
+      alert('Select an item to edit first.');
+      return;
+    }
+    try {
+      const rows = await inventoryApi.items.history(editId);
+      setPriceHistory(rows);
+      setHistoryItemName(items.find((it) => it.id === editId)?.name ?? 'Item');
+      setShowPriceHistory(true);
+    } catch (error) {
+      console.error('Failed to load price history', error);
+      alert(error instanceof Error ? error.message : 'Failed to load price history');
+    }
+  };
+
+  // Sub-tab 1: Goods Inward — form fields for recording a supplier delivery.
   const [supplierName, setSupplierName] = useState('');
   const [invoiceRef, setInvoiceRef] = useState('');
   const [inwardItem, setInwardItem] = useState('');
@@ -27,11 +99,14 @@ export const InventoryView: React.FC = () => {
 
   const handleGoodsInwardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Guard: a zero/negative quantity makes no sense for a delivery record.
     if (qtyReceived <= 0) {
       alert('Please enter a valid quantity.');
       return;
     }
     try {
+      // POST the delivery; falls back to today's date (en-GB) when the user
+      // left the date field empty so the record is always timestamped.
       await inventoryApi.deliveries.create({
         supplier: supplierName,
         inv: invoiceRef,
@@ -40,10 +115,12 @@ export const InventoryView: React.FC = () => {
         cat: inwardItem,
         total: qtyReceived * unitCost
       });
+      // Re-fetch deliveries AND items after the write so the Recent Deliveries
+      // list and every item dropdown pick up the new stock level.
       const [delRows, itemRows] = await Promise.all([inventoryApi.deliveries.list(), inventoryApi.items.list()]);
       setDeliveries(delRows);
       setItems(itemRows);
-      setQtyReceived(0);
+      setQtyReceived(0); // Reset quantity so the next entry starts clean.
       showNotif(`Received ${qtyReceived} units of ${inwardItem} into inventory!`);
     } catch (error) {
       console.error('Failed to record delivery', error);
@@ -51,7 +128,7 @@ export const InventoryView: React.FC = () => {
     }
   };
 
-  // Sub-tab 2: Sale state
+  // Sub-tab 2: Sale — form fields for a point-of-sale transaction.
   const [saleItem, setSaleItem] = useState('');
   const [saleQty, setSaleQty] = useState<number>(1);
   const [salePrice, setSalePrice] = useState<number>(0);
@@ -62,6 +139,7 @@ export const InventoryView: React.FC = () => {
 
   const handleProcessSale = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Line total computed locally for the API payload and the success banner.
     const total = saleQty * salePrice;
     try {
       await inventoryApi.sales.create({
@@ -69,10 +147,12 @@ export const InventoryView: React.FC = () => {
         time: new Date().toLocaleString(),
         amount: total
       });
+      // Refetch sales and items together so Today's Transactions and the item
+      // dropdowns both reflect the reduced stock after the sale.
       const [saleRows, itemRows] = await Promise.all([inventoryApi.sales.list(), inventoryApi.items.list()]);
       setSalesHistory(saleRows);
       setItems(itemRows);
-      setCustomerName('');
+      setCustomerName(''); // Only clears the optional customer field after a successful sale.
       showNotif(`Processed sale of $${total.toFixed(2)} for ${saleItem}!`);
     } catch (error) {
       console.error('Failed to process sale', error);
@@ -80,9 +160,12 @@ export const InventoryView: React.FC = () => {
     }
   };
 
-  // Sub-tab 3: Stock Take state
+  // Sub-tab 3: Stock Take — physical-count audit rows (one per inventory item).
   const [stockTake, setStockTake] = useState<StockTakeRecord[]>([]);
 
+  // Fires on every keystroke of the Physical Count input. PATCHes the new count
+  // and swaps just the edited row in place (instead of refetching the whole
+  // table) to keep the audit list interactive while the user types.
   const handleUpdatePhysicalCount = async (id: string, count: number) => {
     try {
       const updated = await inventoryApi.stockTakes.updatePhysical(id, count);
@@ -93,7 +176,8 @@ export const InventoryView: React.FC = () => {
     }
   };
 
-  // Sub-tab 4: Stock Issue state
+  // Sub-tab 4: Stock Issue — records stock removed from inventory (e.g. liturgical
+  // use, outreach donations) together with an audit trail entry.
   const [issueItem, setIssueItem] = useState('');
   const [issueQty, setIssueQty] = useState<number>(1);
   const [issueReason, setIssueReason] = useState('Liturgical Use');
@@ -104,8 +188,10 @@ export const InventoryView: React.FC = () => {
 
   const handleConfirmIssue = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (issueQty <= 0) return;
+    if (issueQty <= 0) return; // Silent guard: nothing issued for zero/negative qty.
     try {
+      // Flattens qty + item and destination + reason into single display strings;
+      // the backend stores the audit trail as one readable line per row.
       await inventoryApi.issues.create({
         item: `${issueQty}x ${issueItem}`,
         dest: `To: ${recipientDept} • ${issueReason}`
@@ -119,7 +205,9 @@ export const InventoryView: React.FC = () => {
     }
   };
 
-  // Sub-tab 5: Edit Item / Service state
+  // Sub-tab 5: Edit Item / Service — fields + service-control flags for updating
+  // an existing item. Note: allowPartial / taxExempt / requireAdmin are collected
+  // but not sent to the API (the payload only covers name/category/cost/price/reorder).
   const [editId, setEditId] = useState('');
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
@@ -130,6 +218,15 @@ export const InventoryView: React.FC = () => {
   const [taxExempt, setTaxExempt] = useState(false);
   const [requireAdmin, setRequireAdmin] = useState(true);
 
+  // Bulk update state: a checkbox selection over the catalogue plus the shared
+  // field/value to apply to every selected row via the batch-update endpoint.
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [bulkField, setBulkField] = useState<'reorder' | 'price' | 'cost'>('reorder');
+  const [bulkValue, setBulkValue] = useState<string>('');
+
+  // Mount-time data load: fetch every inventory collection in parallel so each
+  // sub-tab has data ready on first render (no lazy loading). Also seeds the
+  // forms with the first item so dropdowns/fields are never empty on load.
   useEffect(() => {
     (async () => {
       try {
@@ -145,6 +242,8 @@ export const InventoryView: React.FC = () => {
         setSalesHistory(saleRows);
         setStockTake(stockRows);
         setIssueTrail(issueRows);
+        // Pre-select the first item (by name/id) into every form control that
+        // references an item; guards against null selections before any item exists.
         if (itemRows.length > 0) {
           const first = itemRows[0];
           setInwardItem(first.name);
@@ -166,6 +265,8 @@ export const InventoryView: React.FC = () => {
 
   const handleUpdateItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Edge case: an update is only valid once at least one item exists. With an
+    // empty inventory the pre-selection above never runs, so editId stays ''.
     if (!editId) {
       alert('No inventory item selected for editing. Please add an item first.');
       return;
@@ -187,6 +288,55 @@ export const InventoryView: React.FC = () => {
     }
   };
 
+  // Item selector for the edit form: picks which catalogue row the form edits
+  // (the mount effect pre-selects the first item).
+  const handleSelectEditItem = (item: InventoryItem) => {
+    setEditId(item.id);
+    setEditName(item.name);
+    setEditCategory(item.category);
+    setEditCost(item.cost);
+    setEditPrice(item.price);
+    setEditReorder(item.reorder);
+  };
+
+  // Toggle a single row in/out of the bulk selection.
+  const handleToggleBulkItem = (id: string) => {
+    const next = new Set(bulkSelected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setBulkSelected(next);
+  };
+
+  const handleSelectAllItems = () => {
+    setBulkSelected(bulkSelected.size === items.length ? new Set() : new Set(items.map((it) => it.id)));
+  };
+
+  // Applies the shared field value to every selected row via batch-update, then
+  // refreshes the catalogue and clears the selection.
+  const handleBulkUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const value = Number(bulkValue);
+    if (bulkSelected.size === 0) {
+      alert('Select at least one item to update.');
+      return;
+    }
+    if (!Number.isFinite(value) || value < 0) {
+      alert('Please enter a valid non-negative value.');
+      return;
+    }
+    try {
+      const updates = [...bulkSelected].map((id) => ({ id, [bulkField]: value }));
+      const updated = await inventoryApi.items.batchUpdate(updates);
+      setItems(items.map((it) => updated.find((u) => u.id === it.id) ?? it));
+      setBulkSelected(new Set());
+      setBulkValue('');
+      showNotif(`Updated ${updates.length} ${updates.length === 1 ? 'item' : 'items'} (${bulkField}) to ${value}.`);
+    } catch (error) {
+      console.error('Failed to batch update items', error);
+      alert(error instanceof Error ? error.message : 'Failed to batch update items');
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
       {/* Page Header */}
@@ -200,19 +350,39 @@ export const InventoryView: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <div className="relative">
+            {/* Global quick-search: live-filters the catalogue and bulk-update
+                lists in the Edit tab (name / SKU / category match). */}
             <span className="material-symbols-outlined absolute left-2.5 top-2 text-base text-[#444748]">
               search
             </span>
             <input
               type="text"
+              value={inventorySearch}
+              onChange={(e) => setInventorySearch(e.target.value)}
               placeholder="Search inventory..."
               className="pl-8 pr-3 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded-md text-xs w-48 focus:outline-none focus:border-[#1e1e1e]"
             />
+            {inventorySearch && (
+              <button
+                onClick={() => setInventorySearch('')}
+                className="absolute right-1.5 top-1.5 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                aria-label="Clear search"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            )}
           </div>
+          {inventorySearch.trim() && (
+            <span className="text-[10px] text-[#444748] font-medium">
+              {filteredItems.length} of {items.length} items
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs */}
+      {/* Navigation Sub-Tabs — one button per InventorySubTab; the active tab
+          gets an underline, inactive tabs are muted. Clicking just swaps
+          activeSubTab (no data refetch needed; all lists stay cached). */}
       <div className="flex border-b border-[#e1e3e3] gap-6 text-xs font-bold tracking-wider uppercase">
         {(['inward', 'sale', 'stock_take', 'issue', 'edit'] as InventorySubTab[]).map((tab) => {
           const labels: Record<InventorySubTab, string> = {
@@ -238,6 +408,7 @@ export const InventoryView: React.FC = () => {
         })}
       </div>
 
+      {/* Success banner — appears after each successful mutation, auto-clears. */}
       {notification && (
         <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in">
           <span className="material-symbols-outlined text-base">check_circle</span>
@@ -245,7 +416,33 @@ export const InventoryView: React.FC = () => {
         </div>
       )}
 
-      {/* 1. GOODS INWARD */}
+      {/* Low-stock alert — amber banner listing every item at/below its reorder
+          threshold. Dismissible per item; click a name to jump to the Edit tab. */}
+      {lowStockItems.length > 0 && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg space-y-2 animate-in fade-in">
+          <div className="flex items-center gap-2 text-amber-900 text-xs font-bold">
+            <span className="material-symbols-outlined text-base">warning</span>
+            LOW STOCK ALERT — {lowStockItems.length} {lowStockItems.length === 1 ? 'item' : 'items'} at or below reorder level
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {lowStockItems.map((it) => (
+              <button
+                key={it.id}
+                onClick={() => {
+                  const item = items.find((x) => x.id === it.id);
+                  if (item) handleSelectEditItem(item);
+                  setActiveSubTab('edit');
+                }}
+                className="px-2.5 py-1 bg-[#ffffff] border border-amber-400 rounded-full text-[10px] font-bold text-amber-900 hover:bg-amber-100 cursor-pointer"
+              >
+                {it.name} — {it.stock} left
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 1. GOODS INWARD — supplier delivery form + Recent Deliveries ledger. */}
       {activeSubTab === 'inward' && (
         <div className="space-y-6">
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4 max-w-4xl">
@@ -343,7 +540,10 @@ export const InventoryView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer flex items-center gap-1"
+                  className={`px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded flex items-center gap-1 ${
+                    perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                  disabled={!perms.canEdit('inventory')}
                 >
                   <span className="material-symbols-outlined text-sm">add_circle</span>
                   Update Inventory
@@ -380,7 +580,8 @@ export const InventoryView: React.FC = () => {
         </div>
       )}
 
-      {/* 2. SALE */}
+      {/* 2. SALE — point-of-sale form (8-col) + Stewardship banner and Today's
+          Transactions feed with a live daily total (4-col). */}
       {activeSubTab === 'sale' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Sale Form (8 Cols) */}
@@ -481,7 +682,10 @@ export const InventoryView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer"
+                  className={`px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded ${
+                    perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                  disabled={!perms.canEdit('inventory')}
                 >
                   PROCESS SALE
                 </button>
@@ -526,7 +730,8 @@ export const InventoryView: React.FC = () => {
         </div>
       )}
 
-      {/* 3. STOCK TAKE */}
+      {/* 3. STOCK TAKE — audit table comparing system vs physical counts; the
+          Physical Count inputs PATCH on every keystroke. */}
       {activeSubTab === 'stock_take' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-3">
@@ -543,6 +748,7 @@ export const InventoryView: React.FC = () => {
             </div>
 
             <div className="flex gap-2">
+              {/* Stub actions: both only show an alert; no export/rebalance logic. */}
               <button
                 onClick={() => alert("Exporting stock take reconciliation sheet...")}
                 className="px-3 py-1.5 text-xs font-semibold text-[#1a1c1c] bg-[#ffffff] border border-[#c4c7c7] rounded hover:bg-[#f4f3f3] cursor-pointer flex items-center gap-1"
@@ -552,7 +758,10 @@ export const InventoryView: React.FC = () => {
               </button>
               <button
                 onClick={() => showNotif("System stock counts balanced with physical audit.")}
-                className="px-3 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] rounded hover:bg-[#333333] cursor-pointer flex items-center gap-1"
+                className={`px-3 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] rounded hover:bg-[#333333] flex items-center gap-1 ${
+                  perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                }`}
+                disabled={!perms.canEdit('inventory')}
               >
                 <span className="material-symbols-outlined text-sm">sync</span>
                 Balance System Stock
@@ -589,6 +798,8 @@ export const InventoryView: React.FC = () => {
                           className="w-16 px-2 py-1 text-center bg-[#f4f3f3] border border-[#e1e3e3] rounded font-bold text-[#1a1c1c]"
                         />
                       </td>
+                      {/* Variance coloring: overage (physical > system) is emerald,
+                          shortage is rose, balanced stays neutral; + prefix on positive. */}
                       <td className={`p-3 text-center font-bold ${
                         variance < 0 ? 'text-rose-700' : variance > 0 ? 'text-emerald-700' : 'text-[#444748]'
                       }`}>
@@ -617,6 +828,8 @@ export const InventoryView: React.FC = () => {
               </div>
               <div>
                 <span className="text-[10px] text-[#444748] uppercase block">NET VARIANCE</span>
+                {/* Aggregate shortage/overage across all audited items; always red
+                    here (placeholder), not driven by the sign of the sum. */}
                 <span className="font-bold text-rose-700">{stockTake.reduce((acc, st) => acc + (st.physical - st.system), 0)}</span>
               </div>
             </div>
@@ -627,7 +840,8 @@ export const InventoryView: React.FC = () => {
         </div>
       )}
 
-      {/* 4. ISSUE */}
+      {/* 4. ISSUE — stock removal form (with a live available-units hint) plus
+          the recent issue audit trail. */}
       {activeSubTab === 'issue' && (
         <div className="space-y-6 max-w-4xl">
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
@@ -716,7 +930,10 @@ export const InventoryView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer uppercase"
+                  className={`px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded uppercase ${
+                    perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                  disabled={!perms.canEdit('inventory')}
                 >
                   CONFIRM STOCK ISSUE
                 </button>
@@ -741,8 +958,10 @@ export const InventoryView: React.FC = () => {
         </div>
       )}
 
-      {/* 5. EDIT */}
+      {/* 5. EDIT — update item/service metadata and service-control flags (8-col)
+          with a Stock Insights sidebar (4-col) derived from the items list. */}
       {activeSubTab === 'edit' && (
+        <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Edit Form (8 Cols) */}
           <div className="lg:col-span-8 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
@@ -754,6 +973,28 @@ export const InventoryView: React.FC = () => {
             </p>
 
             <form onSubmit={handleUpdateItem} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[#1a1c1c] font-medium mb-1">Select Item to Edit</label>
+                <select
+                  value={editId}
+                  onChange={(e) => {
+                    const item = items.find((it) => it.id === e.target.value);
+                    if (item) handleSelectEditItem(item);
+                  }}
+                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
+                >
+                  {items.length === 0 && <option value="">No items available</option>}
+                  {filteredItems.length === 0 && items.length > 0 && (
+                    <option value="">No items match your search</option>
+                  )}
+                  {filteredItems.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.name} — {it.sku}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-[#1a1c1c] font-medium mb-1">Item / Service Name</label>
                 <input
@@ -843,8 +1084,19 @@ export const InventoryView: React.FC = () => {
 
               <div className="flex gap-3 pt-2">
                 <button
+                  type="button"
+                  onClick={handleOpenPriceHistory}
+                  className="px-4 py-2 text-xs font-semibold text-[#1a1c1c] bg-[#ffffff] border border-[#c4c7c7] hover:bg-[#f4f3f3] rounded cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-sm">history</span>
+                  Price History
+                </button>
+                <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer"
+                  className={`px-5 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded ${
+                    perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                  disabled={!perms.canEdit('inventory')}
                 >
                   Save Changes
                 </button>
@@ -865,6 +1117,8 @@ export const InventoryView: React.FC = () => {
                 STOCK INSIGHTS
               </h4>
               <div className="space-y-2 text-xs">
+                {/* Stock insights are looked up live by name from the items list;
+                    falls back to 0 when editName matches nothing (e.g. before load). */}
                 <div className="flex justify-between">
                   <span className="text-[#444748]">Current Stock</span>
                   <span className="font-bold text-[#1a1c1c]">{items.find((it) => it.name === editName)?.stock ?? 0} Units</span>
@@ -885,6 +1139,161 @@ export const InventoryView: React.FC = () => {
               <p className="text-xs text-[#444748] italic leading-relaxed">
                 "Stewardship is not just about keeping account, but about honoring the resources given for the mission."
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Bulk Update — checkbox selection over the catalogue + one shared value
+            applied to every selected row via the batch-update endpoint. */}
+        <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-[#e1e3e3] pb-3">
+            <div>
+              <h4 className="text-sm font-serif font-bold text-[#1a1c1c]">Bulk Update Items</h4>
+              <p className="text-xs text-[#444748]">
+                Select multiple items and apply one shared value to their price, cost or reorder level.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSelectAllItems}
+              disabled={!perms.canEdit('inventory')}
+              className={`px-3 py-1 text-xs font-bold border border-[#c4c7c7] rounded hover:bg-[#f4f3f3] ${
+                perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+              }`}
+            >
+              {bulkSelected.size === items.length && items.length > 0 ? 'Clear All' : 'Select All'}
+            </button>
+          </div>
+
+          <form onSubmit={handleBulkUpdate} className="space-y-4">
+            <div className="max-h-56 overflow-y-auto border border-[#e1e3e3] rounded-lg divide-y divide-[#e1e3e3]">
+              {items.length === 0 ? (
+                <p className="p-4 text-xs text-[#444748]">No items in the catalogue yet.</p>
+              ) : filteredItems.length === 0 ? (
+                <p className="p-4 text-xs text-[#444748]">
+                  No items match "{inventorySearch}". Try a different term.
+                </p>
+              ) : (
+                filteredItems.map((it) => (
+                  <label key={it.id} className="flex items-center gap-3 px-3 py-2 text-xs hover:bg-[#f9f9f9] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bulkSelected.has(it.id)}
+                      onChange={() => handleToggleBulkItem(it.id)}
+                      disabled={!perms.canEdit('inventory')}
+                      className="accent-[#1e1e1e]"
+                    />
+                    <span className="font-bold text-[#1a1c1c]">{it.name}</span>
+                    <span className="text-[#444748] font-mono">{it.sku}</span>
+                    <span className="ml-auto text-[#444748]">
+                      Stock {it.stock} • Price ${it.price.toFixed(2)}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[#1a1c1c] font-medium mb-1">Field to Update</label>
+                <select
+                  value={bulkField}
+                  onChange={(e) => setBulkField(e.target.value as 'reorder' | 'price' | 'cost')}
+                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
+                >
+                  <option value="reorder">Minimum Reorder Level</option>
+                  <option value="price">Retail Price ($)</option>
+                  <option value="cost">Unit Cost ($)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[#1a1c1c] font-medium mb-1">Shared Value</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={bulkValue}
+                  onChange={(e) => setBulkValue(e.target.value)}
+                  disabled={!perms.canEdit('inventory')}
+                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs font-bold text-[#1a1c1c]"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={!perms.canEdit('inventory')}
+                  className={`w-full px-4 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded ${
+                    perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  Apply to {bulkSelected.size} Selected
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+        </div>
+      )}
+
+      {/* Price History Modal — append-only audit trail for the selected item's
+          cost/retail price changes, with the actor who made each change. */}
+      {showPriceHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPriceHistory(false)}>
+          <div
+            className="bg-[#ffffff] rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e1e3e3]">
+              <div>
+                <h3 className="text-sm font-serif font-bold text-[#1a1c1c]">Price History</h3>
+                <p className="text-[10px] text-[#444748]">{historyItemName} — cost & retail price audit trail</p>
+              </div>
+              <button
+                onClick={() => setShowPriceHistory(false)}
+                className="text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                aria-label="Close"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-5">
+              {priceHistory.length === 0 ? (
+                <p className="text-xs text-[#444748] text-center py-8">
+                  No price changes recorded yet. Adjust cost or price to start the audit trail.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {priceHistory.map((entry) => (
+                    <div key={entry.id} className="p-3 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg text-xs space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">
+                          {new Date(entry.createdAt).toLocaleString()}
+                        </span>
+                        <span className="text-[10px] font-bold text-[#1e1e1e]">by {entry.actorName}</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#444748]">Cost:</span>
+                          <span className="font-bold text-[#1a1c1c]">
+                            {entry.oldCost == null ? '—' : `$${entry.oldCost.toFixed(2)}`}
+                            <span className="mx-1 text-[#8a8e8e]">→</span>
+                            ${(entry.newCost ?? 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#444748]">Price:</span>
+                          <span className="font-bold text-[#1a1c1c]">
+                            {entry.oldPrice == null ? '—' : `$${entry.oldPrice.toFixed(2)}`}
+                            <span className="mx-1 text-[#8a8e8e]">→</span>
+                            ${(entry.newPrice ?? 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

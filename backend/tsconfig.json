@@ -1,4 +1,8 @@
 {
+  // Backend TypeScript configuration (NodeNext ESM + strict).
+  // - module/moduleResolution "NodeNext" + .js extensions in imports are
+  //   required for running TS directly with tsx and compiling to real ESM.
+  // - rootDir "src" / outDir "dist" keep the compiled output mirroring source.
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",

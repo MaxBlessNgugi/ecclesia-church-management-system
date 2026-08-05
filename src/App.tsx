@@ -1,3 +1,22 @@
+// =============================================================================
+// Application shell / root component
+// -----------------------------------------------------------------------------
+// Owns the top-level state machine for the whole SPA:
+//   - Auth gate: restoreSession on mount (token in localStorage) -> AuthView
+//     until an authenticated user session exists.
+//   - Navigation state: the active panel + the active sub-tab of the four
+//     panels that track one (christian / activities / sacraments / finance).
+//   - Shared data cache: Christians, deposits, creditors, debtors, expenses and
+//     death records are fetched once at login and threaded down as props; the
+//     mutation handlers below push updates to the backend AND patch local state
+//     so every view stays in sync without refetching.
+//   - Cross-panel handoffs: selectedMember lets the Christian registry pre-fill
+//     the Sacraments / Activities workflows; GlobalSearchModal navigates to a
+//     member's card.
+//
+// Panels without lifted state (Ledgers, Inventory, Reports, HR, Administration)
+// manage their own data internally and render <Footer /> beneath the content.
+// =============================================================================
 import React, { useEffect, useState } from 'react';
 import {
   ActivitiesSubTab,
@@ -41,6 +60,7 @@ import {
   expensesApi,
   transfersApi
 } from './services/api';
+import { PermissionsProvider } from './permissions';
 
 /**
  * Main Application Component for Ecclesia Church Management System.
@@ -96,6 +116,7 @@ export const App: React.FC = () => {
     }
   };
 
+  /** Resolves the current user + seeds the shared data cache after login. */
   const handleAuthSuccess = async () => {
     try {
       const me = await authApi.me();
@@ -136,7 +157,11 @@ export const App: React.FC = () => {
     void restoreSession();
   }, []);
 
-  // Deep-link support: #tab or #tab/subtab, e.g. #finance or #christian/find
+  // Deep-link support: #tab or #tab/subtab, e.g. #finance or #christian/find.
+  // NOTE: the listener is registered once on mount, so applyHash closes over the
+  // first render's handleNavigate. Programmatic hash changes (setting
+  // window.location.hash) are effectively ignored — navigation should go through
+  // the sidebar/header buttons instead.
   useEffect(() => {
     const applyHash = () => {
       const parts = window.location.hash.replace(/^#/, '').split('/');
@@ -377,6 +402,24 @@ export const App: React.FC = () => {
   }
 
   return (
+    <PermissionsProvider
+      permissions={
+        currentUser?.permissions ?? {
+          panels: {
+            christian: true,
+            activities: true,
+            sacraments: true,
+            finance: true,
+            ledgers: true,
+            inventory: true,
+            reports: true,
+            hr: true,
+            administration: true
+          },
+          actions: { view: true, edit: true, delete: true }
+        }
+      }
+    >
     <div className="min-h-screen flex flex-col bg-[#f9f9f9] text-[#1a1c1c] font-serif selection:bg-[#1e1e1e] selection:text-white">
       {/* Top Header */}
       <Header
@@ -479,6 +522,7 @@ export const App: React.FC = () => {
         onNavigate={handleNavigate}
       />
     </div>
+    </PermissionsProvider>
   );
 };
 

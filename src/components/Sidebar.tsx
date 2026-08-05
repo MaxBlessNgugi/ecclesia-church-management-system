@@ -1,3 +1,14 @@
+// =============================================================================
+// Sidebar — primary navigation drawer
+// -----------------------------------------------------------------------------
+// Renders the top-level panel list. Two visual modes:
+//   expanded (w-60, labels) on desktop / open mobile drawer
+//   icon-only (w-16) when isOpen is false
+// Panel items are filtered by allowedPanels (the current user's permissions).
+// Clicking an item navigates AND calls onCloseMobile — note this means any nav
+// click collapses the drawer on mobile, and the icon-only title attribute is
+// what deep-link/test scripts use to identify nav buttons.
+// =============================================================================
 import React from 'react';
 import { NavigationTab, PanelKey } from '../types';
 

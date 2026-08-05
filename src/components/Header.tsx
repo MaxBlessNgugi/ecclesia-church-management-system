@@ -1,3 +1,14 @@
+// =============================================================================
+// Header — sticky top app bar
+// -----------------------------------------------------------------------------
+// Renders the sidebar toggle, brand (clicking it returns to Dashboard), the
+// desktop global-search trigger (Ctrl+K) and the user profile dropdown.
+// Local state owns the profile dropdown, the Change Password modal and its
+// form fields; the change-password flow validates client-side (match + min
+// length) then calls authApi.changePassword and shows inline success/error.
+// Signing out goes through onSelectTab('auth'), which App.tsx maps to clearing
+// the stored token.
+// =============================================================================
 import React, { useState } from 'react';
 import { AuthUser, NavigationTab } from '../types';
 import { authApi } from '../services/api';

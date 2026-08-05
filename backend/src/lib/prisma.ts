@@ -1,3 +1,17 @@
+// =============================================================================
+// Prisma client singleton + soft-delete guard layer
+// -----------------------------------------------------------------------------
+// Exports two clients:
+//   prisma    — the raw, UNFILTERED PrismaClient. Reserved for audit/restore
+//               logic and uniqueness checks that must see soft-deleted rows.
+//   appPrisma — a $extends()-augmented client used by every route handler. It
+//               transparently injects `isDeleted: false` into all read/update
+//               queries (so deleted records vanish from the UI, counts and
+//               reports) and throws on hard delete/deleteMany.
+//
+// The singleton pattern (globalForPrisma) prevents duplicate connection pools
+// during `tsx watch` / hot reload in development.
+// =============================================================================
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };

@@ -1,3 +1,19 @@
+// =============================================================================
+// Shared frontend domain types
+// -----------------------------------------------------------------------------
+// The single source of truth for payload shapes crossing the API boundary.
+// They mirror the backend zod schemas and Prisma models 1:1 — if a backend
+// field changes, update the matching interface here. Field names are kept
+// identical to the JSON API responses so the service layer (src/services/api.ts)
+// needs no remapping.
+//
+// Conventions:
+//   - `*SubTab` unions drive which form/table renders inside each panel.
+//   - `*Record` interfaces are what list views receive and render.
+//   - JSON-ish backend columns (sacraments, monthlyTracker, permissions)
+//     are already parsed into plain objects/arrays by the API layer.
+// =============================================================================
+
 export type NavigationTab =
   | 'dashboard'
   | 'christian'
@@ -204,6 +220,21 @@ export interface StockIssueRecord {
   dest: string;
 }
 
+// One append-only entry in an inventory item's price history (cost or retail
+// price change, recorded with the actor who made it).
+export interface InventoryPriceAuditLog {
+  id: string;
+  itemId: string;
+  itemName: string;
+  sku: string;
+  oldCost: number | null;
+  newCost: number | null;
+  oldPrice: number | null;
+  newPrice: number | null;
+  actorName: string;
+  createdAt: string;
+}
+
 // ---------- Ledgers ----------
 
 export interface LedgerRecord {
@@ -279,8 +310,11 @@ export interface PushPaymentSettings {
   accountFormat: string;
   consumerKey: string;
   consumerSecret: string;
+  mode: 'sandbox' | 'live';
   testPhone: string;
   testAmount: string;
+  hasConsumerKey?: boolean;
+  hasConsumerSecret?: boolean;
 }
 
 export type UserRole = 'super_admin' | 'admin' | 'staff' | 'viewer';
@@ -292,6 +326,8 @@ export interface UserAccount {
   title: string | null;
   role: UserRole;
   isActive: boolean;
+  lastLoginAt: string | null;
+  lastActiveAt: string | null;
   createdAt: string;
 }
 
@@ -341,10 +377,31 @@ export interface AuthUser {
   email: string;
   title: string | null;
   role: UserRole;
+  mustChangePassword: boolean;
   permissions: PanelPermissions;
 }
 
 export interface AuthSession {
   token: string;
   user: AuthUser;
+}
+
+// ---------- Administration / Ops ----------
+
+export interface ExportBundle {
+  exportedAt: string;
+  appVersion: string;
+  tables: Record<string, unknown[]>;
+}
+
+export interface DiagnosticsInfo {
+  timestamp: string;
+  appVersion: string;
+  nodeVersion: string;
+  platform: string;
+  uptimeSeconds: number;
+  env: { nodeEnv?: string; port?: string };
+  db: { path: string; exists: boolean; sizeBytes: number | null; freeBytes: number | null };
+  rowCounts: Record<string, number>;
+  backups: { dir: string; last: string | null; count: number };
 }

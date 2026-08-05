@@ -1,10 +1,22 @@
+// =============================================================================
+// HR routes — mounted at /api/hr (require JWT auth)
+// -----------------------------------------------------------------------------
+//   GET/POST/PUT /employees
+//   POST maps the richer onboarding payload (nationalId, names, next-of-kin,
+//   designation) onto the flat `Employee` model: it joins names into a single
+//   `name`, maps designation -> role, and auto-generates the EMP-#### code from
+//   the current row count. Only the flat fields are persisted — the extended
+//   next-of-kin fields are accepted for UI compatibility but not stored.
+// =============================================================================
 import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModule } from '../middleware/perms.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireModule('hr'));
 
 router.get('/employees', async (_req, res, next) => {
   try {

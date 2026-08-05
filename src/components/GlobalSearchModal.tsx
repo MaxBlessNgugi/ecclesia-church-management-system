@@ -1,3 +1,12 @@
+// =============================================================================
+// GlobalSearchModal — Ctrl+K member search overlay
+// -----------------------------------------------------------------------------
+// Client-side instant search over the lifted `christians` array (no API call):
+// matches name parts, regNo, phone and SCC. When the input is empty it shows
+// static quick-action shortcuts instead. A window keydown listener toggles the
+// modal via Ctrl/Cmd+K and closes it with Escape; the component renders nothing
+// (null) when closed to avoid paying DOM cost.
+// =============================================================================
 import React, { useState, useEffect } from 'react';
 import { ChristianRecord, NavigationTab } from '../types';
 

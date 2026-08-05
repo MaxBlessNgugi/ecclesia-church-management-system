@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# =============================================================================
+# One-shot local bootstrap for the backend (macOS/Linux/Git-Bash).
+#  1. Installs deps if missing            -> npm install
+#  2. Creates backend/.env if missing     -> cp .env.example .env
+#  3. Syncs the Prisma schema to SQLite   -> npx prisma db push
+#  4. Seeds the super admin + singletons  -> npm run db:seed
+#  5. Starts the API with tsx watch       -> npm run dev
+# =============================================================================
 set -e
 cd "$(dirname "$0")"
 

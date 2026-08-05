@@ -1,3 +1,10 @@
+/* ===========================================================================
+   Global stylesheet — Tailwind CSS 4 entry + app-wide custom styles.
+   - `@import "tailwindcss"` boots the Tailwind 4 engine (no config file).
+   - Base layer sets the serif font stack and default ink/paper palette.
+   - .material-symbols-outlined re-enables the icon ligature font features.
+   - .sacred-input / .form-input-focus are shared form styling utilities.
+   =========================================================================== */
 @import "tailwindcss";
 
 @layer base {

@@ -12,9 +12,17 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "backup": "tsx scripts/backup.ts",
+    "export": "tsx scripts/export.ts",
+    "restore": "tsx scripts/restore.ts"
   },
-  "keywords": ["church", "erp", "parish", "ecclesia"],
+  "keywords": [
+    "church",
+    "erp",
+    "parish",
+    "ecclesia"
+  ],
   "author": "Max Bless Ngugi",
   "license": "UNLICENSED",
   "private": true,
@@ -24,6 +32,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "express-rate-limit": "^8.6.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
