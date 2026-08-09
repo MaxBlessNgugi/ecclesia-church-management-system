@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="32" fill="#1e1e1e"/>
-  <text x="96" y="115" font-family="serif" font-size="80" font-weight="bold" fill="white" text-anchor="middle">†</text>
-  <text x="96" y="155" font-family="sans-serif" font-size="18" font-weight="600" fill="#cccccc" text-anchor="middle" letter-spacing="2">ECCLESIA</text>
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="96" cy="96" r="92.16" fill="#F5EFE0"/>
+  <path d="M96 30.72 V161.28 M30.72 96 H161.28" stroke="#1A1C1C" stroke-width="44.160000000000004" stroke-linecap="round"/>
 </svg>
