@@ -24,12 +24,16 @@
 // billed item line). `showReceiptModal` + `generatedReceipt` gate the receipt
 // overlay. All record ids are generated client-side with Date.now()/random.
 // =============================================================================
-// React core: component framework, local state, and side-effect hooks
-import React, { useState, useEffect } from 'react';
+// React core: component framework, local state, side-effect hooks, and refs
+import React, { useState, useEffect, useRef } from 'react';
 // Domain types: parishioner record, sub-tab union, contribution payload, and billed-item receipt
 import { ChristianRecord, ActivitiesSubTab, ContributionRecord, BilledItemReceipt } from '../../types';
 // API client for the Billed Items endpoint (only used by the BILLED ITEMS PAY sub-tab)
 import { billedItemsApi } from '../../services/api';
+// react-to-print: prints a cloned DOM node in a dedicated iframe
+import { useReactToPrint } from 'react-to-print';
+// Printable contribution receipt shown after a payment is recorded
+import { ContributionReceipt } from '../printables';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
 
@@ -127,6 +131,18 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   // The server-persisted receipt object — drives all fields in the receipt modal
   const [generatedReceipt, setGeneratedReceipt] = useState<BilledItemReceipt | null>(null);
 
+  // Contribution receipt state — shown after RECEIVE PAYMENT is submitted
+  const [showContributionReceipt, setShowContributionReceipt] = useState(false);
+  // The last contribution lifted to the parent — drives the printable receipt
+  const [lastContribution, setLastContribution] = useState<ContributionRecord | null>(null);
+  // DOM ref targeted by react-to-print (cloned into the print iframe)
+  const contributionReceiptRef = useRef<HTMLDivElement>(null);
+  // Print handler — renders only the receipt card, not the whole app
+  const handlePrintContribution = useReactToPrint({
+    contentRef: contributionReceiptRef,
+    documentTitle: 'ECCLESIA-Contribution-Receipt',
+  });
+
   // Syncs the cross-panel member handoff into all three sub-tab forms. Without
   // this, a member chosen on another panel would not prefill the current tab.
   useEffect(() => {
@@ -180,8 +196,9 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
 
     // Lift the record to App.tsx for client-side state update
     onRecordPayment(newContrib);
-    // Confirm to the operator
-    alert(`Payment of KES ${paymentAmountKES.toLocaleString()} recorded for ${activeMember.baptismalName} ${activeMember.sirName}!`);
+    // Open the printable receipt for this contribution
+    setLastContribution(newContrib);
+    setShowContributionReceipt(true);
   };
 
   /**
@@ -945,7 +962,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
           the persisted receipt (server id + client fields) and offers browser
           print. isWalkIn receipts have no christianId, so the modal only ever
           reads display fields. */}
-      {showReceiptModal && generatedReceipt && (
+      {showReceiptModal && generatedReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           {/* White receipt card — centered, shadowed, scrollable */}
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
@@ -1009,6 +1026,35 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                   window.print();
                   setShowReceiptModal(false);
                 }}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-xs">print</span>
+                Print Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTRIBUTION RECEIPT MODAL — opened after RECEIVE PAYMENT is recorded;
+          renders the printable ContributionReceipt and prints it via
+          react-to-print (only the receipt card reaches the printer). */}
+      {showContributionReceipt && lastContribution && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
+          <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            {/* Printable receipt card — react-to-print targets this ref */}
+            <ContributionReceipt ref={contributionReceiptRef} receipt={lastContribution} />
+
+            {/* Action buttons — Close and Print Receipt */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#e1e3e3]">
+              <button
+                onClick={() => setShowContributionReceipt(false)}
+                className="px-4 py-1.5 text-xs font-semibold text-[#444748] bg-[#f4f3f3] hover:bg-[#eeeeee] rounded cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => handlePrintContribution()}
                 className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-xs">print</span>
