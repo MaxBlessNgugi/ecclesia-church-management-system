@@ -5,14 +5,23 @@
 // and handles "close to tray" behavior for a native desktop experience.
 // =============================================================================
 
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog } from 'electron';
-import { spawn, ChildProcess } from 'node:child_process';
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell } from 'electron';
+import { spawn } from 'node:child_process';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const isDev = !app.isPackaged;
+
+// Dev vs production:
+//  - Packaged app  -> production
+//  - ELECTRON_MODE=production  -> force production (useful when running unpackaged)
+//  - ELECTRON_MODE=development -> force development
+//  - Otherwise (plain `electron .`) -> development
+const isDev =
+  process.env.ELECTRON_MODE === 'development' ||
+  (!app.isPackaged && process.env.ELECTRON_MODE !== 'production');
 
 // In production (packaged), resources are at process.resourcesPath
 // extraResources from electron-builder places backend at process.resourcesPath/backend
@@ -20,10 +29,12 @@ const ROOT_DIR = isDev ? path.resolve(__dirname, '..') : process.resourcesPath;
 const BACKEND_DIR = path.join(ROOT_DIR, 'backend');
 const USER_DATA_DIR = app.getPath('userData');
 const DB_PATH = path.join(USER_DATA_DIR, 'ecclesia.db');
+const BACKEND_PORT = process.env.PORT || '5000';
+const LOAD_URL = isDev ? 'http://localhost:3000' : `http://127.0.0.1:${BACKEND_PORT}`;
 
-let backendProcess: ChildProcess | null = null;
-let mainWindow: BrowserWindow | null = null;
-let tray: Tray | null = null;
+let backendProcess = null;
+let mainWindow = null;
+let tray = null;
 let isQuitting = false;
 
 // Ensure userData directory exists
@@ -38,12 +49,47 @@ process.env.DATABASE_URL = `file:${DB_PATH}`;
 // Backend Process Management
 // =============================================================================
 
-function startBackend(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const isBackendBuilt = fs.existsSync(path.join(BACKEND_DIR, 'dist', 'index.js'));
-    const command = isDev ? 'tsx' : 'node';
-    const args = isDev ? ['watch', 'src/index.ts'] : ['dist/index.js'];
-    const env = { ...process.env, DATABASE_URL: `file:${DB_PATH}`, PORT: '5000' };
+// Quick TCP check to see if the backend is already listening on BACKEND_PORT.
+// Prevents double-starting the backend (e.g. when Electron is launched while a
+// dev server is already running on port 5000).
+function isBackendRunning(timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const socket = net.connect(Number(BACKEND_PORT), '127.0.0.1');
+    const done = (ok) => {
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+  });
+}
+
+function startBackend() {
+  return new Promise(async (resolve, reject) => {
+    // If a backend is already running on the target port, reuse it.
+    if (await isBackendRunning()) {
+      console.log(`[Electron] Backend already running on :${BACKEND_PORT} — reusing it.`);
+      return resolve();
+    }
+
+    let command;
+    let args;    if (isDev) {
+      // Resolve the local tsx shim (Windows needs the .cmd wrapper).
+      const tsxBin = path.join(
+        BACKEND_DIR,
+        'node_modules',
+        '.bin',
+        process.platform === 'win32' ? 'tsx.cmd' : 'tsx',
+      );
+      command = tsxBin;
+      args = ['watch', 'src/index.ts'];
+    } else {
+      command = process.platform === 'win32' ? 'node.exe' : 'node';
+      args = ['dist/index.js'];
+    }
+    const env = { ...process.env, DATABASE_URL: `file:${DB_PATH}`, PORT: BACKEND_PORT };
 
     console.log('[Electron] Starting backend...', { command, args, cwd: BACKEND_DIR, dbPath: DB_PATH });
 
@@ -57,7 +103,7 @@ function startBackend(): Promise<void> {
     backendProcess.stdout?.on('data', (data) => {
       const output = data.toString().trim();
       console.log('[Backend]', output);
-      if (output.includes('Ecclesia Server running') || output.includes('running on http://localhost:5000')) {
+      if (output.includes('Ecclesia Server running') || output.includes(`running on http://localhost:${BACKEND_PORT}`)) {
         resolve();
       }
     });
@@ -84,7 +130,7 @@ function startBackend(): Promise<void> {
   });
 }
 
-function stopBackend(): void {
+function stopBackend() {
   if (backendProcess) {
     console.log('[Electron] Stopping backend...');
     backendProcess.kill('SIGTERM');
@@ -96,7 +142,7 @@ function stopBackend(): void {
 // Window Creation
 // =============================================================================
 
-function createWindow(): void {
+function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -113,7 +159,7 @@ function createWindow(): void {
     show: false, // Show after ready to avoid flicker
   });
 
-  const loadUrl = isDev ? 'http://localhost:3000' : 'http://127.0.0.1:5000';
+  const loadUrl = LOAD_URL;
 
   mainWindow.loadURL(loadUrl).catch((err) => {
     console.error('[Electron] Failed to load URL:', err);
@@ -144,7 +190,14 @@ function createWindow(): void {
 
   // Handle external links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    require('electron').shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(url);
+      }
+    } catch {
+      // Ignore invalid URLs
+    }
     return { action: 'deny' };
   });
 }
@@ -153,8 +206,9 @@ function createWindow(): void {
 // System Tray
 // =============================================================================
 
-function createTray(): void {
-  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+function createTray() {
+  // Dedicated 32px tray glyph (cream circle + black cross), resized to 16px.
+  const iconPath = path.join(__dirname, 'assets', 'tray-icon.png');
   let trayIcon = nativeImage.createFromPath(iconPath);
   
   // Resize for tray (16x16 on Windows, 22x22 on macOS)
@@ -231,7 +285,7 @@ app.on('before-quit', () => {
 // =============================================================================
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
-ipcMain.handle('app:getPath', (_, name: keyof Electron.App) => app.getPath(name));
+ipcMain.handle('app:getPath', (_event, name) => app.getPath(name));
 
 // =============================================================================
 // Security: Prevent new window creation from renderer
@@ -240,7 +294,7 @@ ipcMain.handle('app:getPath', (_, name: keyof Electron.App) => app.getPath(name)
 app.on('web-contents-created', (_event, contents) => {
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
   contents.on('will-navigate', (navEvent, url) => {
-    const allowedOrigins = isDev ? ['http://localhost:3000'] : ['http://127.0.0.1:5000'];
+    const allowedOrigins = [new URL(LOAD_URL).origin];
     if (!allowedOrigins.some((origin) => url.startsWith(origin))) {
       navEvent.preventDefault();
     }
