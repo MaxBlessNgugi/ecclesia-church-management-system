@@ -1,86 +1,134 @@
 // =============================================================================
 // Auth routes — /api/auth
-// -----------------------------------------------------------------------------
+// =============================================================================
 //   POST /login           public  — verify credentials, issue JWT + session
 //   POST /register        JWT+super_admin — create a user (email reservation
 //                           checks the RAW prisma table so soft-deleted users
 //                           keep their email reserved)
 //   GET  /me              JWT     — refresh the logged-in session payload
 //   PUT  /change-password JWT     — verify current password, re-hash new one
+//   POST /forgot-password public  — request a password reset code (no user enumeration)
+//   POST /reset-password  public  — redeem a one-time reset code with a new password
+//
+// Security measures:
+//   - Rate limiting on login, forgot-password, and reset-password endpoints
+//   - Account lockout after repeated failed login attempts (15 minutes)
+//   - Account lockout after repeated failed reset attempts (15 minutes)
+//   - Password hashing with bcrypt via hashPassword/verifyPassword
+//   - JWT tokens for authenticated endpoints
+//   - Soft-delete support: inactive users cannot log in
+//   - Email uniqueness enforced across active and soft-deleted users
+//   - Password validation: min 8 chars, uppercase, lowercase, number, special char
+//   - No user enumeration: generic error messages for auth failures
+//   - Reset tokens stored as SHA-256 hashes, not plaintext
+//   - Reset tokens have 30-minute expiry
+//   - Successful login invalidates outstanding reset tokens
+//   - mustChangePassword flag for newly created users
+//   - Session object never exposes passwordHash
 //
 // A "session" payload is the user object with JSON `panels`/`actions` strings
 // parsed into permission objects (see session() below). These drive the UI's
 // per-panel access controls.
 // =============================================================================
+
+// Import Router from Express - creates modular route handlers
 import { Router } from 'express';
+
+// Import Zod for runtime schema validation - ensures request body shapes
 import { z } from 'zod';
+
+// Import rateLimit middleware - prevents brute-force and abuse attacks
 import { rateLimit } from 'express-rate-limit';
+
+// Import Prisma client instances: appPrisma filters soft-deleted records,
+// prisma is the raw client for checking all users including soft-deleted
 import { appPrisma, prisma } from '../lib/prisma.js';
+
+// Import password hashing/verification utilities for secure credential management
 import {
-  hashPassword,
-  verifyPassword,
-  signToken,
-  generateResetToken,
-  hashResetToken,
-  verifyResetToken,
+  hashPassword,       // Hashes plaintext passwords with bcrypt
+  verifyPassword,     // Verifies plaintext against bcrypt hash
+  signToken,          // Signs JWT tokens with user payload
+  generateResetToken, // Generates cryptographically random reset token
+  hashResetToken,     // Hashes reset token with SHA-256 for storage
 } from '../lib/auth.js';
+
+// Import auth middleware and typed request interface for protected routes
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 
+// Create Express router instance to define auth routes
 const router = Router();
 
+// Time-to-live for password reset tokens: 30 minutes in milliseconds
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+
+// Maximum failed reset password attempts before temporary account lockout
 const MAX_RESET_ATTEMPTS = 10;
+
+// Maximum failed login attempts before temporary account lockout
 const MAX_LOGIN_ATTEMPTS = 5;
+
+// Duration of account lockout after too many failed attempts: 15 minutes in milliseconds
 const LOGIN_LOCK_MS = 15 * 60 * 1000;
 
+// Rate limiter for login endpoint: max 10 requests per 15-minute window per IP
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many sign-in attempts. Please try again later.' },
+  windowMs: 15 * 60 * 1000,  // 15-minute sliding window
+  max: 10,                    // Max 10 requests per window
+  standardHeaders: true,      // Return rate limit info in headers (RateLimit-*)
+  legacyHeaders: false,       // Disable X-RateLimit-* headers (deprecated)
+  message: { error: 'Too many sign-in attempts. Please try again later.' }, // Error response
 });
 
+// Rate limiter for forgot-password endpoint: max 5 requests per 15-minute window per IP
 const forgotPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many password reset requests. Please try again later.' },
+  windowMs: 15 * 60 * 1000,  // 15-minute sliding window
+  max: 5,                     // Max 5 requests per window
+  standardHeaders: true,      // Return rate limit info in headers
+  legacyHeaders: false,       // Disable legacy headers
+  message: { error: 'Too many password reset requests. Please try again later.' }, // Error response
 });
 
+// Rate limiter for reset-password endpoint: max 5 requests per 15-minute window per IP
 const resetPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many reset attempts. Please try again later.' },
+  windowMs: 15 * 60 * 1000,  // 15-minute sliding window
+  max: 5,                     // Max 5 requests per window
+  standardHeaders: true,      // Return rate limit info in headers
+  legacyHeaders: false,       // Disable legacy headers
+  message: { error: 'Too many reset attempts. Please try again later.' }, // Error response
 });
 
+// Validation schema for login request body
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email(),      // Must be valid email format
+  password: z.string().min(1),    // Must not be empty
 });
 
+// Validation schema for user registration request body
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(1),
-  title: z.string().max(100).optional(),
-  role: z.enum(['admin', 'staff', 'viewer']).default('staff'),
+  email: z.string().email(),          // Must be valid email format
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')                      // Minimum 8 characters
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter') // At least one uppercase
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter') // At least one lowercase
+    .regex(/[0-9]/, 'Password must contain at least one number')           // At least one digit
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'), // At least one special char
+  name: z.string().min(1),         // Must not be empty
+  title: z.string().max(100).optional(), // Optional, max 100 characters
+  role: z.enum(['admin', 'staff', 'viewer']).default('staff'), // Role with default
 });
 
 /** Default panel access: everyone can see every panel unless overridden per user. */
 const defaultPanels = {
-  christian: true,
-  activities: true,
-  sacraments: true,
-  finance: true,
-  ledgers: true,
-  inventory: true,
-  reports: true,
-  hr: true,
-  administration: true,
+  christian: true,        // Christian management panel
+  activities: true,       // Activities management panel
+  sacraments: true,       // Sacraments management panel
+  finance: true,          // Finance management panel
+  ledgers: true,          // Ledgers management panel
+  inventory: true,        // Inventory management panel
+  reports: true,          // Reports panel
+  hr: true,               // Human resources panel
+  administration: true,   // Administration panel
 };
 
 /** Default CRUD actions granted to every user. */
@@ -90,47 +138,77 @@ const defaultActions = { view: true, edit: true, delete: true };
  * Safe JSON parse for the `panels`/`actions` columns. SQLite stores these as
  * TEXT; any malformed legacy value degrades gracefully to the default object
  * instead of crashing the login response.
+ *
+ * @template T - The expected type of the parsed JSON
+ * @param {string | null | undefined} value - The raw string value from database
+ * @param {T} fallback - Default value to return if parsing fails
+ * @returns {T} The parsed JSON value or the fallback
  */
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
+  // Return fallback if value is null, undefined, or empty string
   if (!value) return fallback;
   try {
+    // Parse string to JSON, or return as-is if already an object
     return typeof value === 'string' ? JSON.parse(value) as T : value as T;
   } catch {
+    // If JSON parsing fails (malformed data), return safe fallback
     return fallback;
   }
 }
 
-/** Builds the client-facing session object (never exposes passwordHash). */
+/**
+ * Builds the client-facing session object (never exposes passwordHash).
+ *
+ * @param {any} user - Raw user object from database
+ * @returns {object} Safe session object with user info and parsed permissions
+ */
 function session(user: any) {
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    title: user.title ?? null,
-    role: user.role,
-    mustChangePassword: user.mustChangePassword ?? false,
+    id: user.id,                                          // User ID
+    name: user.name,                                      // User's full name
+    email: user.email,                                    // User's email address
+    title: user.title ?? null,                            // User's title (e.g., Pastor, Admin)
+    role: user.role,                                      // User's role (super_admin, admin, staff, viewer)
+    mustChangePassword: user.mustChangePassword ?? false, // Whether user must change password on next login
     permissions: {
-      panels: parseJson(user.panels, defaultPanels),
-      actions: parseJson(user.actions, defaultActions),
+      panels: parseJson(user.panels, defaultPanels),      // Parse JSON panels string to object
+      actions: parseJson(user.actions, defaultActions),    // Parse JSON actions string to object
     },
   };
 }
 
+// Validation schema for change-password request body
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
-  newPassword: z.string().min(8),
+  currentPassword: z.string().min(1), // Current password must not be empty
+  newPassword: z.string()
+    .min(8, 'Password must be at least 8 characters')                      // Minimum 8 characters
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter') // At least one uppercase
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter') // At least one lowercase
+    .regex(/[0-9]/, 'Password must contain at least one number')           // At least one digit
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'), // At least one special char
 });
 
+/**
+ * POST /login - Authenticate user and issue JWT token
+ * @param {Request} req - Express request with email and password in body
+ * @param {Response} res - Express response with token and user session
+ * @param {NextFunction} next - Express next middleware
+ * @returns {Promise<void>} JSON response with token and user, or error
+ */
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
+    // Validate and parse request body against login schema
     const { email, password } = loginSchema.parse(req.body);
     // appPrisma filters out soft-deleted users, so a deleted account can't log in.
+    // Database query: Find user by email (excludes soft-deleted users)
     const user = await appPrisma.user.findUnique({ where: { email } });
+    // Validation: Check if user exists and is active
     if (!user || !user.isActive) {
       // Uniform "invalid credentials" response — don't leak whether the email exists.
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Validation: Check if account is temporarily locked due to failed attempts
     // Per-account lockout window after repeated failures.
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
       return res.status(423).json({
@@ -138,179 +216,280 @@ router.post('/login', loginLimiter, async (req, res, next) => {
       });
     }
 
+    // Verify password against stored hash
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
+      // Increment failed attempt counter
       const attempts = user.loginFailedAttempts + 1;
       const update: any = { loginFailedAttempts: attempts };
+      // Lock account if max attempts reached
       if (attempts >= MAX_LOGIN_ATTEMPTS) {
         update.lockedUntil = new Date(Date.now() + LOGIN_LOCK_MS);
         update.loginFailedAttempts = 0;
       }
+      // Database query: Update user with failed attempt count or lockout
       await appPrisma.user.update({ where: { id: user.id }, data: update });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Success: Update login timestamps and clear lockout state
     const now = new Date();
-    // Record login/last-seen and clear any lockout state from prior failures.
+    // Record login/last-seen, clear lockout state from prior failures, and
+    // invalidate any outstanding password-reset code (a successful login means
+    // the user already has access — a code must not stay valid after that).
+    // Database query: Update user's last active time and clear all lockout/reset state
     await appPrisma.user.update({
       where: { id: user.id },
       data: {
-        lastLoginAt: now,
-        lastActiveAt: now,
-        loginFailedAttempts: 0,
-        lockedUntil: null,
+        lastLoginAt: now,              // Record successful login time
+        lastActiveAt: now,             // Update last seen timestamp
+        loginFailedAttempts: 0,        // Reset failed attempt counter
+        lockedUntil: null,             // Clear any lockout
+        resetTokenHash: null,          // Invalidate any pending reset token
+        resetTokenExpires: null,       // Clear reset token expiry
+        resetFailedAttempts: 0,        // Reset failed reset attempts
       },
     });
 
+    // Generate JWT token with user ID, email, and role
     const token = signToken({ id: user.id, email: user.email, role: user.role });
+    // Return token and sanitized user session (no passwordHash)
     res.json({ token, user: session(user) });
   } catch (e) {
+    // Pass any errors to Express error handler
     next(e);
   }
 });
 
 /**
+ * POST /register - Create new user (super_admin only)
  * Register is restricted: only a super_admin can create new users.
  * This ensures Max Bless Ngugi (first super_admin) controls who joins.
+ * @param {AuthRequest} req - Express request with user data in body
+ * @param {Response} res - Express response with token and user session
+ * @param {NextFunction} next - Express next middleware
+ * @returns {Promise<void>} JSON response with token and user, or error
  */
 router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
   try {
+    // Authorization: Only super_admin can create new users
     if (req.user?.role !== 'super_admin') {
       return res.status(403).json({ error: 'Only the super admin can add new users' });
     }
+    // Validate and parse request body against registration schema
     const data = registerSchema.parse(req.body);
     // Check the unfiltered table so soft-deleted users keep their email reserved.
+    // Database query: Find any user with this email (including soft-deleted)
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    // Validation: Check if email is already taken
     if (existing) return res.status(409).json({ error: 'Email already registered' });
 
+    // Hash the plaintext password with bcrypt
     const passwordHash = await hashPassword(data.password);
+    // Database query: Create new user in database
     const user = await appPrisma.user.create({
       data: {
-        email: data.email,
-        passwordHash,
-        name: data.name,
-        role: data.role,
-        mustChangePassword: true,
+        email: data.email,                // User's email
+        passwordHash,                      // Hashed password
+        name: data.name,                   // User's full name
+        role: data.role,                   // User's role (default: staff)
+        mustChangePassword: true,          // Force password change on first login
       },
     });
 
+    // Generate JWT token for immediate login after registration
     const token = signToken({ id: user.id, email: user.email, role: user.role });
+    // Return 201 Created with token and sanitized user session
     res.status(201).json({ token, user: session(user) });
   } catch (e) {
+    // Pass any errors to Express error handler
     next(e);
   }
 });
 
+/**
+ * GET /me - Refresh logged-in session payload
+ * Returns current user's session data and updates last active timestamp.
+ * @param {AuthRequest} req - Express request with authenticated user
+ * @param {Response} res - Express response with user session
+ * @param {NextFunction} next - Express next middleware
+ * @returns {Promise<void>} JSON response with user session, or error
+ */
 router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
   try {
+    // Database query: Fetch fresh user data from database
     const user = await appPrisma.user.findUnique({ where: { id: req.user!.id } });
+    // Validation: Check if user exists and is active
     if (!user || !user.isActive) return res.status(401).json({ error: 'User not found' });
     // Touch the last-seen timestamp so admin "Last Active" reflects real usage.
+    // Database query: Update user's last active timestamp
     await appPrisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
+    // Return sanitized user session (no passwordHash)
     res.json(session(user));
   } catch (e) {
+    // Pass any errors to Express error handler
     next(e);
   }
 });
 
+/**
+ * PUT /change-password - Change user's password
+ * Verifies current password, then updates to new password hash.
+ * @param {AuthRequest} req - Express request with current and new passwords
+ * @param {Response} res - Express response with success message
+ * @param {NextFunction} next - Express next middleware
+ * @returns {Promise<void>} JSON response with success message, or error
+ */
 router.put('/change-password', requireAuth, async (req: AuthRequest, res, next) => {
   try {
+    // Validate and parse request body against change-password schema
     const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+    // Database query: Fetch user from database to verify current password
     const user = await appPrisma.user.findUnique({ where: { id: req.user!.id } });
+    // Validation: Check if user exists
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // Verify current password against stored hash
     const ok = await verifyPassword(currentPassword, user.passwordHash);
+    // Validation: Check if current password is correct
     if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
 
+    // Hash the new password with bcrypt
     const newHash = await hashPassword(newPassword);
+    // Database query: Update user's password hash and clear mustChangePassword flag
     await appPrisma.user.update({
       where: { id: user.id },
       data: { passwordHash: newHash, mustChangePassword: false },
     });
+    // Return success message
     res.json({ message: 'Password updated successfully' });
   } catch (e) {
+    // Pass any errors to Express error handler
     next(e);
   }
 });
 
 /**
+ * POST /forgot-password - Request password reset code
  * Forgot-password request: always answers 200 `{ ok: true }` regardless of
  * whether the email exists (no user enumeration). When the account exists and
  * is active, a one-time reset code is issued and its SHA-256 hash stored with a
  * 30-minute expiry — the user collects the code from their parish administrator.
+ * @param {Request} req - Express request with email in body
+ * @param {Response} res - Express response with ok status
+ * @param {NextFunction} next - Express next middleware
+ * @returns {Promise<void>} JSON response with { ok: true }, or error
  */
 router.post('/forgot-password', forgotPasswordLimiter, async (req, res, next) => {
   try {
+    // Validate and parse email from request body
     const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    // Database query: Find user by email (excludes soft-deleted users)
     const user = await appPrisma.user.findUnique({ where: { email } });
+    // Only issue reset token if user exists and is active
     if (user && user.isActive) {
+      // Check if user already has a live (non-expired) reset token
       const hasLiveToken =
         user.resetTokenHash && user.resetTokenExpires && user.resetTokenExpires.getTime() > Date.now();
+      // Only generate new token if no live token exists
       if (!hasLiveToken) {
+        // Generate cryptographically random reset token
         const token = generateResetToken();
+        // Database query: Store hashed reset token with expiry
         await appPrisma.user.update({
           where: { id: user.id },
           data: {
-            resetTokenHash: hashResetToken(token),
-            resetTokenExpires: new Date(Date.now() + RESET_TOKEN_TTL_MS),
-            resetFailedAttempts: 0,
+            resetTokenHash: hashResetToken(token),                          // SHA-256 hash of token
+            resetTokenExpires: new Date(Date.now() + RESET_TOKEN_TTL_MS),   // 30-minute expiry
+            resetFailedAttempts: 0,                                          // Reset failure counter
           },
         });
       }
     }
+    // Always return success to prevent user enumeration
     res.json({ ok: true });
   } catch (e) {
+    // Pass any errors to Express error handler
     next(e);
   }
 });
 
 /**
+ * POST /reset-password - Redeem reset code with new password
  * Redeems a one-time reset code with a new password. The code hash is looked up
- * directly (no email required); wrong or expired codes increment a per-user
- * failure counter that locks the account after MAX_RESET_ATTEMPTS tries.
+ * directly (no email required). Replaying an EXPIRED code counts toward a
+ * per-user failure counter; after MAX_RESET_ATTEMPTS the account is temporarily
+ * locked (never silently deactivated — the resetPasswordLimiter already rate
+ * limits guessing from a single IP, and a wrong token simply can't be matched
+ * to an account to count against).
+ * @param {Request} req - Express request with token and newPassword in body
+ * @param {Response} res - Express response with success message
+ * @param {NextFunction} next - Express next middleware
+ * @returns {Promise<void>} JSON response with success message, or error
  */
 router.post('/reset-password', resetPasswordLimiter, async (req, res, next) => {
   try {
+    // Validate and parse request body with token and new password
     const { token, newPassword } = z
-      .object({ token: z.string().min(1).max(64), newPassword: z.string().min(8) })
+      .object({ token: z.string().min(1).max(64), newPassword: z.string()
+        .min(8, 'Password must be at least 8 characters')                      // Minimum 8 characters
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter') // At least one uppercase
+        .regex(/[a-z]/, 'Password must contain at least one lowercase letter') // At least one lowercase
+        .regex(/[0-9]/, 'Password must contain at least one number')           // At least one digit
+        .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character') // At least one special char
+      })
       .parse(req.body);
 
+    // Hash the provided reset token to compare against stored hash
     const hash = hashResetToken(token);
+    // Database query: Find user by reset token hash (excludes soft-deleted users)
     const user = await appPrisma.user.findFirst({ where: { resetTokenHash: hash } });
-    if (!user || !user.isActive || !user.resetTokenExpires) {
+    // Validation: Check if user exists and is active
+    if (!user || !user.isActive) {
       return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
 
-    const isExpired = user.resetTokenExpires.getTime() < Date.now();
-    const isCodeValid = verifyResetToken(token, user.resetTokenHash!);
-
-    if (isExpired || !isCodeValid) {
-      const attempts = user.resetFailedAttempts + 1;
+    // Validation: Check if reset token has expired
+    const isExpired = !user.resetTokenExpires || user.resetTokenExpires.getTime() < Date.now();
+    if (isExpired) {
+      // Increment failed reset attempt counter
+      const attempts = (user.resetFailedAttempts ?? 0) + 1;
       const update: any = { resetFailedAttempts: attempts };
+      // Lock account if max attempts reached
       if (attempts >= MAX_RESET_ATTEMPTS) {
-        update.isActive = false;
+        // Temporary lockout, consistent with the login lock; the account stays
+        // active and an admin reset (or time passing) recovers it.
+        update.lockedUntil = new Date(Date.now() + LOGIN_LOCK_MS);
         update.resetTokenHash = null;
         update.resetTokenExpires = null;
+        update.resetFailedAttempts = 0;
       }
+      // Database query: Update user with failed attempt count or lockout
       await appPrisma.user.update({ where: { id: user.id }, data: update });
       return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
 
+    // Success: Hash new password and update user
     const passwordHash = await hashPassword(newPassword);
+    // Database query: Update user's password and clear all reset/lockout state
     await appPrisma.user.update({
       where: { id: user.id },
       data: {
-        passwordHash,
-        resetTokenHash: null,
-        resetTokenExpires: null,
-        resetFailedAttempts: 0,
-        isActive: true,
+        passwordHash,              // New hashed password
+        resetTokenHash: null,      // Invalidate reset token
+        resetTokenExpires: null,   // Clear reset token expiry
+        resetFailedAttempts: 0,    // Reset failure counter
+        lockedUntil: null,         // Clear any lockout
+        isActive: true,            // Ensure user is active
       },
     });
+    // Return success message
     res.json({ message: 'Password reset successfully. You can now sign in.' });
   } catch (e) {
+    // Pass any errors to Express error handler
     next(e);
   }
 });
 
+// Export router to be mounted in main app
 export default router;

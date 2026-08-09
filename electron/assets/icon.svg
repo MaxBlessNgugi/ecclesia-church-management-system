@@ -1,0 +1,16 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="250" fill="#1B4332" stroke="#2D6A4F" stroke-width="4"/>
+  
+  <!-- Cross symbol -->
+  <path d="M256 120 V392 M120 256 H392" stroke="#D4A843" stroke-width="32" stroke-linecap="round"/>
+  
+  <!-- Dove/peace symbol - simplified -->
+  <ellipse cx="256" cy="200" rx="60" ry="30" fill="#D4A843" opacity="0.3"/>
+  <path d="M220 200 Q256 180 292 200" stroke="#D4A843" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M256 200 Q280 190 292 200" stroke="#D4A843" stroke-width="6" stroke-linecap="round" fill="none"/>
+  
+  <!-- Text "ECCLESIA" at bottom -->
+  <text x="256" y="430" text-anchor="middle" font-family="Georgia, serif" font-size="36" font-weight="bold" fill="#D4A843">ECCLESIA</text>
+  <text x="256" y="470" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#D4A843">Church Management System</text>
+</svg>

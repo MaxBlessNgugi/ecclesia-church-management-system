@@ -4,10 +4,15 @@
 // Static branding + quick links. Has no props, state or side effects.
 // =============================================================================
 import React from 'react';
+/** React core library — required for JSX compilation and component definition */
 
 /**
  * Footer Component for Ecclesia Church Management System.
  * Displays parish system branding, spiritual motto, and helpful quick links.
+ *
+ * This is a purely presentational (stateless) component with no props,
+ * side effects, or interactivity. It renders a fixed bottom section
+ * within the main content area on every panel view.
  */
 export const Footer: React.FC = () => {
   return (
@@ -18,6 +23,7 @@ export const Footer: React.FC = () => {
         {/* Left side: System Title & Parish Identity */}
         <div className="flex items-center gap-2">
           <span className="font-bold text-[#1a1c1c]">† Ecclesia CMS</span>
+          {/* Visual separator between brand name and description */}
           <span className="text-[#c4c7c7]">|</span>
           <span>Parish Administration</span>
         </div>
@@ -30,8 +36,10 @@ export const Footer: React.FC = () => {
         {/* Right side: Auxiliary navigation & administrative support links */}
         <div className="flex items-center gap-4 text-[11px]">
           <span className="hover:underline cursor-pointer">Privacy Policy</span>
+          {/* Dot separator between links */}
           <span>•</span>
           <span className="hover:underline cursor-pointer">Terms of Service</span>
+          {/* Dot separator between links */}
           <span>•</span>
           <span className="hover:underline cursor-pointer">System Support</span>
         </div>
@@ -39,4 +47,3 @@ export const Footer: React.FC = () => {
     </footer>
   );
 };
-

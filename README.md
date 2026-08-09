@@ -45,6 +45,38 @@ The seeded account is created with a temporary password and **must be changed at
 
 ---
 
+## Demo Mode (for sales pitches)
+
+A believable, fully-populated parish dataset makes the app instantly demoable.
+It loads 30 members, contributions, finance, ledgers, inventory, HR and more:
+
+```bash
+cd backend
+npm run db:seed:demo
+```
+
+Demo logins (no forced password change):
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@demo.ecclesia.local` | `AdminDemo123!` |
+| Cashier | `cashier@demo.ecclesia.local` | `CashierDemo123!` |
+| Viewer | `viewer@demo.ecclesia.local` | `ViewerDemo123!` |
+
+**This never affects a commercial install.** The standard `npm run setup`
+flow does not run the demo seed. To wipe demo data before going live:
+
+```bash
+cd backend
+npm run db:clear:demo
+```
+
+That removes every business record and the demo users, returning the system to
+its pristine post-install state. For an iron-clad commercial build you can also
+delete `backend/prisma/seed-demo.ts` and `backend/scripts/clear-demo.ts`.
+
+---
+
 ## Production (one process, one port)
 
 The Express server serves the built frontend **and** the API together:
@@ -79,9 +111,8 @@ caddy run          # uses the Caddyfile at the repo root
 ├── src/                 # React frontend
 ├── backend/             # Production API (Express + Prisma + SQLite)
 │   ├── src/routes/      # All REST endpoints
-│   ├── prisma/          # Schema + seed
+│   ├── prisma/          # Schema + seed (+ seed-demo.ts, demo only)
 │   └── start-local.sh
-├── server/              # Old in-memory reference (deprecated)
 ├── API.md               # REST contract
 └── package.json
 ```
@@ -96,7 +127,8 @@ caddy run          # uses the Caddyfile at the repo root
 | `npm run backend` | Start API on port 5000 |
 | `npm run dev` | Start frontend on port 3000 |
 | `npm run build` | Build frontend for production |
-| `npm run backend:build` + `npm start` | Run the whole app as one process (see "Production" above) |
+| `cd backend && npm run db:seed:demo` | Load realistic demo data for pitches |
+| `cd backend && npm run db:clear:demo` | Wipe demo data (commercial handover) |
 
 ---
 

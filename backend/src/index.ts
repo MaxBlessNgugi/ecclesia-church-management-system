@@ -1,96 +1,305 @@
 // =============================================================================
-// Ecclesia Backend — Express application entrypoint
-// -----------------------------------------------------------------------------
-// Bootstraps the HTTP server:
-//   1. Global hardening middleware: Helmet (security headers), permissive CORS
-//      (origin: true for the LAN/dev setup), Morgan request logging, JSON body
-//      parser with a 2mb cap.
-//   2. Resolves a real JWT signing secret (fail-fast in production).
-//   3. Starts the periodic SQLite backup scheduler.
-//   4. Mounts all feature routers under /api/* to match the API.md contract.
-//   5. Self-hosts the built frontend (<repo>/dist) when present, so the whole
-//      app runs as ONE process on ONE port — no separate web server needed.
-//   6. Registers the centralized error handler as the final middleware.
-// Start: `npm run dev` (tsx watch) or `npm run build && npm start`.
+// Ecclesia Backend — Express Application Entrypoint
 // =============================================================================
-import 'dotenv/config';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import { resolveJwtSecret } from './lib/config.js';
-import { startBackupScheduler } from './lib/backup.js';
-import { errorHandler } from './middleware/error.js';
+//
+// PURPOSE
+//   Bootstraps the HTTP server as a SINGLE process serving BOTH the API and
+//   the built frontend (when available). No separate web server (nginx, Apache)
+//   needed — parish PC runs `npm start` and gets the full app on one port.
+//
+// STARTUP SEQUENCE
+//   1. Load .env (dotenv/config) — must run before any other imports
+//   2. resolveJwtSecret()      → Fail-fast if JWT_SECRET missing in production
+//   3. startBackupScheduler()  → Periodic SQLite .db → .backup timestamped files
+//   4. Mount global middleware:
+//      - helmet()               → Security headers (CSP, HSTS, X-Frame-Options)
+//      - cors({origin: true})   → Permissive for LAN/dev (credentials: true)
+//      - morgan('dev')          → Request logging (method, url, status, ms)
+//      - express.json(2mb)      → Body parser with size limit
+//   5. Mount feature routers under /api/* (exact contract match with API.md)
+//   6. Self-host frontend build from <repo>/dist when present
+//      - express.static(FRONTEND_DIST)    → Serves assets with cache headers
+//      - SPA fallback: /* → index.html    → Client-side routing for non-/api
+//   7. Register centralized errorHandler as final middleware
+//   8. app.listen(PORT) — default 5000
+//
+// ROUTE MOUNT MAP (must match API.md exactly)
+//   ┌──────────────────┬──────────────────────────────────────────────────────┐
+//   │ Mount Path       │ Router Import                                        │
+//   ├──────────────────┼──────────────────────────────────────────────────────┤
+//   │ /api/auth        │ authRoutes        → POST /login, /me, /change-pw    │
+//   │ /api/christians  │ christiansRoutes  → CRUD + /:id/sacraments PATCH    │
+//   │ /api             │ activitiesRoutes  → /contributions, /transfers,     │
+//   │                  │                   │   /billed-items                  │
+//   │ /api/deaths      │ deathsRoutes      → List + Create                   │
+//   │ /api             │ financeRoutes     → /deposits, /creditors*,         │
+//   │                  │                   │   /debtors*, /expenses           │
+//   │ /api/ledgers     │ ledgersRoutes     → List, Create, /transfer,        │
+//   │                  │                   │   /movements                     │
+//   │ /api/inventory   │ inventoryRoutes   │ → /items*, /deliveries, /sales, │
+//   │                  │                   │   /stock-takes*, /issues         │
+//   │ /api/hr          │ hrRoutes          → /employees*, /payrolls*,        │
+//   │                  │                   │   /leaves*, /recruitments*       │
+//   │ /api/admin       │ adminRoutes       → /users*, /permissions,          │
+//   │                  │                   │   /push-payments, /audit-logs*   │
+//   │ /api/reports     │ reportsRoutes     → /sacraments, /contributions,    │
+//   │                  │                   │   /sales, /cashiers              │
+//   │ /api/dashboard   │ dashboardRoutes   → /summary (counts + recent)      │
+//   │ /api/settings    │ settingsRoutes    → GET singleton, PATCH partial     │
+//   │ /api/sms         │ smsRoutes         → /settings, /send                 │
+//   │ /api/support     │ supportRoutes     → /bundle (ZIP diagnostics)         │
+//   └──────────────────┴──────────────────────────────────────────────────────┘
+//
+// FRONTEND SELF-HOSTING
+//   - FRONTEND_DIST resolves to <repo>/dist relative to this file (works for
+//     both tsx watch mode and compiled backend/dist)
+//   - Only activates when dist/index.html exists (after `npm run build`)
+//   - SPA fallback regex: /^(?!api(?:\/|$)).*/ — everything NOT starting with /api
+//
+// RELATED FILES
+//   - backend/src/lib/config.ts        → resolveJwtSecret()
+//   - backend/src/lib/backup.ts        → startBackupScheduler(), backupDatabase()
+//   - backend/src/middleware/errorHandler.ts → Centralized error handler
+//   - backend/src/routes/*.ts          → Feature route modules
+//   - vite.config.ts                   → Frontend build output → ../dist
+//   - API.md                           → REST contract documentation
+// =============================================================================
 
+// Load environment variables from .env file into process.env.
+// Must execute BEFORE any other imports that reference process.env.
+import 'dotenv/config';
+
+// Node.js built-in: filesystem module for checking if frontend dist exists.
+import fs from 'node:fs';
+
+// Node.js built-in: path utilities for resolving the frontend dist directory.
+import path from 'node:path';
+
+// Node.js built-in: converts import.meta.url to a file:// URL path,
+// used to locate the frontend dist relative to this source file.
+import { fileURLToPath } from 'node:url';
+
+// Express framework: creates the HTTP server and provides routing/middleware.
+import express from 'express';
+
+// CORS middleware: enables Cross-Origin Resource Sharing for LAN and dev use.
+// origin: true reflects the requesting origin; credentials: true allows cookies.
+import cors from 'cors';
+
+// Helmet middleware: sets security HTTP headers (CSP, HSTS, X-Frame-Options, etc.).
+import helmet from 'helmet';
+
+// Morgan middleware: HTTP request logger (method, URL, status, response time in ms).
+import morgan from 'morgan';
+
+// Resolves the JWT secret from environment variables.
+// Fails fast in production if JWT_SECRET is not set.
+import { resolveJwtSecret } from './lib/config.js';
+
+// Starts the periodic SQLite backup scheduler that creates timestamped .backup files.
+import { startBackupScheduler } from './lib/backup.js';
+
+// Centralized error-handling middleware that catches all unhandled errors.
+import { errorHandler } from './middleware/errorHandler.js';
+
+// Structured logger for production monitoring (replaces console.log).
+import { logger } from './lib/logger.js';
+
+// CSRF token generation middleware for protecting state-changing endpoints.
+import { generateCsrfToken } from './middleware/csrf.js';
+
+// ── Startup: fail-fast checks ──────────────────────────────────────────────
+
+// Validate that JWT_SECRET is present; throws in production if missing.
 resolveJwtSecret();
+
+// Begin periodic SQLite backups (runs on a timer in the background).
 startBackupScheduler();
 
+// ── Feature route imports ──────────────────────────────────────────────────
+
+// Authentication routes: POST /api/auth/login, /api/auth/me, /api/auth/change-pw.
 import authRoutes from './routes/auth.js';
+
+// Christian registry routes: CRUD + sacrament updates for church members.
 import christiansRoutes from './routes/christians.js';
+
+// Activity routes: contributions, transfers, and billed items (mounted at /api root).
 import activitiesRoutes from './routes/activities.js';
+
+// Death record routes: list and create death records for deceased members.
 import deathsRoutes from './routes/deaths.js';
+
+// Finance routes: deposits, creditors, debtors, and expense tracking (mounted at /api root).
 import financeRoutes from './routes/finance.js';
+
+// Ledger routes: financial ledger management, transfers between ledgers, and movement history.
 import ledgersRoutes from './routes/ledgers.js';
+
+// Inventory routes: items, deliveries, sales, stock-takes, and stock issues.
 import inventoryRoutes from './routes/inventory.js';
+
+// Human resources routes: employees, payrolls, leaves, and recruitment management.
 import hrRoutes from './routes/hr.js';
+
+// Admin routes: user management, permissions, push payments, and audit logs.
 import adminRoutes from './routes/admin.js';
+
+// Reports routes: sacraments, contributions, sales, and cashier reports.
 import reportsRoutes from './routes/reports.js';
+
+// Dashboard routes: summary counts and recent activity for the homepage.
 import dashboardRoutes from './routes/dashboard.js';
 
+// Settings routes: singleton parish configuration & first-run wizard state.
+import settingsRoutes from './routes/settings.js';
+
+// SMS routes: Africa's Talking configuration & message sending.
+import smsRoutes from './routes/sms.js';
+
+// Support bundle route: ZIP download of diagnostics + sanitized export.
+import supportRoutes from './routes/support.js';
+
+// ── Express app initialization ─────────────────────────────────────────────
+
+// Create the Express application instance.
 const app = express();
+
+// Server port: read from PORT env var, default to 5000 if not set.
 const PORT = Number(process.env.PORT) || 5000;
 
-// The built frontend lives at <repo root>/dist. Resolved from this module so it
-// works both via tsx (backend/src) and the compiled build (backend/dist).
+// ── Frontend self-hosting ──────────────────────────────────────────────────
+
+// Resolve the path to the frontend build output directory (<repo>/dist).
+// Works both in development (tsx watch) and production (compiled backend/dist).
 const FRONTEND_DIST = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../dist',
+  path.dirname(fileURLToPath(import.meta.url)),  // directory of this file
+  '../../dist',                                   // two levels up to repo root, then /dist
 );
+
+// Check if the frontend has been built (dist/index.html must exist).
 const servingFrontend = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'));
 
+// ── Global middleware stack (order matters) ─────────────────────────────────
+
+// Security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, etc.
 app.use(helmet());
+
+// CORS: allow any origin (for LAN parish networks), with credentials (cookies).
 app.use(cors({ origin: true, credentials: true }));
+
+// Request logging: logs method, URL, status code, and response time in ms.
 app.use(morgan('dev'));
+
+// JSON body parser: limits request body to 2MB to prevent abuse.
 app.use(express.json({ limit: '2mb' }));
 
-// Health
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+// ── Health check endpoint ──────────────────────────────────────────────────
+
+// GET /api/health — lightweight endpoint for load balancers and monitoring.
+// Verifies database connectivity on each call; returns 503 when the DB is down.
+app.get('/api/health', async (_req, res) => {
+  try {
+    // Dynamically import Prisma client to avoid circular dependency issues.
+    const { prisma } = await import('./lib/prisma.js');
+
+    // Execute a trivial SQL query to verify the database connection is alive.
+    await prisma.$queryRaw`SELECT 1`;
+
+    // Return healthy status with server uptime and DB connectivity confirmed.
+    res.json({
+      status: 'ok',
+      time: new Date().toISOString(),
+      uptime: process.uptime(),
+      db: 'connected',
+    });
+  } catch (err) {
+    // Log the failure and return 503 Service Unavailable with error details.
+    logger.error('Health check failed — database unreachable', { error: String(err) });
+    res.status(503).json({
+      status: 'error',
+      time: new Date().toISOString(),
+      uptime: process.uptime(),
+      db: 'disconnected',
+    });
+  }
 });
 
-// Mount routes to match API.md contract exactly
+// ── Feature router mounting ────────────────────────────────────────────────
+
+// Auth routes: /api/auth/login, /api/auth/me, /api/auth/change-pw
 app.use('/api/auth', authRoutes);
+
+// Christian registry: CRUD + sacrament updates for church member records.
 app.use('/api/christians', christiansRoutes);
-app.use('/api', activitiesRoutes); // /api/contributions, /api/transfers, /api/billed-items
+
+// Activities (mounted at /api root): /api/contributions, /api/transfers, /api/billed-items
+app.use('/api', activitiesRoutes);
+
+// Death records: /api/deaths (list and create death entries).
 app.use('/api/deaths', deathsRoutes);
-app.use('/api', financeRoutes); // /api/deposits, /api/creditors, ...
+
+// Finance (mounted at /api root): /api/deposits, /api/creditors, /api/debtors, /api/expenses
+app.use('/api', financeRoutes);
+
+// Ledgers: /api/ledgers (financial ledger management and inter-ledger transfers).
 app.use('/api/ledgers', ledgersRoutes);
+
+// Inventory: /api/inventory (items, deliveries, sales, stock-takes, issues).
 app.use('/api/inventory', inventoryRoutes);
+
+// HR: /api/hr (employees, payrolls, leaves, recruitment).
 app.use('/api/hr', hrRoutes);
+
+// Admin: /api/admin (users, permissions, push payments, audit logs).
 app.use('/api/admin', adminRoutes);
+
+// Reports: /api/reports (sacraments, contributions, sales, cashier reports).
 app.use('/api/reports', reportsRoutes);
+
+// Dashboard: /api/dashboard (summary counts and recent activity for homepage).
 app.use('/api/dashboard', dashboardRoutes);
+
+// Settings: /api/settings (singleton parish config + first-run wizard state).
+app.use('/api/settings', settingsRoutes);
+
+// SMS: /api/sms/settings + /api/sms/send (Africa's Talking integration).
+app.use('/api/sms', smsRoutes);
+
+// Support: /api/support/bundle (diagnostics + sanitized data ZIP download).
+app.use('/api/support', supportRoutes);
+
+// ── Frontend SPA serving ───────────────────────────────────────────────────
 
 // Self-host the frontend build so a parish PC runs the whole app on one port.
 // SPA fallback serves index.html for client-side routes (everything that is not
 // an /api call). Skipped silently when the frontend has not been built yet.
 if (servingFrontend) {
+  // Serve static assets (JS, CSS, images) from the frontend dist directory.
   app.use(express.static(FRONTEND_DIST));
+
+  // SPA fallback: any non-/api request returns index.html for client-side routing.
+  // Regex /^(?!api(?:\/|$)).*/ matches everything that does NOT start with /api.
   app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
 }
 
+// ── Centralized error handler (must be last middleware) ─────────────────────
+
+// Catches all errors thrown/passed via next(e) from route handlers above.
 app.use(errorHandler);
 
+// ── Start the HTTP server ──────────────────────────────────────────────────
+
+// Bind to the configured port and log startup information.
 app.listen(PORT, () => {
-  console.log(`\n  Ecclesia Server running on http://localhost:${PORT}`);
-  console.log(`  Health: http://localhost:${PORT}/api/health`);
+  // Log server startup with structured logger for production monitoring.
+  logger.info(`Ecclesia Server running on http://localhost:${PORT}`);
+  logger.info(`Health: http://localhost:${PORT}/api/health`);
+
+  // If the frontend dist exists, log the full app URL.
   if (servingFrontend) {
-    console.log(`  App:    http://localhost:${PORT}  (frontend served from ${FRONTEND_DIST})`);
+    logger.info(`App: http://localhost:${PORT} (frontend served from ${FRONTEND_DIST})`);
   }
-  console.log('');
 });

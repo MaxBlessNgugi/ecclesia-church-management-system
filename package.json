@@ -3,42 +3,158 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "concurrently -k -n \"VITE,BACKEND,ELECTRON\" -c \"green,blue,magenta\" \"vite --port=3000 --strictPort --host=0.0.0.0\" \"npm run dev --prefix backend\" \"wait-on http://localhost:3000 http://localhost:5000 && cross-env NODE_ENV=development electron .\"",
     "backend": "npm run dev --prefix backend",
     "backend:setup": "npm install --prefix backend && npm run db:push --prefix backend && npm run db:seed --prefix backend",
+    "backend:build": "npm run build --prefix backend",
     "setup": "npm install && npm run backend:setup",
     "server": "npm run backend",
-    "build": "vite build",
+    "build": "vite build && npm run backend:build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:mac": "npm run build && electron-builder --mac dmg",
+    "dist:linux": "npm run build && electron-builder --linux AppImage"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "dexie": "^4.4.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "file-saver": "^2.0.5",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "papaparse": "^5.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "vite": "^6.2.3"
+    "sonner": "^2.0.8",
+    "uuid": "^14.0.1",
+    "vite": "^6.2.3",
+    "vite-plugin-pwa": "^1.3.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/file-saver": "^2.0.7",
     "@types/node": "^22.14.0",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^43.3.0",
+    "electron-builder": "^24.13.3",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "wait-on": "^7.2.0"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,
     "esbuild@0.28.1": true
+  },
+  "build": {
+    "appId": "com.ecclesia.chms",
+    "productName": "ECCLESIA Church Management System",
+    "copyright": "Copyright © 2024 Max Bless Ngugi",
+    "directories": {
+      "output": "release",
+      "buildResources": "electron/assets"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "backend/dist/**/*",
+      "backend/prisma/**/*",
+      "backend/node_modules/**/*",
+      "backend/package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist",
+        "to": "backend/dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "backend/prisma",
+        "to": "backend/prisma",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "backend/node_modules/@prisma/client/**/*",
+      "backend/node_modules/.prisma/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.ico",
+      "publisherName": "Max Bless Ngugi"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ECCLESIA",
+      "uninstallDisplayName": "ECCLESIA Church Management System",
+      "license": "LICENSE.txt",
+      "installerIcon": "electron/assets/icon.ico",
+      "uninstallerIcon": "electron/assets/icon.ico",
+      "include": "electron/assets/installer.nsh"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.icns",
+      "category": "public.app-category.business"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.png",
+      "category": "Office",
+      "maintainer": "Max Bless Ngugi"
+    }
   }
 }

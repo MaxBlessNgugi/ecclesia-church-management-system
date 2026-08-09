@@ -17,8 +17,11 @@
 //        showCertModal (printable certificate); death-record fields (deceasedMember,
 //        placeOfDeath, dateOfDeath, dateOfBurial, deathMinister, remarks).
 // =============================================================================
+// React core: component framework, local state, and side-effect hooks
 import React, { useState, useEffect } from 'react';
+// Domain types: parishioner record, sacraments sub-tab union, and death record
 import { ChristianRecord, SacramentsSubTab, DeathRecord } from '../../types';
+// Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
 
 /**
@@ -56,7 +59,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   onUpdateSacraments,
   onRecordDeath
 }) => {
+  // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
+  // Controls which of the two sub-tabs is currently rendered
   const [subTab, setSubTab] = useState<SacramentsSubTab>(initialSubTab);
 
   // Active member for Sacrament Card — fallback chain: prefer the member
@@ -76,30 +81,38 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
   // Sacrament Form State — four slices mirroring SacramentData { date, minister, place }.
   // Kept as draft fields so edits never touch the real record until Save is pressed.
+  // Baptism sacrament data — date, ministering priest, and place
   const [baptism, setBaptism] = useState({ date: '', minister: '', place: '' });
+  // Holy Eucharist (First Communion) data
   const [eucharist, setEucharist] = useState({ date: '', minister: '', place: '' });
+  // Confirmation data
   const [confirmation, setConfirmation] = useState({ date: '', minister: '', place: '' });
+  // Holy Matrimony (Marriage) data
   const [marriage, setMarriage] = useState({ date: '', minister: '', place: '' });
 
   // When the active member changes (dropdown switch or pre-selection), repopulate
   // every sacrament slice from that member's record (empty strings when unrecorded).
   useEffect(() => {
     if (activeMember) {
+      // Populate baptism fields from the member's existing record
       setBaptism({
         date: activeMember.baptism?.date || '',
         minister: activeMember.baptism?.minister || '',
         place: activeMember.baptism?.place || ''
       });
+      // Populate eucharist fields
       setEucharist({
         date: activeMember.eucharist?.date || '',
         minister: activeMember.eucharist?.minister || '',
         place: activeMember.eucharist?.place || ''
       });
+      // Populate confirmation fields
       setConfirmation({
         date: activeMember.confirmation?.date || '',
         minister: activeMember.confirmation?.minister || '',
         place: activeMember.confirmation?.place || ''
       });
+      // Populate marriage fields
       setMarriage({
         date: activeMember.marriage?.date || '',
         minister: activeMember.marriage?.minister || '',
@@ -109,6 +122,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   }, [activeMember]);
 
   // Certificate Modal State
+  // Controls visibility of the printable sacrament certificate modal
   const [showCertModal, setShowCertModal] = useState(false);
 
   // Death Record State — default deceasedMember is the SECOND registry entry
@@ -116,12 +130,18 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   // the same member as the sacrament card by default. Falls back to null on an
   // empty registry.
   const [deceasedMember, setDeceasedMember] = useState<ChristianRecord | null>(christians[1] || null);
+  // Place of death — free text
   const [placeOfDeath, setPlaceOfDeath] = useState('');
+  // Date of death — date input
   const [dateOfDeath, setDateOfDeath] = useState('');
+  // Date of burial — free text (e.g. "Oct 12, 2023")
   const [dateOfBurial, setDateOfBurial] = useState('');
+  // Minister's name for the death record
   const [deathMinister, setDeathMinister] = useState('');
+  // Additional remarks / liturgy details
   const [remarks, setRemarks] = useState('');
 
+  // Handles the sacrament save — lifts the four sacrament slices to the parent
   const handleSaveSacraments = (e: React.FormEvent) => {
     e.preventDefault();
     // Empty-registry edge case: bail silently if no member is selected.
@@ -137,6 +157,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
     alert(`Sacrament registers updated for ${activeMember.baptismalName} ${activeMember.sirName}!`);
   };
 
+  // Handles the death record submission — builds a DeathRecord and lifts it to the parent
   const handleDeathSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Guard: nothing to record if no deceased member is selected.
@@ -167,9 +188,11 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
       {/* Title & Sub-tabs Header */}
       <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          {/* Page title */}
           <h2 className="text-xl font-serif font-bold text-[#1a1c1c]">
             Sacrament Register & Memorial
           </h2>
+          {/* Subtitle describing the panel's two functions */}
           <p className="text-xs text-[#444748]">
             Update sacramental Christian cards and record deceased parishioner details
           </p>
@@ -179,6 +202,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
             inverted (dark bg + light text). Switching unmounts one workflow and
             mounts the other. */}
         <div className="flex items-center gap-1 bg-[#f4f3f3] p-1 rounded-lg border border-[#e1e3e3]">
+          {/* UPDATE CHRISTIAN CARD tab */}
           <button
             onClick={() => setSubTab('update_card')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
@@ -189,6 +213,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           >
             UPDATE CHRISTIAN CARD
           </button>
+          {/* RECORD DEATH DETAILS tab */}
           <button
             onClick={() => setSubTab('record_death')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
@@ -206,11 +231,14 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           slices on their card; includes a printable certificate preview. */}
       {subTab === 'update_card' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
+          {/* Header row with title and member selector */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-[#e1e3e3]">
             <div>
+              {/* Section title */}
               <h3 className="text-sm font-bold text-[#1a1c1c] uppercase tracking-wide">
                 SACRAMENT REGISTER LOG
               </h3>
+              {/* Subtitle */}
               <p className="text-xs text-[#444748]">
                 Confirm identity before making sacrament updates to parish archives
               </p>
@@ -227,6 +255,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 }}
                 className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] font-bold focus:outline-none focus:border-[#1e1e1e]"
               >
+                {/* One option per parishioner */}
                 {christians.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.baptismalName} {c.sirName} ({c.regNo})
@@ -242,14 +271,17 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           {activeMember && (
             <div className="p-4 bg-[#f9f9f9] border border-[#e1e3e3] rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
+                {/* Avatar circle — initials */}
                 <div className="w-10 h-10 rounded-full bg-[#1e1e1e] text-white flex items-center justify-center font-bold text-sm">
                   {activeMember.baptismalName[0]}
                   {activeMember.sirName[0]}
                 </div>
                 <div>
+                  {/* Full name */}
                   <div className="text-sm font-bold text-[#1a1c1c]">
                     {activeMember.baptismalName} {activeMember.secondName} {activeMember.sirName}
                   </div>
+                  {/* Registration number, parish, and SCC */}
                   <div className="text-xs text-[#444748]">
                     Reg No: <span className="font-mono">{activeMember.regNo}</span> • Parish:{' '}
                     {activeMember.parish} • SCC: {activeMember.scc}
@@ -257,6 +289,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </div>
               </div>
 
+              {/* Preview Sacrament Certificate button */}
               <button
                 onClick={() => setShowCertModal(true)}
                 className="px-3 py-1.5 text-xs font-bold text-[#1e1e1e] bg-[#ffffff] border border-[#1e1e1e] hover:bg-[#f4f3f3] rounded transition-colors cursor-pointer flex items-center gap-1.5"
@@ -267,12 +300,14 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
             </div>
           )}
 
+          {/* Sacrament edit form — four cards in a 2×2 grid */}
           <form onSubmit={handleSaveSacraments} className="space-y-6">
             {/* 4 Sacraments Grid — one card per sacrament (Baptism, Eucharist,
                 Confirmation, Marriage), each editing { date, minister, place }. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* BAPTISM */}
+              {/* BAPTISM card */}
               <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-lg space-y-3">
+                {/* Card header with water_drop icon */}
                 <div className="flex items-center gap-2 text-xs font-bold text-[#1a1c1c] uppercase tracking-wider border-b border-[#e1e3e3] pb-2">
                   <span className="material-symbols-outlined text-base text-[#1e1e1e]">
                     water_drop
@@ -280,6 +315,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   <span>1. Sacrament of Baptism</span>
                 </div>
                 <div className="space-y-2">
+                  {/* Date of Baptism — date input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Date of Baptism
@@ -291,6 +327,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Ministering Priest — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Ministering Priest
@@ -303,6 +340,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Place of Baptism — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Place of Baptism
@@ -318,8 +356,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </div>
               </div>
 
-              {/* HOLY EUCHARIST */}
+              {/* HOLY EUCHARIST card */}
               <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-lg space-y-3">
+                {/* Card header with bakery_dining icon */}
                 <div className="flex items-center gap-2 text-xs font-bold text-[#1a1c1c] uppercase tracking-wider border-b border-[#e1e3e3] pb-2">
                   <span className="material-symbols-outlined text-base text-[#1e1e1e]">
                     bakery_dining
@@ -327,6 +366,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   <span>2. Holy Eucharist (First Communion)</span>
                 </div>
                 <div className="space-y-2">
+                  {/* First Communion Date — date input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       First Communion Date
@@ -338,6 +378,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Presiding Minister — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Presiding Minister
@@ -350,6 +391,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Place of Sacrament — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Place of Sacrament
@@ -365,8 +407,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </div>
               </div>
 
-              {/* CONFIRMATION */}
+              {/* CONFIRMATION card */}
               <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-lg space-y-3">
+                {/* Card header with local_fire_department icon */}
                 <div className="flex items-center gap-2 text-xs font-bold text-[#1a1c1c] uppercase tracking-wider border-b border-[#e1e3e3] pb-2">
                   <span className="material-symbols-outlined text-base text-[#1e1e1e]">
                     local_fire_department
@@ -374,6 +417,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   <span>3. Sacrament of Confirmation</span>
                 </div>
                 <div className="space-y-2">
+                  {/* Confirmation Date — date input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Confirmation Date
@@ -385,6 +429,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Confirming Bishop / Minister — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Confirming Bishop / Minister
@@ -397,6 +442,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Place of Confirmation — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Place of Confirmation
@@ -412,8 +458,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </div>
               </div>
 
-              {/* MARRIAGE */}
+              {/* MARRIAGE card */}
               <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-lg space-y-3">
+                {/* Card header with favorite icon */}
                 <div className="flex items-center gap-2 text-xs font-bold text-[#1a1c1c] uppercase tracking-wider border-b border-[#e1e3e3] pb-2">
                   <span className="material-symbols-outlined text-base text-[#1e1e1e]">
                     favorite
@@ -421,6 +468,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   <span>4. Holy Matrimony (Marriage)</span>
                 </div>
                 <div className="space-y-2">
+                  {/* Wedding Date — date input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Wedding Date
@@ -432,6 +480,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Officiating Minister — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Officiating Minister
@@ -444,6 +493,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                       className="w-full px-2.5 py-1.5 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                     />
                   </div>
+                  {/* Place of Marriage — text input */}
                   <div>
                     <label className="block text-[11px] text-[#444748] mb-1">
                       Place of Marriage
@@ -460,7 +510,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               </div>
             </div>
 
-            {/* Action Footer */}
+            {/* Action Footer — Save button */}
             <div className="pt-4 border-t border-[#e1e3e3] flex justify-end gap-3">
               <button
                 type="submit"
@@ -479,19 +529,25 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
       {/* 2. RECORD DEATH DETAILS — memorial workflow: log a parishioner's demise;
           submission persists the death entry and marks the member Deceased. */}
-      {subTab === 'record_death' && (
+      {subTab === 'record_death' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Death record form card */}
           <div className="lg:col-span-2 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
+            {/* Section header */}
             <div className="border-b border-[#e1e3e3] pb-4">
+              {/* Form title */}
               <h3 className="text-sm font-bold text-[#1a1c1c] uppercase tracking-wide">
                 DEATH RECORD & LITURGICAL MEMORIAL LOG
               </h3>
+              {/* Subtitle */}
               <p className="text-xs text-[#444748] mt-1">
                 Record demise details to update the parish roll and memorial register
               </p>
             </div>
 
+            {/* Death record form — member, place, dates, minister, remarks */}
             <form onSubmit={handleDeathSubmit} className="space-y-6">
+              {/* Deceased parishioner selector */}
               <div>
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Select Deceased Parishioner
@@ -504,6 +560,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   }}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] font-bold focus:outline-none focus:border-[#1e1e1e]"
                 >
+                  {/* One option per parishioner */}
                   {christians.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.baptismalName} {c.sirName} ({c.regNo})
@@ -512,7 +569,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </select>
               </div>
 
+              {/* Death detail fields — 2-column grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Place of Death — free text */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                     Place of Death
@@ -526,6 +585,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   />
                 </div>
 
+                {/* Date of Death — date input */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                     Date of Death
@@ -538,6 +598,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   />
                 </div>
 
+                {/* Date of Burial — free text (e.g. "Oct 12, 2023") */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                     Date of Burial
@@ -551,6 +612,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                   />
                 </div>
 
+                {/* Minister's Name — text input */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                     Minister's Name
@@ -565,6 +627,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </div>
               </div>
 
+              {/* Additional Remarks textarea */}
               <div>
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Additional Remarks / Liturgy Details
@@ -578,6 +641,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 />
               </div>
 
+              {/* Submit button — red themed, permission-gated */}
               <div className="pt-4 border-t border-[#e1e3e3] flex justify-end">
                 <button
                   type="submit"
@@ -595,16 +659,19 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
           {/* Right Guidance Sidebar & Recent Records */}
           <div className="space-y-4">
+            {/* Procedural Note card */}
             <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-[#1a1c1c] uppercase">
                 <span className="material-symbols-outlined text-base text-[#1e1e1e]">info</span>
                 <span>Procedural Note</span>
               </div>
+              {/* Explanation of what recording a death triggers */}
               <p className="text-xs text-[#444748] leading-relaxed">
                 Recording a death automatically updates the Parish Roll status to Deceased, notifies the finance module to close pledge accounts, and logs an entry in the Annual Memorial Report.
               </p>
             </div>
 
+            {/* Recent Memorial Entries feed */}
             <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
               <h4 className="text-xs font-bold text-[#1a1c1c] uppercase tracking-wider">
                 RECENT MEMORIAL ENTRIES
@@ -612,9 +679,12 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               {/* Feed of logged memorial entries; renders nothing (no explicit
                   empty state) when deathRecords is empty. */}
               <div className="space-y-2">
+                {/* One card per death record */}
                 {deathRecords.map((d) => (
                   <div key={d.id} className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3]">
+                    {/* Deceased member name */}
                     <div className="text-xs font-bold text-[#1a1c1c]">{d.memberName}</div>
+                    {/* Burial date and place of death */}
                     <div className="text-[10px] text-[#444748]">
                       Burial: {d.dateOfBurial} • {d.placeOfDeath}
                     </div>
@@ -629,8 +699,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
       {/* PRINTABLE SACRAMENT CERTIFICATE MODAL — read-only preview of the current
           form slices; Print invokes window.print() on the whole page. Guarded by
           BOTH showCertModal and a non-null activeMember. */}
-      {showCertModal && activeMember && (
+      {showCertModal && activeMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
+          {/* Certificate card — serif font, anti-fraud watermark */}
           <div className="bg-[#faf8f5] border-2 border-[#1e1e1e] rounded-xl p-8 max-w-xl w-full shadow-2xl space-y-6 relative font-serif overflow-hidden">
             {/* Anti-fraud watermark — a faint diagonal parish mark behind the
                 certificate body. It prints with the document so photocopied
@@ -641,6 +712,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               </div>
             </div>
 
+            {/* Certificate header — parish name and document title */}
             <div className="text-center space-y-2 border-b border-[#1e1e1e] pb-4 relative">
               <div className="text-3xl font-bold text-[#1a1c1c]">† ST. MARY'S PARISH</div>
               <p className="text-xs tracking-widest uppercase font-semibold text-[#444748]">
@@ -648,26 +720,34 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               </p>
             </div>
 
+            {/* Certificate body — member name and sacrament records */}
             <div className="text-center space-y-3 text-sm text-[#1a1c1c]">
               <p className="italic text-xs text-[#444748]">This is to certify that</p>
+              {/* Member full name — large, underlined */}
               <h3 className="text-2xl font-bold underline underline-offset-4">
                 {activeMember.baptismalName} {activeMember.secondName} {activeMember.sirName}
               </h3>
+              {/* Registration number */}
               <p className="text-xs font-mono">Reg No: {activeMember.regNo}</p>
 
+              {/* Sacrament records — Baptism, Eucharist, Confirmation, Marriage */}
               <div className="my-4 text-left bg-white p-4 rounded border border-[#e1e3e3] space-y-2 text-xs">
+                {/* Baptism record */}
                 <div>
                   <strong>Baptism:</strong> {baptism.date || 'Not Recorded'} • Minister:{' '}
                   {baptism.minister || 'N/A'} ({baptism.place || 'N/A'})
                 </div>
+                {/* Eucharist record */}
                 <div>
                   <strong>Holy Eucharist:</strong> {eucharist.date || 'Not Recorded'} • Presiding:{' '}
                   {eucharist.minister || 'N/A'}
                 </div>
+                {/* Confirmation record */}
                 <div>
                   <strong>Confirmation:</strong> {confirmation.date || 'Not Recorded'} • Bishop:{' '}
                   {confirmation.minister || 'N/A'}
                 </div>
+                {/* Marriage record */}
                 <div>
                   <strong>Holy Matrimony:</strong> {marriage.date || 'Not Recorded'} • Officiant:{' '}
                   {marriage.minister || 'N/A'}
@@ -675,6 +755,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               </div>
             </div>
 
+            {/* Certificate footer — signature line and action buttons */}
             <div className="pt-6 border-t border-[#1e1e1e] flex justify-between items-end text-xs">
               <div>
                 <p className="font-bold">Parish Administrator</p>
@@ -682,12 +763,14 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               </div>
 
               <div className="flex gap-2 font-sans">
+                {/* Close — dismisses the modal */}
                 <button
                   onClick={() => setShowCertModal(false)}
                   className="px-3 py-1.5 text-xs text-[#444748] bg-gray-200 rounded hover:bg-gray-300 cursor-pointer"
                 >
                   Close
                 </button>
+                {/* Print Official Certificate — triggers the browser's print dialog */}
                 <button
                   onClick={() => window.print()}
                   className="px-4 py-1.5 text-xs text-white bg-[#1e1e1e] rounded hover:bg-[#333333] cursor-pointer flex items-center gap-1"

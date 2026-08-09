@@ -5,71 +5,119 @@
    - .material-symbols-outlined re-enables the icon ligature font features.
    - .sacred-input / .form-input-focus are shared form styling utilities.
    =========================================================================== */
+
+/* Boot the Tailwind CSS 4 engine — provides utility classes and base resets */
 @import "tailwindcss";
 
 @layer base {
   body {
+    /* Use Source Serif 4 as the primary typeface for a sacred/literary feel */
     font-family: 'Source Serif 4', serif;
+    /* Warm off-white background for readability and a gentle aesthetic */
     background-color: #f9f9f9;
+    /* Near-black ink color for high contrast text against the light background */
     color: #1a1c1c;
+    /* Enable subpixel antialiasing on WebKit for crisper text rendering */
     -webkit-font-smoothing: antialiased;
   }
 }
 
+/* Material Symbols Outlined — base configuration for icon ligature font */
 .material-symbols-outlined {
+  /* Load the Material Symbols Outlined variable font */
   font-family: 'Material Symbols Outlined';
+  /* Reset font-weight to normal so icon weight is controlled via font-variation-settings */
   font-weight: normal;
+  /* Reset font-style to normal to prevent italic icons */
   font-style: normal;
+  /* Default icon size of 24px matching Material Design spec */
   font-size: 24px;
+  /* Tight line-height so icons align properly inline with text */
   line-height: 1;
+  /* Prevent extra letter-spacing that could shift icon glyphs */
   letter-spacing: normal;
+  /* Prevent text-transform from affecting icon rendering */
   text-transform: none;
+  /* Display inline-block so icons sit alongside text naturally */
   display: inline-block;
+  /* Prevent whitespace from wrapping icon glyphs */
   white-space: nowrap;
+  /* Prevent word-wrap from breaking icon ligatures */
   word-wrap: normal;
+  /* Set text direction to left-to-right for consistent icon rendering */
   direction: ltr;
+  /* Enable the 'liga' OpenType feature so icon ligatures render correctly */
   -webkit-font-feature-settings: 'liga';
+  /* Smooth out glyph edges for crisper icon rendering */
   -webkit-font-smoothing: antialiased;
+  /* Variable font settings: FILL=0 (outlined), wght=400, GRAD=0, opsz=24 */
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
+/* Filled variant — toggles the FILL axis to 1 for solid/filled icon appearance */
 .material-symbols-outlined.fill {
+  /* Switch to filled style while keeping weight, grade, and optical size constant */
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
 /* Custom scrollbars */
+/* WebKit scrollbar — sets thin 6px dimensions for both axes */
 ::-webkit-scrollbar {
+  /* Narrow width for a minimalist scrollbar appearance */
   width: 6px;
+  /* Narrow height for horizontal scrollbars */
   height: 6px;
 }
+/* Scrollbar track — the background behind the scrollbar thumb */
 ::-webkit-scrollbar-track {
+  /* Transparent background so the scrollbar doesn't compete with content */
   background: transparent;
 }
+/* Scrollbar thumb — the draggable handle portion of the scrollbar */
 ::-webkit-scrollbar-thumb {
+  /* Light gray color for subtle visibility against most backgrounds */
   background: #c4c7c7;
+  /* Rounded ends for a softer, modern appearance */
   border-radius: 3px;
 }
 
 /* Underline inputs for sacred theme */
+/* Sacred input — minimalist underline-only input for liturgical/sacred forms */
 .sacred-input {
+  /* Show only the bottom border for a clean underline-only look */
   border-bottom: 1px solid #1e1e1e !important;
+  /* Remove top border entirely */
   border-top: none !important;
+  /* Remove left border entirely */
   border-left: none !important;
+  /* Remove right border entirely */
   border-right: none !important;
+  /* No rounded corners — sharp edges for a traditional, formal feel */
   border-radius: 0 !important;
+  /* Transparent background so the input blends with its container */
   background: transparent !important;
+  /* Flush left padding to align text with the underline start */
   padding-left: 0 !important;
+  /* Smooth transition on border color change for focus state */
   transition: border-color 0.2s ease;
 }
+/* Sacred input focus state — thicker underline on focus for visual feedback */
 .sacred-input:focus {
+  /* Remove default browser focus outline */
   outline: none !important;
+  /* Thicken the bottom border to 2px on focus for emphasis */
   border-bottom: 2px solid #1e1e1e !important;
+  /* Remove any default box-shadow from focus state */
   box-shadow: none !important;
 }
 
 /* Form input focus utility */
+/* Shared focus style for standard form inputs — consistent focus appearance */
 .form-input-focus:focus {
+  /* Remove default browser focus outline */
   outline: none !important;
+  /* Apply a dark border color on focus for clear visual feedback */
   border-color: #1e1e1e !important;
+  /* Remove any default box-shadow from focus state */
   box-shadow: none !important;
 }

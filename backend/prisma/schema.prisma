@@ -1,7 +1,84 @@
+// =============================================================================
+// Ecclesia CMS — Prisma Database Schema
+// =============================================================================
+//
+// DATABASE: SQLite (file: ./dev.db, env: DATABASE_URL)
+// ORM:      Prisma Client (generate: `npx prisma generate`)
+// MIGRATIONS: `npx prisma migrate dev` (dev) / `prisma migrate deploy` (prod)
+// SEED:     `npx prisma db seed` → backend/prisma/seed.ts
+//
+// ARCHITECTURE PRINCIPLES
+//   1. SOFT DELETE PATTERN — Every mutable model has:
+//        isDeleted Boolean @default(false)
+//        deletedAt DateTime?
+//      DELETE endpoints set isDeleted=true, write AuditLog, NEVER hard-delete
+//   2. JSON COLUMNS — Complex nested data stored as TEXT (JSON strings):
+//        User.panels, User.actions           → PanelPermissions JSON
+//        Christian.baptism, eucharist, etc.  → SacramentData JSON
+//        Contribution.categories, monthlyTracker → String[] + Record<month,bool>
+//      Parsed by backend route handlers; Prisma treats them as opaque Strings
+//   3. UUID PRIMARY KEYS — All models use @id @default(uuid()) for global uniqueness
+//   4. TIMESTAMPS — createdAt @default(now()), updatedAt @updatedAt on all models
+//   5. SINGLETON SETTINGS — PanelPermissions, PushPaymentSettings use id="default"
+//      (enforced by @id @default("default")) — one row per setting type
+//
+// MODEL MAP BY DOMAIN
+//   ┌─────────────────────┬────────────────────────────────────────────────────────┐
+//   │ Domain              │ Models                                                   │
+//   ├─────────────────────┼────────────────────────────────────────────────────────┤
+//   │ Authentication      │ User, PanelPermissions                                   │
+//   │ Parish Registry     │ Christian, Contribution, Transfer, BilledItem, Death    │
+//   │ Finance             │ Deposit, Creditor, Debtor, Expense, Ledger, LedgerMovement│
+//   │ Inventory           │ InventoryItem, Delivery, Sale, StockTake, StockIssue,   │
+//   │                     │   InventoryPriceAuditLog                                 │
+//   │ Human Resources     │ Employee, Payroll, Leave, Recruitment, RecruitmentApplicant│
+//   │ Audit & Ops         │ AuditLog, PushPaymentSettings                            │
+//   └─────────────────────┴────────────────────────────────────────────────────────┘
+//
+// KEY RELATIONSHIPS
+//   Christian 1──● Contribution (christianId)
+//   Christian 1──● Transfer     (christianId)
+//   Christian 1──● BilledItem   (christianId, optional - walk-ins allowed)
+//   Christian 1──● Death        (christianId)
+//   Employee  1──● Payroll      (employeeId)
+//   Employee  1──● Leave        (employeeId)
+//   Recruitment 1──● RecruitmentApplicant (recruitmentId)
+//
+// INDEXES (query optimization)
+//   Christian:   status, scc, localChurch (filter-heavy columns)
+//   Contribution/Transfer/Death/BilledItem: christianId (FK lookups)
+//   Payroll/Leave/RecruitmentApplicant: employeeId/recruitmentId (FK lookups)
+//   InventoryPriceAuditLog: itemId, createdAt (history queries)
+//   AuditLog: entityName, entityId (trash & audit filters)
+//
+// SENSITIVE DATA HANDLING
+//   - User.passwordHash: bcrypt hash, NEVER returned in API responses
+//   - PushPaymentSettings.consumerKey/Secret: plaintext in DB, MASKED in API
+//   - AuditLog.metadataSnapshot: passwordHash STRIPPED before write
+//   - Export/Import: secrets stripped, M-Pesa credentials masked
+//
+// MIGRATION NOTES
+//   - Run `npx prisma migrate dev --name <description>` for schema changes
+//   - SQLite doesn't support DROP COLUMN in transactions — Prisma handles this
+//   - JSON column changes require NO migration (just update Zod schemas + types)
+//   - Adding required fields: provide @default or make nullable first
+//
+// RELATED FILES
+//   - backend/src/routes/*.ts          → Zod validation (mirror these fields)
+//   - src/types.ts                     → Frontend interfaces (mirror these fields)
+//   - backend/src/lib/audit.ts         → softDelete, restoreFromLog (use models)
+//   - backend/prisma/seed.ts           → Development seed data
+// =============================================================================
+
+// Prisma generator — produces the typed Prisma Client used by all backend code.
+// The "clientjs" output is required for ESM compatibility with Vite/tsx.
 generator client {
   provider = "prisma-client-js"
 }
 
+// Database connection — reads DATABASE_URL from the environment.
+// Default is SQLite file:./dev.db for local development.
+// Production should override with a PostgreSQL connection string.
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
@@ -354,8 +431,89 @@ model Employee {
   deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  payrolls  Payroll[]
+  leaves    Leave[]
 
   @@map("employees")
+}
+
+model Payroll {
+  id             String    @id @default(uuid())
+  employeeId     String
+  employee       Employee? @relation(fields: [employeeId], references: [id])
+  period         String
+  basicSalary    Float
+  allowances     Float    @default(0)
+  deductions     Float    @default(0)
+  netPay         Float
+  status         String   @default("Draft")
+  notes          String?
+  isDeleted      Boolean  @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([employeeId])
+  @@map("payrolls")
+}
+
+model Leave {
+  id           String   @id @default(uuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  type         String
+  startDate    String
+  endDate      String
+  days         Int
+  reason       String
+  status       String   @default("Pending")
+  approvedBy   String?
+  notes        String?
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([employeeId])
+  @@map("leaves")
+}
+
+model Recruitment {
+  id           String   @id @default(uuid())
+  position     String
+  department   String
+  description  String
+  requirements String?
+  status       String   @default("Open")
+  datePosted   String
+  closingDate  String?
+  notes        String?
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  applicants   RecruitmentApplicant[]
+
+  @@map("recruitments")
+}
+
+model RecruitmentApplicant {
+  id              String      @id @default(uuid())
+  recruitmentId   String
+  recruitment     Recruitment @relation(fields: [recruitmentId], references: [id])
+  name            String
+  email           String
+  phone           String?
+  cvSummary       String?
+  status          String      @default("Pending")
+  notes           String?
+  isDeleted       Boolean     @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([recruitmentId])
+  @@map("recruitment_applicants")
 }
 
 // Append-only price audit trail: every cost/price change on an inventory item
@@ -375,4 +533,35 @@ model InventoryPriceAuditLog {
   @@index([itemId])
   @@index([createdAt])
   @@map("inventory_price_audit_logs")
+}
+
+// ── Administration / Ops ─────────────────────────────────────────────────────
+
+// Singleton row (id="default") holding first-run wizard state and parish identity.
+// Created lazily by GET /api/settings; PATCH flips setupCompleted once the wizard
+// is finished so the login screen can redirect new users into onboarding.
+model SystemSettings {
+  id             String   @id @default("default")
+  parishName     String   @default("")
+  diocese        String   @default("")
+  setupCompleted Boolean  @default(false)
+  setupStep      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// Singleton row (id="default") storing Africa's Talking SMS gateway credentials.
+// Used by the SMS service to send member notifications (birthdays, reminders, etc.).
+model SmsSettings {
+  id        String   @id @default("default")
+  enabled   Boolean  @default(false)
+  username  String   @default("sandbox")
+  apiKey    String   @default("")
+  senderId  String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sms_settings")
 }

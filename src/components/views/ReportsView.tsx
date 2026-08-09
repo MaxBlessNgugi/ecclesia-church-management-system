@@ -17,12 +17,12 @@
 // sacramentType / localChurch / scc params; contributions refetches on demand
 // with category / month params; sales and cashiers render the mount-time
 // snapshot. The most recently generated sacrament report filename is tracked
-// for the "recent extractions" download list.
+// for the "recent extractions" list — it is the only entry shown (no demo files).
 // =============================================================================
 import React, { useState, useEffect, useMemo } from 'react';
 import { ReportsSubTab, SacramentReportRow, ContributionReportRow, SalesReportRow, CashierReportRow } from '../../types';
 import { reportsApi } from '../../services/api';
-import { exportCsv, exportExcel, ExportColumn } from '../../utils/export';
+import { exportCsv, exportExcel, exportPdf, ExportColumn } from '../../utils/export';
 
 // Column definitions for the CSV / Excel exports — one pair per report panel,
 // so each export mirrors exactly what its table displays.
@@ -58,7 +58,7 @@ const CASHIER_COLUMNS: ExportColumn<CashierReportRow>[] = [
     label: 'Status',
     value: (r) => {
       const variance = r.collected - r.reconciled;
-      return Math.abs(variance) < 0.005 ? 'Reconciled' : `Shortfall $${Math.abs(variance).toFixed(2)}`;
+      return Math.abs(variance) < 0.005 ? 'Reconciled' : `Shortfall KSh ${Math.abs(variance).toFixed(2)}`;
     }
   }
 ];
@@ -577,7 +577,10 @@ export const ReportsView: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => alert("Exporting formatted PDF report...")}
+                    onClick={() => {
+                      const base = `${sacramentType}_Registry_${(localChurch || 'Parish').replace(/\s+/g, '_')}_${new Date().getFullYear()}`;
+                      exportPdf(base, `${sacramentType.toUpperCase()} REGISTRY`, SACRAMENT_COLUMNS, sacramentPreviewData);
+                    }}
                     className="px-4 py-2 text-xs font-semibold text-[#1a1c1c] bg-[#ffffff] border border-[#c4c7c7] hover:bg-[#f4f3f3] rounded cursor-pointer flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
@@ -621,26 +624,8 @@ export const ReportsView: React.FC = () => {
                 </h4>
 
                 <div className="space-y-2 text-xs">
-                  {[
-                    'Baptism_Registry_Q3.pdf',
-                    'Marriage_Annals_2024.pdf',
-                    'Conf_St_Monica_Oct.pdf'
-                  ].map((doc, idx) => (
-                    <div key={idx} className="p-2.5 bg-[#f4f3f3] rounded border border-[#e1e3e3] flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-base text-[#1e1e1e]">picture_as_pdf</span>
-                        <span className="font-mono text-[11px] text-[#1a1c1c]">{doc}</span>
-                      </div>
-                      <button
-                        onClick={() => alert(`Downloading ${doc}`)}
-                        className="text-[#1e1e1e] hover:underline text-[10px] font-bold"
-                      >
-                        Download
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* The generated filename appears highlighted so the latest extraction is easy to spot. */}
+                  {/* No hardcoded demo files — only the filename of the most
+                      recently generated report is listed here. */}
                   {generatedPdf && (
                     <div className="p-2.5 bg-emerald-50 rounded border border-emerald-300 flex justify-between items-center text-xs animate-in fade-in">
                       <div className="flex items-center gap-2">
@@ -847,7 +832,7 @@ export const ReportsView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
               <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">TOTAL SALES</span>
-              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">${salesRows.reduce((acc, r) => acc + r.amount, 0).toFixed(2)}</div>
+              <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">KSh {salesRows.reduce((acc, r) => acc + r.amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
@@ -864,7 +849,7 @@ export const ReportsView: React.FC = () => {
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
               <span className="text-[10px] font-bold text-[#444748] uppercase tracking-wider">AVG ORDER VALUE</span>
               <div className="text-2xl font-serif font-bold text-[#1a1c1c] mt-1">
-                ${salesRows.length > 0 ? (salesRows.reduce((acc, r) => acc + r.amount, 0) / salesRows.length).toFixed(2) : '0.00'}
+                KSh {salesRows.length > 0 ? (salesRows.reduce((acc, r) => acc + r.amount, 0) / salesRows.length).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}
               </div>
             </div>
           </div>
@@ -922,7 +907,7 @@ export const ReportsView: React.FC = () => {
                         <tr key={i} className="hover:bg-[#f9f9f9]">
                           <td className="p-3 font-bold text-[#1a1c1c]">{row.item}</td>
                           <td className="p-3 text-center font-bold">{row.quantity}</td>
-                          <td className="p-3 text-right font-bold text-[#1e1e1e]">${row.amount.toFixed(2)}</td>
+                          <td className="p-3 text-right font-bold text-[#1e1e1e]">KSh {row.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="p-3 text-[#444748]">{row.date}</td>
                         </tr>
                       ))
@@ -968,12 +953,12 @@ export const ReportsView: React.FC = () => {
             {/* KPIs aggregate collected/reconciled totals from cashierRows (client-side, no refetch). */}
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
               <span className="text-[10px] font-bold text-[#444748] uppercase">TOTAL COLLECTED</span>
-              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">${cashierRows.reduce((acc, r) => acc + r.collected, 0).toFixed(2)}</div>
+              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">KSh {cashierRows.reduce((acc, r) => acc + r.collected, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
               <span className="text-[10px] font-bold text-[#444748] uppercase">RECONCILED</span>
-              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">${cashierRows.reduce((acc, r) => acc + r.reconciled, 0).toFixed(2)}</div>
+              <div className="text-xl font-serif font-bold text-[#1a1c1c] mt-1">KSh {cashierRows.reduce((acc, r) => acc + r.reconciled, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="p-4 bg-[#ffffff] border border-[#e1e3e3] rounded-xl shadow-xs">
@@ -1012,8 +997,8 @@ export const ReportsView: React.FC = () => {
                       <tr key={i} className="hover:bg-[#f9f9f9]">
                         <td className="p-3 font-bold text-[#1a1c1c]">{row.cashier}</td>
                         <td className="p-3 text-right">{row.sessions}</td>
-                        <td className="p-3 text-right">${row.collected.toFixed(2)}</td>
-                        <td className="p-3 text-right">${row.reconciled.toFixed(2)}</td>
+                        <td className="p-3 text-right">KSh {row.collected.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 text-right">KSh {row.reconciled.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 text-center">
                           {/* Reconciliation badge: green when collected matches the
                               reconciled total; amber with the shortfall amount when
@@ -1025,7 +1010,7 @@ export const ReportsView: React.FC = () => {
                           }`}>
                             {reconciled
                               ? 'Reconciled'
-                              : `Shortfall $${Math.abs(variance).toFixed(2)}`}
+                              : `Shortfall KSh ${Math.abs(variance).toFixed(2)}`}
                           </span>
                         </td>
                       </tr>

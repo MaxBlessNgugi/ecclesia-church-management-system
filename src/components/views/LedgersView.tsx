@@ -152,7 +152,7 @@ export const LedgersView: React.FC = () => {
       await loadLedgers();
       setTransferAmount('');
       setTransferNotes('');
-      showNotification(`Inter-ledger transfer of $${amt.toFixed(2)} executed from ${sourceLedger} to ${destLedger}!`);
+      showNotification(`Inter-ledger transfer of KSh ${amt.toFixed(2)} executed from ${sourceLedger} to ${destLedger}!`);
     } catch (error) {
       console.error('Failed to execute transfer', error);
       alert(error instanceof Error ? error.message : 'Failed to execute transfer');

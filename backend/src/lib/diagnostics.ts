@@ -32,6 +32,7 @@ const COUNT_MODELS = [
   'stockTake',
   'stockIssue',
   'employee',
+  'inventoryPriceAuditLog',
   'auditLog',
 ] as const;
 
