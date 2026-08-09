@@ -15,7 +15,8 @@
 //   - Font loading (assets/fonts.css) MUST precede Tailwind (index.css) so that
 //     font-family utilities resolve correctly during the first paint
 //   - OfflineProvider wraps the app to provide online/offline/syncing state
-//   - Service worker is registered via vite-plugin-pwa (autoUpdate)
+//   - Service worker is registered automatically by vite-plugin-pwa
+//     (registerType 'autoUpdate') — see vite.config.ts
 //
 // LOAD ORDER
 //   1. fonts.css       → @font-face declarations for Inter, serif fallbacks
@@ -55,11 +56,6 @@ createRoot(rootElement).render(
   </StrictMode>,
 );
 
-// Register service worker for offline caching (manual registration)
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.warn('[SW] Registration failed:', err);
-    });
-  });
-}
+// NOTE: the service worker is registered automatically by vite-plugin-pwa
+// (injectRegister 'auto' injects the registration snippet into index.html).
+// Do not call navigator.serviceWorker.register here — it would double-register.
