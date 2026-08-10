@@ -23,6 +23,21 @@ const isDev =
   process.env.ELECTRON_MODE === 'development' ||
   (!app.isPackaged && process.env.ELECTRON_MODE !== 'production');
 
+// The app ships a strict Content-Security-Policy (vite dev header + index.html
+// <meta> + helmet() in production), so the renderer is genuinely locked down.
+// Electron still prints its dev-mode "Insecure Content-Security-Policy" warning
+// on some setups even with a valid CSP (known issue: electron/electron#31029),
+// so suppress that dev-only noise here. Packaged builds never show it.
+if (isDev) {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+
+  // The renderer's Chromium can resolve `localhost` to ::1 while the vite dev
+  // server listens on 0.0.0.0 (IPv4 only), so the HMR websocket gets
+  // ERR_CONNECTION_REFUSED. Pin localhost to 127.0.0.1 so the renderer's HTTP
+  // and WebSocket connections always reach the same listener.
+  app.commandLine.appendSwitch('host-resolver-rules', 'MAP localhost 127.0.0.1');
+}
+
 // In production (packaged), resources are at process.resourcesPath
 // extraResources from electron-builder places backend at process.resourcesPath/backend
 const ROOT_DIR = isDev ? path.resolve(__dirname, '..') : process.resourcesPath;
@@ -150,8 +165,14 @@ function createWindow() {
     minHeight: 700,
     title: 'ECCLESIA Church Management System',
     icon: path.join(__dirname, 'assets', 'icon-256.png'),
+    // Frameless window — the app renders its own slim OS-style title bar
+    // (brand, drag region + window controls) in TitleBar.tsx, above the nav.
+    // The native title bar and application menu (File/Edit/View/...) are
+    // removed; window controls are driven via the preload bridge.
+    frame: false,
+    backgroundColor: '#f8fafc', // slate-50, avoids white flash while loading
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -160,6 +181,12 @@ function createWindow() {
   });
 
   const loadUrl = LOAD_URL;
+
+  // Surface preload failures loudly (e.g. sandbox/ESM mismatches) instead of
+  // silently losing the window.electronAPI bridge.
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    console.error('[Electron] Preload failed to load:', preloadPath, error);
+  });
 
   mainWindow.loadURL(loadUrl).catch((err) => {
     console.error('[Electron] Failed to load URL:', err);
@@ -187,6 +214,14 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // Keep the renderer's custom title bar in sync with the maximize state
+  // (so the maximize/restore button shows the right icon).
+  const emitMaximized = () => {
+    mainWindow?.webContents.send('window:maximized-changed', mainWindow?.isMaximized());
+  };
+  mainWindow.on('maximize', emitMaximized);
+  mainWindow.on('unmaximize', emitMaximized);
 
   // Handle external links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -287,6 +322,31 @@ app.on('before-quit', () => {
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 ipcMain.handle('app:getPath', (_event, name) => app.getPath(name));
+
+// =============================================================================
+// Custom Title Bar — Window Controls
+// =============================================================================
+// The frameless window renders its own minimize/maximize/close buttons inside
+// the app header (Header.tsx). These handlers drive the native window.
+
+ipcMain.on('window:minimize', () => mainWindow?.minimize());
+ipcMain.on('window:toggleMaximize', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+});
+ipcMain.on('window:close', () => mainWindow?.close()); // close-to-tray (hide)
+ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
+
+// =============================================================================
+// Hide the default application menu (File / Edit / View / Window / Help).
+// Menu items are reachable via keyboard shortcuts (Ctrl+Shift+I for DevTools);
+// the unified title bar intentionally shows no menu.
+// =============================================================================
+
+app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
+});
 
 // =============================================================================
 // Security: Prevent new window creation from renderer

@@ -9,6 +9,10 @@
 /* Boot the Tailwind CSS 4 engine — provides utility classes and base resets */
 @import "tailwindcss";
 
+/* Class-based dark mode: toggling `.dark` on <html> activates all `dark:*`
+   utilities (used by the header / profile menu / unified title bar). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     /* Use Source Serif 4 as the primary typeface for a sacred/literary feel */
@@ -20,6 +24,21 @@
     /* Enable subpixel antialiasing on WebKit for crisper text rendering */
     -webkit-font-smoothing: antialiased;
   }
+
+  /* Dark-mode base for the whole shell when `.dark` is on <html> */
+  .dark body {
+    background-color: #0f172a; /* slate-900 */
+    color: #e2e8f0;            /* slate-200 */
+  }
+}
+
+/* Frameless window: the header acts as a drag region; interactive elements
+   inside it must opt out with .no-drag so clicks keep working. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
 }
 
 /* Material Symbols Outlined — base configuration for icon ligature font */

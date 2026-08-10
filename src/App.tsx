@@ -98,7 +98,7 @@ import {
   SacramentsSubTab
 } from './types';
 
-import { Footer, GlobalSearchModal, Header, Sidebar } from './components';
+import { Footer, GlobalSearchModal, Header, Sidebar, TitleBar } from './components';
 import {
   ActivitiesView,
   AdminView,
@@ -670,7 +670,10 @@ export const App: React.FC = () => {
       }
     >
     <div className="min-h-screen flex flex-col bg-[#f9f9f9] text-[#1a1c1c] font-serif selection:bg-[#1e1e1e] selection:text-white">
-      {/* Top Header */}
+      {/* Slim OS-style title bar (brand, drag region, window controls) */}
+      <TitleBar onSelectTab={handleNavigate} />
+
+      {/* Top navigation Header */}
       <Header
         onSelectTab={(tab) => handleNavigate(tab)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}

@@ -2,8 +2,15 @@
 // (e.g. `import { Header, Sidebar } from './components'`).
 
 /**
- * Re-exports the Header component — the sticky top app bar containing
- * sidebar toggle, brand logo, search trigger, and user profile dropdown.
+ * Re-exports the TitleBar component — the slim OS-style title bar for the
+ * frameless Electron window (brand, drag region, window controls).
+ * @see TitleBar.tsx
+ */
+export { TitleBar } from './TitleBar'; // Named re-export from TitleBar module
+
+/**
+ * Re-exports the Header component — the sticky top nav bar containing
+ * sidebar toggle, search trigger, and user profile dropdown.
  * @see Header.tsx
  */
 export { Header } from './Header'; // Named re-export from Header module

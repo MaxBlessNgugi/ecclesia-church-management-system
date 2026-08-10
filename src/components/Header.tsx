@@ -1,16 +1,23 @@
 // =============================================================================
-// Header — sticky top app bar
+// Header — sticky top navigation bar
 // -----------------------------------------------------------------------------
-// Renders the sidebar toggle, brand (clicking it returns to Dashboard), the
-// desktop global-search trigger (Ctrl+K) and the user profile dropdown.
+// Renders the sidebar toggle, the desktop global-search trigger (Ctrl+K) and
+// the user profile dropdown. The frameless window's OS-style title bar (app
+// icon, title, drag region, window controls) lives in its own TitleBar.tsx
+// component, rendered above this header in App.tsx.
+//
+// Dark mode: the header and all its surfaces ship dark:* variants driven by
+// the `.dark` class on <html>, toggled from the profile menu and persisted
+// to localStorage ('ecclesia_theme').
+//
 // Local state owns the profile dropdown, the Change Password modal and its
 // form fields; the change-password flow validates client-side (match + min
 // length) then calls authApi.changePassword and shows inline success/error.
 // Signing out goes through onSelectTab('auth'), which App.tsx maps to clearing
 // the stored token.
 // =============================================================================
-import React, { useState } from 'react';
-/** React core library and useState hook for managing local component state */
+import React, { useEffect, useState } from 'react';
+/** React core library and useState/useEffect hooks for component state and effects */
 import { AuthUser, NavigationTab } from '../types';
 /** AuthUser: typed shape for the authenticated user object; NavigationTab: union of all valid view keys */
 import { authApi } from '../services/api';
@@ -35,8 +42,9 @@ interface HeaderProps {
 
 /**
  * Application Header component.
- * Renders the top app bar including navigation drawer toggle, brand logo,
- * global search bar trigger (Ctrl+K), and user account profile dropdown menu.
+ * Renders the top nav bar including navigation drawer toggle, global search
+ * bar trigger (Ctrl+K), and user account profile dropdown menu. The frameless
+ * window's title bar (brand + window controls) lives in TitleBar.tsx.
  *
  * Layout: sticky top bar that stays fixed during scroll, z-index layered
  * above sidebar (z-30) and below modals (z-50).
@@ -81,8 +89,31 @@ export const Header: React.FC<HeaderProps> = ({
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   /** Toggles visibility of the confirm password field between text and password type */
 
+  // Dark mode state (persisted to localStorage, drives the .dark class on <html>)
+  const [isDark, setIsDark] = useState(false);
+  /** Whether dark mode is active for the whole shell */
+
   // Offline connectivity status from global context
   const { status: connectivityStatus, pendingCount } = useOffline();
+
+  /** Restore the persisted theme choice on mount. */
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('ecclesia_theme') === 'dark') setIsDark(true);
+    } catch {
+      /* storage unavailable — stay in light mode */
+    }
+  }, []);
+
+  /** Apply the theme class to <html> and persist the choice. */
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+    try {
+      localStorage.setItem('ecclesia_theme', isDark ? 'dark' : 'light');
+    } catch {
+      /* storage unavailable — theme still applies for this session */
+    }
+  }, [isDark]);
 
   /**
    * Handles the password change form submission.
@@ -130,14 +161,14 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    /** Sticky header bar with border-bottom, z-30 layering, and white background */
-    <header className="h-16 bg-white border-b border-[#e1e3e3] px-4 flex items-center justify-between sticky top-0 z-30 shadow-xs select-none">
+    /** Unified title bar: white bar, slate borders, app-drag region for the frameless window */
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pl-4 pr-1 flex items-center justify-between sticky top-0 z-30 shadow-sm select-none">
       {/* Sidebar navigation toggle and main application branding */}
       <div className="flex items-center gap-3">
         {/* Sidebar hamburger toggle button — visible on all breakpoints */}
         <button
           onClick={onToggleSidebar}
-          className="p-2 text-[#1a1c1c] hover:bg-[#f4f3f3] rounded-md transition-colors flex items-center justify-center cursor-pointer"
+          className="no-drag p-2 text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors flex items-center justify-center cursor-pointer"
           aria-label="Toggle Navigation Menu"
           title="Toggle Navigation Menu"
         >
@@ -145,55 +176,36 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Material Symbols icon for the hamburger menu */}
         </button>
 
-        {/* Clicking branding logo resets view back to Main Dashboard */}
-        <div
-          onClick={() => onSelectTab('dashboard')}
-          className="flex items-center gap-2 cursor-pointer group"
-        >
-          {/* Dark circular brand mark with cross symbol */}
-          <div className="w-8 h-8 rounded bg-[#1e1e1e] text-white flex items-center justify-center font-bold text-lg tracking-wider group-hover:bg-[#333333] transition-colors">
-            †
-          </div>
-          {/* Brand name and subtitle container */}
-          <div>
-            <h1 className="text-xl font-semibold text-[#1a1c1c] tracking-tight leading-none font-serif">
-              Ecclesia
-            </h1>
-            <p className="text-[10px] text-[#444748] tracking-widest uppercase mt-0.5">
-              Church CMS
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Central Global Search bar trigger for desktop viewports */}
-      <div className="hidden md:flex items-center flex-1 max-w-md mx-6">
+      <div className="no-drag hidden md:flex items-center flex-1 max-w-md mx-6">
         {/* Styled button that opens the global search modal — hidden on mobile */}
         <button
           onClick={onOpenSearch}
-          className="w-full flex items-center gap-3 px-3 py-1.5 bg-[#f4f3f3] hover:bg-[#eeeeee] text-[#444748] rounded border border-[#e1e3e3] text-sm transition-colors cursor-pointer"
+          className="w-full flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 text-slate-500 dark:text-slate-400 rounded-lg border border-slate-200/80 dark:border-slate-700 text-sm transition-colors cursor-pointer"
         >
           {/* Search icon inside the trigger button */}
-          <span className="material-symbols-outlined text-base text-[#444748]">search</span>
+          <span className="material-symbols-outlined text-base text-slate-500 dark:text-slate-400">search</span>
           {/* Placeholder text indicating searchable content */}
           <span className="flex-1 text-left text-xs">Search members, records, forms...</span>
           {/* Keyboard shortcut badge — visible on sm+ viewports */}
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] bg-white text-[#444748] border border-[#c4c7c7] rounded shadow-2xs font-mono">
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded shadow-sm font-mono">
             Ctrl+K
           </kbd>
         </button>
       </div>
 
-      {/* Right controls: Connectivity Status, Mobile search button & Administrator Account avatar */}
-      <div className="flex items-center gap-2 relative">
-        {/* Connectivity status badge — always visible */}
+      {/* Right controls: Connectivity status, Mobile search, Profile */}
+      <div className="no-drag flex items-center gap-2 relative">
+        {/* Connectivity status badge — subtle pill with an indicator dot */}
         <div
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide border ${
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium tracking-wide border ${
             connectivityStatus === 'online'
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
               : connectivityStatus === 'syncing'
-              ? 'bg-blue-50 text-blue-700 border-blue-200'
-              : 'bg-amber-50 text-amber-700 border-amber-200'
+              ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20'
+              : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
           }`}
           title={
             connectivityStatus === 'online'
@@ -225,7 +237,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Mobile search trigger button — only visible below md breakpoint */}
         <button
           onClick={onOpenSearch}
-          className="md:hidden p-2 text-[#1a1c1c] hover:bg-[#f4f3f3] rounded transition-colors cursor-pointer"
+          className="md:hidden p-2 text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
           title="Search"
           aria-label="Search"
         >
@@ -234,39 +246,39 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* User profile button & expandable dropdown menu */}
         <div className="relative">
-          {/* Profile trigger button — toggles the dropdown menu on click */}
+          {/* Profile trigger button — subtle pill with hover/active states */}
           <button
             onClick={() => setShowProfileMenu((prev) => !prev)}
-            className="flex items-center gap-2.5 pl-2 pr-3 py-1 rounded-full hover:bg-[#f4f3f3] border border-[#e1e3e3] transition-colors cursor-pointer"
+            className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200/70 dark:active:bg-slate-700/70 transition-colors cursor-pointer"
           >
             {/* User initials avatar circle */}
-            <div className="w-8 h-8 rounded-full bg-[#1e1e1e] text-white flex items-center justify-center font-medium text-xs">
+            <div className="w-8 h-8 rounded-full bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-medium text-xs">
               {user ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : '?'}
             </div>
             {/* User name and role text — hidden on small screens */}
             <div className="hidden sm:block text-left">
-              <div className="text-xs font-semibold text-[#1a1c1c] leading-tight">
+              <div className="text-xs font-semibold text-slate-900 dark:text-slate-50 leading-tight">
                 {user?.name ?? 'Guest'}
               </div>
-              <div className="text-[10px] text-[#444748]">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">
                 {user ? (user.title ?? user.role[0].toUpperCase() + user.role.slice(1).replace('_', ' ')) : 'Not signed in'}
               </div>
             </div>
             {/* Dropdown chevron indicator */}
-            <span className="material-symbols-outlined text-sm text-[#444748]">
+            <span className="material-symbols-outlined text-sm text-slate-400">
               expand_more
             </span>
           </button>
 
           {/* Profile Dropdown Menu */}
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-[#e1e3e3] rounded-lg shadow-lg py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               {/* Dropdown header displaying user name, email, and role badge */}
-              <div className="px-4 py-2.5 border-b border-[#e1e3e3] bg-[#f4f3f3]">
-                <p className="text-xs font-bold text-[#1a1c1c]">{user?.name ?? 'Guest'}</p>
-                <p className="text-[11px] text-[#444748]">{user?.email ?? 'Not signed in'}</p>
+              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-50">{user?.name ?? 'Guest'}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">{user?.email ?? 'Not signed in'}</p>
                 {/* Role badge pill */}
-                <span className="inline-block mt-1 px-2 py-0.5 text-[9px] bg-[#1e1e1e] text-white rounded font-medium">
+                <span className="inline-block mt-1 px-2 py-0.5 text-[9px] bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded font-medium">
                   {user ? (user.title ?? user.role[0].toUpperCase() + user.role.slice(1).replace('_', ' ')) : 'Guest'}
                 </span>
               </div>
@@ -277,7 +289,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setShowProfileMenu(false);
                   onSelectTab('dashboard');
                 }}
-                className="w-full text-left px-4 py-2 text-xs text-[#1a1c1c] hover:bg-[#f4f3f3] flex items-center gap-2 cursor-pointer"
+                className="w-full text-left px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-sm">dashboard</span>
                 Parish Dashboard
@@ -289,165 +301,174 @@ export const Header: React.FC<HeaderProps> = ({
                   setShowProfileMenu(false);
                   onSelectTab('administration');
                 }}
-                className="w-full text-left px-4 py-2 text-xs text-[#1a1c1c] hover:bg-[#f4f3f3] flex items-center gap-2 cursor-pointer"
+                className="w-full text-left px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
                 Rights & Permissions
               </button>
 
+              {/* Appearance — dark/light mode toggle */}
+              <button
+                onClick={() => setIsDark((d) => !d)}
+                className="w-full text-left px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">{isDark ? 'light_mode' : 'dark_mode'}</span>
+                {isDark ? 'Light Mode' : 'Dark Mode'}
+              </button>
+
               {/* Change Password action — opens the password change modal */}
-               <button
-                 onClick={() => {
-                   setShowProfileMenu(false);
-                   setShowChangePassword(true);
-                 }}
-                 className="w-full text-left px-4 py-2 text-xs text-[#1a1c1c] hover:bg-[#f4f3f3] flex items-center gap-2 cursor-pointer"
-               >
-                 <span className="material-symbols-outlined text-sm">lock_reset</span>
-                 Change Password
-               </button>
+              <button
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  setShowChangePassword(true);
+                }}
+                className="w-full text-left px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">lock_reset</span>
+                Change Password
+              </button>
 
-               {/* Visual separator before the destructive sign-out action */}
-               <div className="border-t border-[#e1e3e3] my-1" />
+              {/* Visual separator before the destructive sign-out action */}
+              <div className="border-t border-slate-200 dark:border-slate-700 my-1" />
 
-               {/* Sign Out / Switch User action — styled in red to indicate destructive intent */}
+              {/* Sign Out / Switch User action — styled in red to indicate destructive intent */}
+              <button
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  onSelectTab('auth');
+                }}
+                className="w-full text-left px-4 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">logout</span>
+                Sign Out / Switch User
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CHANGE PASSWORD MODAL */}
+      {showChangePassword && (
+        <div className="no-drag fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 max-w-md w-full shadow-xl space-y-4">
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50 uppercase">Change Password</h4>
+            {/* Success notification banner — shown after password update completes */}
+            {passwordSuccess && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/30 rounded text-xs text-emerald-800 dark:text-emerald-400">
+                {passwordSuccess}
+              </div>
+            )}
+            {/* Error notification banner — shown on validation or API failure */}
+            {passwordError && (
+              <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded text-xs text-red-700 dark:text-red-400">
+                {passwordError}
+              </div>
+            )}
+            {/* Password change form with three input fields */}
+            <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+              {/* Current Password field group */}
+              <div>
+                <label className="block text-slate-900 dark:text-slate-100 font-medium mb-1">Current Password</label>
+                <div className="flex items-center gap-2">
+                  {/* Current password text input — type toggled by showCurrentPw */}
+                  <input
+                    type={showCurrentPw ? 'text' : 'password'}
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-300"
+                  />
+                  {/* Toggle visibility button for current password */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPw(!showCurrentPw)}
+                    className="px-2 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
+                    title={showCurrentPw ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showCurrentPw ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              {/* New Password field group */}
+              <div>
+                <label className="block text-slate-900 dark:text-slate-100 font-medium mb-1">New Password</label>
+                <div className="flex items-center gap-2">
+                  {/* New password text input with 8-character minimum */}
+                  <input
+                    type={showNewPw ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-300"
+                  />
+                  {/* Toggle visibility button for new password */}
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPw(!showNewPw)}
+                    className="px-2 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
+                    title={showNewPw ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showNewPw ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              {/* Confirm New Password field group */}
+              <div>
+                <label className="block text-slate-900 dark:text-slate-100 font-medium mb-1">Confirm New Password</label>
+                <div className="flex items-center gap-2">
+                  {/* Confirm password text input */}
+                  <input
+                    type={showConfirmPw ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-300"
+                  />
+                  {/* Toggle visibility button for confirm password */}
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPw(!showConfirmPw)}
+                    className="px-2 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
+                    title={showConfirmPw ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showConfirmPw ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              {/* Form action buttons row — Cancel and Submit */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+                {/* Cancel button — closes modal and clears any messages */}
                 <button
+                  type="button"
                   onClick={() => {
-                    setShowProfileMenu(false);
-                    onSelectTab('auth');
+                    setShowChangePassword(false);
+                    setPasswordError('');
+                    setPasswordSuccess('');
                   }}
-                  className="w-full text-left px-4 py-2 text-xs text-[#ba1a1a] hover:bg-[#fce8e8] flex items-center gap-2 cursor-pointer"
+                  className="px-3 py-1.5 text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-sm">logout</span>
-                  Sign Out / Switch User
+                  Cancel
                 </button>
-             </div>
-           )}
-         </div>
-       </div>
-
-       {/* CHANGE PASSWORD MODAL */}
-        {showChangePassword && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
-            <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-xl space-y-4">
-              <h4 className="text-sm font-bold text-[#1a1c1c] uppercase">Change Password</h4>
-             {/* Success notification banner — shown after password update completes */}
-             {passwordSuccess && (
-               <div className="p-3 bg-emerald-50 border border-emerald-300 rounded text-xs text-emerald-800">
-                 {passwordSuccess}
-               </div>
-             )}
-             {/* Error notification banner — shown on validation or API failure */}
-             {passwordError && (
-               <div className="p-3 bg-red-50 border border-red-300 rounded text-xs text-red-700">
-                 {passwordError}
-               </div>
-             )}
-              {/* Password change form with three input fields */}
-              <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
-                {/* Current Password field group */}
-                <div>
-                  <label className="block text-[#1a1c1c] font-medium mb-1">Current Password</label>
-                  <div className="flex items-center gap-2">
-                    {/* Current password text input — type toggled by showCurrentPw */}
-                    <input
-                      type={showCurrentPw ? 'text' : 'password'}
-                      required
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                    />
-                    {/* Toggle visibility button for current password */}
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPw(!showCurrentPw)}
-                      className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
-                      title={showCurrentPw ? 'Hide password' : 'Show password'}
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        {showCurrentPw ? 'visibility_off' : 'visibility'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-                {/* New Password field group */}
-                <div>
-                  <label className="block text-[#1a1c1c] font-medium mb-1">New Password</label>
-                  <div className="flex items-center gap-2">
-                    {/* New password text input with 8-character minimum */}
-                    <input
-                      type={showNewPw ? 'text' : 'password'}
-                      required
-                      minLength={8}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                    />
-                    {/* Toggle visibility button for new password */}
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPw(!showNewPw)}
-                      className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
-                      title={showNewPw ? 'Hide password' : 'Show password'}
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        {showNewPw ? 'visibility_off' : 'visibility'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-                {/* Confirm New Password field group */}
-                <div>
-                  <label className="block text-[#1a1c1c] font-medium mb-1">Confirm New Password</label>
-                  <div className="flex items-center gap-2">
-                    {/* Confirm password text input */}
-                    <input
-                      type={showConfirmPw ? 'text' : 'password'}
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                    />
-                    {/* Toggle visibility button for confirm password */}
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPw(!showConfirmPw)}
-                      className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
-                      title={showConfirmPw ? 'Hide password' : 'Show password'}
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        {showConfirmPw ? 'visibility_off' : 'visibility'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-               {/* Form action buttons row — Cancel and Submit */}
-               <div className="flex justify-end gap-2 pt-3 border-t border-[#e1e3e3]">
-                 {/* Cancel button — closes modal and clears any messages */}
-                 <button
-                   type="button"
-                   onClick={() => {
-                     setShowChangePassword(false);
-                     setPasswordError('');
-                     setPasswordSuccess('');
-                   }}
-                   className="px-3 py-1.5 text-[#444748] bg-gray-100 rounded cursor-pointer"
-                 >
-                   Cancel
-                 </button>
-                 {/* Submit button — disabled during API call, shows loading text */}
-                 <button
-                   type="submit"
-                   disabled={isChangingPassword}
-                   className="px-4 py-1.5 font-bold text-white bg-[#1e1e1e] rounded cursor-pointer disabled:opacity-70"
-                 >
-                   {isChangingPassword ? 'Updating...' : 'Update Password'}
-                 </button>
-               </div>
-             </form>
-           </div>
-         </div>
-       )}
-     </header>
-   );
- };
+                {/* Submit button — disabled during API call, shows loading text */}
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-4 py-1.5 font-bold text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded cursor-pointer disabled:opacity-70"
+                >
+                  {isChangingPassword ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+};
