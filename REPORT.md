@@ -130,13 +130,85 @@ is the recommended next purchase for frictionless distribution.
 | Core product (v1.0.0, all modules) | ✅ Complete |
 | Native desktop app (Electron window, tray) | ✅ Working |
 | Brand icon (installer, taskbar, tray) | ✅ Finalized and verified in the built installer |
-| Windows installer (`ECCLESIA-ChMS-Setup-1.0.0.exe`, 282 MB) | ✅ Built 10 Aug 2026, verified |
+| Windows installer (`ECCLESIA-ChMS-Setup-1.0.0.exe`, 288 MB) | ✅ Built 10 Aug 2026, verified |
 | Installation guide for another PC (`INSTALL.md`) | ✅ Written |
 | Auto-start on boot (parish setup) | ✅ Built into `install-parish.cmd` |
+| Guided first-run setup (create parish admin) | ✅ Built and verified end-to-end |
+| Packaged app self-serves its own UI | ✅ Fixed + verified (frontend ships in `resources/dist`) |
 | Demo dataset for sales pitches | ✅ Available (30-member realistic parish) |
 | Code signing (SmartScreen) | ⏳ Recommended next |
 | Auto-update channel | ⏳ Planned (electron-updater) |
 | HTTPS in production deployments | ⏳ Available via Caddy, per-deployment |
+| Automated test suite / CI pipeline | ⏳ Not yet (manual regression today) |
+| License / activation mechanism | ⏳ Not yet |
+| Crash reporting & telemetry | ⏳ Not yet |
+
+### Test results — full regression run (10 Aug 2026)
+
+| Check | Result |
+|-------|--------|
+| Packaged app, fresh user profile | ✅ Template DB initialized, backend in production mode, frontend served |
+| First-run bootstrap → login | ✅ Admin created, login round-trip verified |
+| Dev stack (vite + backend + Electron) | ✅ Running, window frameless with custom title bar |
+| Module APIs (christians, contributions, transfers, deposits, expenses, ledgers, inventory, dashboard summary) | ✅ All HTTP 200 |
+| Full CRUD write cycle | ✅ Create (201) → delete (204), record cleaned up |
+| Renderer console | ✅ Zero errors/warnings (HMR connected, CSP clean) |
+| Git backup | ✅ Local == GitHub, tag `v1.0.0` re-pointed at release commit |
+
+---
+
+## 7b. Commercial Release Readiness Assessment
+
+**Verdict: feature-complete and pilot-ready, but NOT yet commercial-release-ready.**
+The product works and is packaged; four structural items stand between it and a
+paid, widely-distributed commercial release.
+
+### Blocking (must fix before commercial distribution)
+
+1. **Code signing** — the installer is unsigned, so Windows SmartScreen shows
+   "Unknown publisher / Windows protected your PC" and Defender may quarantine it.
+   A code-signing certificate (OV or EV, ~$100–$400/yr) removes this. Until then,
+   every customer has to click "More info → Run anyway," which destroys trust and
+   kills conversion for non-technical parish staff.
+2. **No licensing / activation** — there is no mechanism to control who may use
+   the app, limit seats/parishes, or enforce payment. Without it there is no way
+   to sell the product commercially (single-purchase or subscription).
+3. **No automated update channel** — each new version must be delivered by hand.
+   `electron-updater` is planned but not wired, so bug fixes and security patches
+   cannot reach installed parishes reliably.
+4. **No automated test suite or CI** — today's regression was run manually.
+   Commercial releases need an automated pipeline (typecheck → unit/integration
+   tests → package → publish) so a shipped build is reproducible and regression-free.
+
+### Important gaps (should address before or shortly after launch)
+
+5. **Crash reporting & telemetry** — no visibility into failures on customer PCs.
+   Add Sentry (or similar) for crash + error capture.
+6. **Data-protection posture** — the app stores parishioner PII (national IDs,
+   phones, sacramental records). Commercial deployment needs a documented data
+   protection policy (encryption at rest, backup retention, deletion procedure,
+   GDPR/DPA alignment) — the in-app Privacy Policy exists but is not legally
+   reviewed.
+7. **Single-machine scope** — data lives in a local SQLite file on one PC.
+   Fine for a single parish workstation, but multi-user / multi-PC parishes need
+   a defined sync strategy. Verify what "Database Sync: Active" actually promises
+   before marketing it.
+8. **Windows-only packaging** — macOS and Linux are not built. If the target
+   market is Windows-only parishes this is fine; otherwise add those targets.
+9. **Support infrastructure** — no helpdesk, knowledge base, or on-call process
+   beyond `INSTALL.md`. Customers will email the developer directly.
+10. **"BETA" branding** — the title bar tag is honest for pilots; remove or
+    relabel for commercial release.
+
+### Recommended pre-launch checklist (in order)
+
+1. Purchase and apply a code-signing certificate; re-sign the installer.
+2. Add a licensing/activation layer (offline key or online activation).
+3. Wire `electron-updater` for automatic updates.
+4. Stand up CI (GitHub Actions: lint → test → build → publish installer).
+5. Add crash reporting (Sentry) + a minimal telemetry opt-in.
+6. Write the data-protection & backup-restore policy; run a restore drill.
+7. Run 2–3 pilot parishes per `INSTALL.md` for real-world validation.
 
 ---
 
