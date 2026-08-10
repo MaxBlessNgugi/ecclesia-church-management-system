@@ -149,7 +149,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     title: 'ECCLESIA Church Management System',
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: path.join(__dirname, 'assets', 'icon-256.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -207,8 +207,9 @@ function createWindow() {
 // =============================================================================
 
 function createTray() {
-  // Dedicated 32px tray glyph (cream circle + black cross), resized to 16px.
-  const iconPath = path.join(__dirname, 'assets', 'tray-icon.png');
+  // Brand-consistent 32px tray glyph (dark rounded square + white cross),
+  // resized for the tray (16px on Windows).
+  const iconPath = path.join(__dirname, 'assets', 'icon-32.png');
   let trayIcon = nativeImage.createFromPath(iconPath);
   
   // Resize for tray (16x16 on Windows, 22x22 on macOS)

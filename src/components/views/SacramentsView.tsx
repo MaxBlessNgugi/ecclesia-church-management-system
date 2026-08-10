@@ -23,6 +23,8 @@ import React, { useState, useEffect } from 'react';
 import { ChristianRecord, SacramentsSubTab, DeathRecord } from '../../types';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
+// Configured parish identity (real name + diocese, not placeholders)
+import { useParishInfo } from '../../hooks/useParishInfo';
 
 /**
  * Props for the Sacrament Register & Memorial panel.
@@ -61,6 +63,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 }) => {
   // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
+  // Configured parish identity — printed on the certificate instead of a mock name
+  const { parishName, diocese } = useParishInfo();
   // Controls which of the two sub-tabs is currently rendered
   const [subTab, setSubTab] = useState<SacramentsSubTab>(initialSubTab);
 
@@ -529,7 +533,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
       {/* 2. RECORD DEATH DETAILS — memorial workflow: log a parishioner's demise;
           submission persists the death entry and marks the member Deceased. */}
-      {subTab === 'record_death' && (
+      {subTab === 'record_death' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Death record form card */}
           <div className="lg:col-span-2 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
@@ -699,7 +703,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
       {/* PRINTABLE SACRAMENT CERTIFICATE MODAL — read-only preview of the current
           form slices; Print invokes window.print() on the whole page. Guarded by
           BOTH showCertModal and a non-null activeMember. */}
-      {showCertModal && activeMember && (
+      {showCertModal && activeMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           {/* Certificate card — serif font, anti-fraud watermark */}
           <div className="bg-[#faf8f5] border-2 border-[#1e1e1e] rounded-xl p-8 max-w-xl w-full shadow-2xl space-y-6 relative font-serif overflow-hidden">
@@ -708,15 +712,15 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 certificates stay attributable. */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none" aria-hidden="true">
               <div className="text-[#1a1c1c] opacity-[0.05] text-7xl font-bold tracking-widest whitespace-nowrap -rotate-[25deg]">
-                ST. MARY'S PARISH
+                {parishName || 'ECCLESIA PARISH'}
               </div>
             </div>
 
             {/* Certificate header — parish name and document title */}
             <div className="text-center space-y-2 border-b border-[#1e1e1e] pb-4 relative">
-              <div className="text-3xl font-bold text-[#1a1c1c]">† ST. MARY'S PARISH</div>
+              <div className="text-3xl font-bold text-[#1a1c1c]">† {parishName || 'ECCLESIA PARISH'}</div>
               <p className="text-xs tracking-widest uppercase font-semibold text-[#444748]">
-                Archdiocese of Nairobi • Sacramental Record Certificate
+                {diocese ? `${diocese} • ` : ''}Sacramental Record Certificate
               </p>
             </div>
 

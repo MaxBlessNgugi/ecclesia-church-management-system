@@ -36,6 +36,10 @@ import { useReactToPrint } from 'react-to-print';
 import { ContributionReceipt } from '../printables';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
+// Offline context — pending sync count for the metrics sidebar
+import { useOffline } from '../../context/OfflineContext';
+// Configured parish identity (real name, not a placeholder)
+import { useParishInfo } from '../../hooks/useParishInfo';
 
 /**
  * Props for the ActivitiesView panel.
@@ -63,6 +67,10 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
 }) => {
   // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
+  // Pending offline mutations — shown in the registry metrics sidebar
+  const { pendingCount } = useOffline();
+  // Configured parish identity — used on receipts instead of a hardcoded name
+  const { parishName } = useParishInfo();
   // Controls which of the three sub-tab panels is currently rendered
   const [subTab, setSubTab] = useState<ActivitiesSubTab>(initialSubTab);
 
@@ -689,30 +697,34 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
             </form>
           </div>
 
-          {/* Right Stats Sidebar Widgets — static metric cards */}
+          {/* Right Stats Sidebar Widgets — live registry metrics (no mock data) */}
           <div className="space-y-4">
-            {/* Parish Transfer Metrics card */}
+            {/* Registry Metrics card */}
             <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-4">
               {/* Card title */}
               <h4 className="text-xs font-bold text-[#1a1c1c] uppercase tracking-wider">
-                PARISH TRANSFER METRICS
+                REGISTRY METRICS
               </h4>
-              {/* Three stat rows — Transfer History, Active Roll, Pending Sync */}
+              {/* Three stat rows — registered, active, pending sync */}
               <div className="space-y-3">
-                {/* Transfer History metric */}
+                {/* Registered members — real count from the lifted registry */}
                 <div className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3]">
-                  <div className="text-[10px] text-[#444748] uppercase">Transfer History</div>
-                  <div className="text-xl font-bold text-[#1a1c1c] mt-0.5">124 Members</div>
+                  <div className="text-[10px] text-[#444748] uppercase">Registered Members</div>
+                  <div className="text-xl font-bold text-[#1a1c1c] mt-0.5">{christians.length}</div>
                 </div>
-                {/* Active Roll metric */}
+                {/* Active members — real count from the lifted registry */}
                 <div className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3]">
-                  <div className="text-[10px] text-[#444748] uppercase">Active Roll</div>
-                  <div className="text-xl font-bold text-[#1a1c1c] mt-0.5">2,850 Members</div>
+                  <div className="text-[10px] text-[#444748] uppercase">Active Members</div>
+                  <div className="text-xl font-bold text-[#1a1c1c] mt-0.5">
+                    {christians.filter((c) => c.status === 'Active').length}
+                  </div>
                 </div>
-                {/* Pending Diocesan Sync metric */}
+                {/* Pending offline sync — real count from the OfflineContext queue */}
                 <div className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3]">
-                  <div className="text-[10px] text-[#444748] uppercase">Pending Diocesan Sync</div>
-                  <div className="text-xl font-bold text-emerald-700 mt-0.5">0 Pending</div>
+                  <div className="text-[10px] text-[#444748] uppercase">Pending Sync</div>
+                  <div className={`text-xl font-bold mt-0.5 ${pendingCount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {pendingCount} Pending
+                  </div>
                 </div>
               </div>
             </div>
@@ -880,7 +892,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                       className="px-3 py-1.5 text-xs font-semibold bg-[#f4f3f3] hover:bg-[#eeeeee] border border-[#e1e3e3] rounded-md transition-colors cursor-pointer flex items-center gap-1.5"
                     >
                       <span>{quick.name}</span>
-                      <span className="font-bold text-[#1e1e1e]">${quick.price.toFixed(2)}</span>
+                      <span className="font-bold text-[#1e1e1e]">KES {quick.price.toFixed(2)}</span>
                     </button>
                   ))}
                 </div>
@@ -905,7 +917,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                 {/* Unit fee input — supports fractional cents */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                    Unit Fee ($)
+                    Unit Fee (KES)
                   </label>
                   <input
                     type="number"
@@ -933,10 +945,10 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                 {/* Computed total — read-only display of unitFee × quantity */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                    Amount Due ($)
+                    Amount Due (KES)
                   </label>
                   <div className="px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-sm font-bold text-[#1e1e1e]">
-                    ${(unitFee * quantity).toFixed(2)}
+                    KES {(unitFee * quantity).toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -968,7 +980,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
             {/* Receipt header — parish name, subtitle, and receipt number/date */}
             <div className="text-center border-b border-[#e1e3e3] pb-4 space-y-1">
-              <div className="text-xl font-bold font-serif text-[#1a1c1c]">† ST. MARY'S PARISH</div>
+              <div className="text-xl font-bold font-serif text-[#1a1c1c]">† {parishName || 'ECCLESIA PARISH'}</div>
               <p className="text-[10px] text-[#444748] uppercase tracking-widest">
                 Official Sacrament & Service Receipt
               </p>
@@ -997,12 +1009,12 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
               {/* Unit price × quantity */}
               <div className="flex justify-between">
                 <span className="text-[#444748]">Unit Price × Qty:</span>
-                <span>${generatedReceipt.unitFee.toFixed(2)} × {generatedReceipt.quantity}</span>
+                <span>KES {generatedReceipt.unitFee.toFixed(2)} × {generatedReceipt.quantity}</span>
               </div>
               {/* Total amount paid — bold and separated by a border */}
               <div className="flex justify-between text-sm font-bold pt-2 border-t border-[#e1e3e3] text-[#1e1e1e]">
                 <span>Total Amount Paid:</span>
-                <span>${generatedReceipt.totalAmount.toFixed(2)}</span>
+                <span>KES {generatedReceipt.totalAmount.toFixed(2)}</span>
               </div>
             </div>
 
@@ -1043,7 +1055,11 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
             {/* Printable receipt card — react-to-print targets this ref */}
-            <ContributionReceipt ref={contributionReceiptRef} receipt={lastContribution} />
+            <ContributionReceipt
+              ref={contributionReceiptRef}
+              receipt={lastContribution}
+              parishName={parishName || 'ECCLESIA PARISH'}
+            />
 
             {/* Action buttons — Close and Print Receipt */}
             <div className="flex justify-end gap-2 pt-3 border-t border-[#e1e3e3]">

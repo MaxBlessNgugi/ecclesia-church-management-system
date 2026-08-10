@@ -162,7 +162,7 @@ import { RecruitmentApplicant } from '../types';
 import { ApplicantCreateInput } from '../types';
 
 /** Push-payment gateway settings (card reader / online payment config). */
-import { PushPaymentSettings } from '../types';
+import { PushPaymentSettings, SystemSettings } from '../types';
 
 /** Aggregated row for the Sacrament Report view. */
 import { SacramentReportRow } from '../types';
@@ -1560,6 +1560,35 @@ export const reportsApi = {
    */
   cashiers: (params?: QueryParams) =>
     request<CashierReportRow[]>(`/reports/cashiers${buildQuery(params)}`)
+};
+
+/**
+ * Parish system settings — GET /api/settings (creates the singleton lazily).
+ * Drives the parish name / diocese shown on receipts and certificates.
+ */
+export const settingsApi = {
+  /**
+   * Retrieve the current parish system settings.
+   *
+   * **GET** `/settings`
+   *
+   * @returns The `SystemSettings` object (created on first call).
+   */
+  get: () => request<SystemSettings>('/settings'),
+
+  /**
+   * Partially update the parish system settings.
+   *
+   * **PATCH** `/settings`
+   *
+   * @param body - Partial settings to update (parishName, diocese, setup*).
+   * @returns The updated `SystemSettings`.
+   */
+  update: (body: Partial<SystemSettings>) =>
+    request<SystemSettings>('/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(body)
+    })
 };
 
 // ---------- Offline Queue Integration ------------------------------------------

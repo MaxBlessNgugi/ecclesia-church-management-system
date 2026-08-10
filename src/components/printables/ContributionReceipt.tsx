@@ -92,7 +92,7 @@ function amountInWords(amount: number): string {
  */
 export const ContributionReceipt = forwardRef<HTMLDivElement, ContributionReceiptProps>(
   function ContributionReceipt(
-    { receipt, receiptNo, parishName = "ST. MARY'S PARISH", parishAddress },
+    { receipt, receiptNo, parishName = 'ECCLESIA PARISH', parishAddress },
     ref
   ) {
     // Months the member has marked as paid in the monthly giving tracker.

@@ -1,4 +1,19 @@
 <svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="96" cy="96" r="92.16" fill="#F5EFE0"/>
-  <path d="M96 30.72 V161.28 M30.72 96 H161.28" stroke="#1A1C1C" stroke-width="44.160000000000004" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="6" x2="0" y2="186" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2B2D31"/>
+      <stop offset="1" stop-color="#15161A"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="6" x2="0" y2="81.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="22.5" x2="0" y2="166.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8EED0"/>
+      <stop offset="1" stop-color="#D6AC5C"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="180" height="180" rx="39" fill="url(#tile)"/>
+  <rect x="9" y="9" width="174" height="174" rx="36" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <path d="M61.5 40.5 V148.5 M61.5 40.5 H130.5 M61.5 94.5 L112.5 102 M61.5 148.5 H130.5" stroke="url(#gold)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

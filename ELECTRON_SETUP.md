@@ -60,9 +60,11 @@ npm run dist:linux # Creates .AppImage for Linux
 - `asarUnpack` for Prisma query engine
 
 ### `electron/assets/`
-- `icon.svg` - Source icon (replace with your branding)
-- `icon.png` - Placeholder (1×1 transparent)
-- `icon.ico` - Placeholder for Windows
+- `icon.svg` - Vector source (dark tile + golden-cream E brand mark)
+- `icon.png` - 512px PNG (electron-builder Linux icon)
+- `icon-16.png` … `icon-512.png` - Fixed-size PNGs (BrowserWindow, tray)
+- `icon.ico` - Multi-size Windows icon (installer, shortcuts, taskbar)
+- `icon.icns` - Multi-size macOS icon (app bundle)
 - `installer.nsh` - Custom NSIS installer script
 
 ## Database Location
@@ -83,13 +85,17 @@ npm run dist:linux # Creates .AppImage for Linux
 - `backup.ts` reads `process.env.DATABASE_URL` ✓
 - Self-hosts frontend from `../dist` ✓
 
-## Icons (Replace Before Release)
+## Icons (Regenerate After Any Brand Change)
 ```bash
-# Convert SVG to required formats (using ImageMagick or online tools)
-magick electron/assets/icon.svg -resize 256x256 electron/assets/icon.png
-magick electron/assets/icon.svg -resize 256x256 electron/assets/icon.ico
-magick electron/assets/icon.svg -resize 512x512 electron/assets/icon.icns
+# Regenerate the entire icon set (PNGs, ICO, ICNS, SVGs) with the built-in
+# dependency-free generator — no ImageMagick required.
+node scripts/generate-icons.mjs
 ```
+The generator renders the brand mark (dark rounded square + golden-cream E) at
+every size with 6x supersampled anti-aliasing and bundles native-size frames
+into `icon.ico` (16–256) and `icon.icns` (16–1024) so the OS never downscales.
+It also emits the PWA/favicon icons in `public/icons/` (including the
+full-bleed `icon-maskable-512.png` referenced by the PWA manifest).
 
 ## Troubleshooting
 

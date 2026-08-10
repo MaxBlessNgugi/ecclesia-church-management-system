@@ -8,6 +8,12 @@ coverage/
 !.env.example
 .vscode/
 
+# Build outputs (installers, unpacked apps)
+release*/
+
+# Local agent workspace
+.freebuff/
+
 # Backend SQLite & build
 backend/node_modules/
 backend/dist/

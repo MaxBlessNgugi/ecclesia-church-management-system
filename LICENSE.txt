@@ -1,0 +1,68 @@
+ECCLESIA CHURCH MANAGEMENT SYSTEM
+END-USER LICENSE AGREEMENT (EULA)
+
+Copyright (c) 2024-2026 Max Bless Ngugi / Ecclesia. All rights reserved.
+
+IMPORTANT — READ CAREFULLY: This End-User License Agreement ("Agreement") is a
+legal agreement between you ("Licensee") and Max Bless Ngugi ("Licensor") for
+the ECCLESIA Church Management System software product ("Software"), including
+all associated media, printed materials, and online or electronic documentation.
+
+By installing, copying, or otherwise using the Software, you agree to be bound
+by the terms of this Agreement. If you do not agree to the terms of this
+Agreement, do not install or use the Software.
+
+1. GRANT OF LICENSE
+   Subject to payment of the applicable license fee and compliance with this
+   Agreement, the Licensor grants the Licensee a non-exclusive,
+   non-transferable, perpetual license to install and use the Software on a
+   single parish computer ("Primary Station"). Additional stations on the
+   parish network require a separate multi-station license.
+
+2. RESTRICTIONS
+   The Licensee may not, and may not permit others to:
+   (a) copy, sell, rent, lease, sublicense, or redistribute the Software,
+       except for a single archival backup copy;
+   (b) modify, adapt, translate, reverse engineer, decompile, or disassemble
+       the Software, except to the extent expressly permitted by law;
+   (c) remove or alter any copyright, trademark, or proprietary notices; or
+   (d) use the Software to provide services to third parties for commercial
+       gain without a separate written agreement.
+
+3. OWNERSHIP
+   The Software is licensed, not sold. The Licensor retains all right, title,
+   and interest in and to the Software, including all intellectual property
+   rights. The Licensee acknowledges that parish data entered into the
+   Software belongs to the Licensee.
+
+4. DATA
+   The Software stores parish data locally on the Licensee's own computer.
+   The Licensor has no access to parish data. The Licensee is solely
+   responsible for maintaining backups of its data.
+
+5. NO WARRANTY
+   The Software is provided "AS IS" without warranty of any kind, express or
+   implied, including but not limited to the implied warranties of
+   merchantability and fitness for a particular purpose. The entire risk
+   arising out of the use of the Software remains with the Licensee.
+
+6. LIMITATION OF LIABILITY
+   To the maximum extent permitted by law, in no event shall the Licensor be
+   liable for any special, incidental, indirect, or consequential damages
+   whatsoever (including, without limitation, damages for loss of profits,
+   business interruption, or loss of data) arising out of the use of or
+   inability to use the Software.
+
+7. TERMINATION
+   This Agreement is effective until terminated. It will terminate
+   automatically if the Licensee fails to comply with any term of this
+   Agreement. Upon termination, the Licensee must destroy all copies of the
+   Software.
+
+8. GOVERNING LAW
+   This Agreement shall be governed by the laws of the Republic of Kenya.
+
+NOTE: This is a draft template. Have it reviewed by legal counsel before
+commercial distribution.
+
+— Max Bless Ngugi / Ecclesia

@@ -921,6 +921,24 @@ export interface PushPaymentSettings {
 }
 
 /**
+ * Parish-level system settings — singleton row storing the parish identity
+ * and first-run wizard state. Sourced from GET /api/settings; the receipt and
+ * certificate views use parishName/diocese instead of hardcoded placeholders.
+ */
+export interface SystemSettings {
+  /** Singleton id ("default"). */
+  id: string;
+  /** Name of the parish as configured during setup. */
+  parishName: string;
+  /** Diocese the parish belongs to (e.g. "Archdiocese of Nairobi"). */
+  diocese: string;
+  /** Whether the first-run setup wizard has been completed. */
+  setupCompleted: boolean;
+  /** Current step of the first-run setup wizard. */
+  setupStep: number;
+}
+
+/**
  * User role identifiers — determines the base level of system access.
  * Role-based access is supplemented by per-panel permissions in PanelPermissions.
  */
