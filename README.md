@@ -23,6 +23,10 @@ npm run setup
 
 This installs frontend + backend deps, creates the local SQLite database, and seeds **you** as Super Admin.
 
+> **Fresh installs (installer .exe) have no pre-seeded login.** The first launch
+> shows a guided **"Welcome to ECCLESIA"** screen where you create the parish
+> administrator (name, email, password) — those are your sign-in credentials.
+
 ### 2. Launch the app
 
 ```bash

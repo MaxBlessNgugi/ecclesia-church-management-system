@@ -307,6 +307,101 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// First-run bootstrap — creates the initial super admin on a fresh database.
+// ---------------------------------------------------------------------------
+// A packaged install ships an empty schema (backend/template.db copied into
+// userData on first launch), so there is no pre-seeded admin: the parish
+// creates its administrator in the guided first-run screen instead of relying
+// on a random password printed to an invisible console. Both endpoints are
+// public but only function while the user table is empty.
+// ---------------------------------------------------------------------------
+
+// Validation schema for the bootstrap request body (same strength as register)
+const bootstrapSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Enter a valid email address'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+});
+
+/**
+ * GET /bootstrap-status - whether the first-run admin setup is required.
+ * Returns true only while no (non-soft-deleted) user exists.
+ */
+router.get('/bootstrap-status', async (_req, res, next) => {
+  try {
+    const count = await appPrisma.user.count();
+    res.json({ needsBootstrap: count === 0 });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * POST /bootstrap - create the FIRST super admin (fresh-DB only).
+ * Also ensures the default singletons exist (same as prisma/seed.ts), so a
+ * template DB needs no runtime seeding. Returns a JWT like /login so the
+ * user is signed in immediately after setup.
+ */
+router.post('/bootstrap', async (req, res, next) => {
+  try {
+    // Validate and parse the request body
+    const data = bootstrapSchema.parse(req.body);
+
+    // Guard: only usable while no user exists yet (race-safe enough for a
+    // local app — a second concurrent request will fail the unique email
+    // constraint or this check on the now-populated table).
+    const count = await appPrisma.user.count();
+    if (count > 0) {
+      return res.status(409).json({ error: 'Setup already completed. Please sign in.' });
+    }
+
+    // Hash the plaintext password with bcrypt
+    const passwordHash = await hashPassword(data.password);
+    // Create the initial super admin — password chosen by the parish, so no
+    // forced change is needed (unlike seeded temporary passwords).
+    const user = await appPrisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        name: data.name,
+        title: 'Parish Administrator',
+        role: 'super_admin',
+        isActive: true,
+        mustChangePassword: false,
+      },
+    });
+
+    // Ensure the default singletons exist (belt-and-braces with the template)
+    await appPrisma.panelPermissions.upsert({
+      where: { id: 'default' },
+      create: {
+        id: 'default',
+        panels: JSON.stringify(defaultPanels),
+        actions: JSON.stringify(defaultActions),
+      },
+      update: {},
+    });
+    await appPrisma.pushPaymentSettings.upsert({
+      where: { id: 'default' },
+      create: { id: 'default' },
+      update: {},
+    });
+
+    // Sign the JWT and return the same shape as /login for immediate entry
+    const token = signToken({ id: user.id, email: user.email, role: user.role });
+    res.status(201).json({ token, user: session(user) });
+  } catch (e) {
+    next(e);
+  }
+});
+
 /**
  * GET /me - Refresh logged-in session payload
  * Returns current user's session data and updates last active timestamp.

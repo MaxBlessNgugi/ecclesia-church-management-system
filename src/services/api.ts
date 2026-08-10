@@ -467,6 +467,32 @@ export const authApi = {
     request<{ message: string }>('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify(body)
+    }),
+
+  /**
+   * Whether the first-run administrator setup is required.
+   *
+   * **GET** `/auth/bootstrap-status`
+   *
+   * Returns `{ needsBootstrap: true }` while the database has no users yet
+   * (a fresh install). The login screen shows the guided setup form then.
+   */
+  bootstrapStatus: () => request<{ needsBootstrap: boolean }>('/auth/bootstrap-status'),
+
+  /**
+   * Create the FIRST super admin on a fresh database.
+   *
+   * **POST** `/auth/bootstrap`
+   *
+   * @param body - The administrator's name, email, and chosen password.
+   * @returns An authenticated session (`token` + `user`) — the user is signed
+   *   in immediately after setup.
+   * @throws {ApiError} 409 if setup was already completed.
+   */
+  bootstrap: (body: { name: string; email: string; password: string }) =>
+    request<AuthSession>('/auth/bootstrap', {
+      method: 'POST',
+      body: JSON.stringify(body)
     })
 };
 

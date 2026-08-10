@@ -1,16 +1,18 @@
 // =============================================================================
-// AuthView — login / forgot-password / reset-password screens
+// AuthView — first-run setup / login / forgot-password / reset-password screens
 // -----------------------------------------------------------------------------
-// Rendered whenever no valid session exists. Four modes:
+// Rendered whenever no valid session exists. Five modes:
+//   setup        — guided "Create your parish administrator" screen shown when
+//                  the database has no users yet (fresh install).
 //   login        — email + password with show/hide toggle and inline error.
 //   setPassword  — forced first-login password change (temp/admin-set passwords).
 //   forgot       — asks for the user's email, posts /auth/forgot-password, then
 //                  tells them to collect a one-time reset code from their admin.
 //   reset        — redeems the code with a new password via /auth/reset-password.
-// On successful login the JWT is stored in localStorage under `ecclesia_token`;
+// On successful login/setup the JWT is stored under `ecclesia_token`;
 // onSuccessAuth is called only once any forced password change is completed.
 // =============================================================================
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 // React core: provides JSX support and component lifecycle.
 // useState: hook for declaring local mutable state within the component.
 import { authApi, storeToken } from '../../services/api';
@@ -39,7 +41,7 @@ interface AuthViewProps {
  *   'forgot'       – email entry for password-reset initiation
  *   'reset'        – code + new-password form to finish the reset flow
  */
-type AuthMode = 'login' | 'setPassword' | 'forgot' | 'reset';
+type AuthMode = 'setup' | 'login' | 'setPassword' | 'forgot' | 'reset';
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
   // Connectivity status from the global offline context (online/offline/syncing).
@@ -108,8 +110,90 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
   const [resetDone, setResetDone] = useState(false);
 
   // -------------------------------------------------------------------------
+  // State — first-run setup (fresh install, no users yet)
+  // -------------------------------------------------------------------------
+
+  // True when the backend reports the database has no users — the guided
+  // "create your parish administrator" screen replaces the login form.
+  const [needsBootstrap, setNeedsBootstrap] = useState(false);
+
+  // Bound to the setup form's name field (administrator's full name).
+  const [setupName, setSetupName] = useState('');
+
+  // Bound to the setup form's email field.
+  const [setupEmail, setSetupEmail] = useState('');
+
+  // Bound to the setup form's password field.
+  const [setupPassword, setSetupPassword] = useState('');
+
+  // Confirmation field for the setup password. Must match setupPassword.
+  const [setupConfirm, setSetupConfirm] = useState('');
+
+  // Toggles visibility of the setup password and confirm fields.
+  const [showSetupPassword, setShowSetupPassword] = useState(false);
+  const [showSetupConfirm, setShowSetupConfirm] = useState(false);
+
+  // -------------------------------------------------------------------------
+  // First-run detection
+  // -------------------------------------------------------------------------
+
+  /** On mount, ask the backend whether an administrator account is needed. */
+  useEffect(() => {
+    let cancelled = false;
+    authApi
+      .bootstrapStatus()
+      .then((res) => {
+        if (cancelled) return;
+        setNeedsBootstrap(res.needsBootstrap);
+        if (res.needsBootstrap) setMode('setup');
+      })
+      .catch(() => {
+        // Backend unreachable — stay on the login screen; the error will
+        // surface when the user tries to sign in.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // -------------------------------------------------------------------------
   // Handlers
   // -------------------------------------------------------------------------
+
+  /** Creates the first super admin on a fresh database, then signs in. */
+  const handleSetupSubmit = async (e: React.FormEvent) => {
+    // Prevent the browser from performing a full-page form submission.
+    e.preventDefault();
+    // Clear any previous error banner.
+    setErrorMessage('');
+    // Client-side guard: both password fields must match before calling the API.
+    if (setupPassword !== setupConfirm) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+    // Disable the submit button while the request is in flight.
+    setIsSubmitting(true);
+    try {
+      // POST /auth/bootstrap with the chosen name/email/password. On success
+      // the response contains { token, user } — the user is signed in now.
+      const res = await authApi.bootstrap({
+        name: setupName,
+        email: setupEmail,
+        password: setupPassword,
+      });
+      // Persist the JWT (remembered — the parish PC keeps the session).
+      storeToken(res.token, true);
+      // Hand off to the parent to render the main application shell.
+      onSuccessAuth();
+    } catch (error) {
+      // Normalise the error message for the inline banner.
+      const message = error instanceof Error ? error.message : 'Unable to create administrator.';
+      setErrorMessage(message);
+    } finally {
+      // Re-enable the submit button regardless of success or failure.
+      setIsSubmitting(false);
+    }
+  };
 
   /** Submits credentials; persists the JWT locally before handing control to App. */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -245,6 +329,142 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
             Ecclesia CMS
           </h2>
         </div>
+
+        {/* ================================================================= */}
+        {/* SETUP MODE — guided first-run administrator creation              */}
+        {/* ================================================================= */}
+        {mode === 'setup' && (
+          <div className="space-y-4 text-xs">
+            {/* Heading explaining why the user is here */}
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-serif font-bold text-[#1a1c1c]">
+                Welcome to ECCLESIA
+              </h3>
+              <p className="text-[11px] text-[#444748] leading-relaxed">
+                This is the first launch of the system. Create the parish
+                administrator account — the super admin who manages the whole
+                platform. More users can be added later from{' '}
+                <span className="font-medium">Administration → Rights Centre</span>.
+              </p>
+            </div>
+
+            {/* Inline error banner */}
+            {errorMessage && (
+              <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                {errorMessage}
+              </div>
+            )}
+
+            {/* Administrator creation form */}
+            <form onSubmit={handleSetupSubmit} className="space-y-4">
+              {/* Full name field */}
+              <div>
+                <label className="block text-[#1a1c1c] font-medium mb-1">Administrator Name</label>
+                <input
+                  type="text"
+                  required
+                  value={setupName}
+                  onChange={(e) => setSetupName(e.target.value)}
+                  autoComplete="name"
+                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                />
+              </div>
+
+              {/* Email field */}
+              <div>
+                <label className="block text-[#1a1c1c] font-medium mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={setupEmail}
+                  onChange={(e) => setSetupEmail(e.target.value)}
+                  autoComplete="email"
+                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                />
+              </div>
+
+              {/* Password field with show/hide toggle */}
+              <div>
+                <label className="block text-[#1a1c1c] font-medium mb-1">Create Password</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type={showSetupPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={setupPassword}
+                    onChange={(e) => setSetupPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSetupPassword(!showSetupPassword)}
+                    className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                    title={showSetupPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showSetupPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#8a8f94] mt-1">
+                  At least 8 characters with uppercase, lowercase, a number and a
+                  special character.
+                </p>
+              </div>
+
+              {/* Confirm password field with show/hide toggle */}
+              <div>
+                <label className="block text-[#1a1c1c] font-medium mb-1">Confirm Password</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type={showSetupConfirm ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={setupConfirm}
+                    onChange={(e) => setSetupConfirm(e.target.value)}
+                    autoComplete="new-password"
+                    className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSetupConfirm(!showSetupConfirm)}
+                    className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                    title={showSetupConfirm ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showSetupConfirm ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Primary submit button */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-2.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <span className="material-symbols-outlined text-base">admin_panel_settings</span>
+                {isSubmitting ? 'Creating...' : 'Create Administrator & Sign In'}
+              </button>
+            </form>
+
+            {/* Hint for already-configured installs */}
+            {!needsBootstrap && (
+              <p className="text-center text-[10px] text-[#8a8f94]">
+                Already set up?{' '}
+                <button
+                  type="button"
+                  onClick={() => goTo('login')}
+                  className="underline cursor-pointer"
+                >
+                  Sign in instead
+                </button>
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ================================================================= */}
         {/* LOGIN MODE — default screen                                       */}

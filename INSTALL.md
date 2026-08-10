@@ -37,26 +37,47 @@ This is the easiest: copy one `.exe` file to the other PC, run it, done.
      **More info → Run anyway**. The installer isn't code-signed yet, so SmartScreen
      can't verify the publisher — this is expected.
 3. Follow the installer wizard:
+   - A **Getting Started** page explains what happens next (launch, first-run
+     setup, where the data lives)
    - Choose the install folder (default `C:\Program Files\ECCLESIA Church Management System` is fine)
    - Leave the **Create desktop shortcut** and **Start Menu shortcut** boxes ticked
    - Click **Install**
 4. When it finishes, click **Finish** — the app starts automatically (or launch it from the
    desktop / Start Menu shortcut called **ECCLESIA**).
 
-### First sign-in (super admin)
+### First launch — guided setup (creates your login)
+
+The very first time the app opens on a fresh install it shows a **"Welcome to
+ECCLESIA"** screen instead of the login form. This is your only chance to set up
+the master administrator — no default password exists and nothing is printed:
+
+1. **Administrator Name** — who manages the system (e.g. "Fr. John Mwangi").
+2. **Email Address** — the login email for that person.
+3. **Create Password** + **Confirm Password** — choose a strong password
+   (at least 8 characters with upper & lower case, a number and a special character).
+4. Click **Create Administrator & Sign In** — you land on the Dashboard as the
+   **super admin** (full access). Only a super admin can add more users later
+   (Administration → Rights Centre).
+
+> **Write these credentials down.** They are the master login for the whole
+> system. If you ever lose them, see the Troubleshooting table below.
+
+### Signing in afterwards (every day)
 
 | Field | Value |
 |-------|-------|
-| Email | `maxblessngugi@ecclesia.local` (or the parish admin email you set up) |
-| Password | The one set during setup — if it was auto-generated, it was printed **once** at install time |
+| Email | The email you entered during the first-launch setup |
+| Password | The password you chose during the first-launch setup |
 
-The first sign-in **forces a password change**. After that, only the super admin can add
-other users.
+If the login screen shows **"Sign in instead"**, setup was already completed —
+just enter those credentials.
 
 ### Where the data lives (important!)
 
-- Database: **`%APPDATA%\ECCLESIA\ecclesia.db`**
-  (type `%APPDATA%\ECCLESIA` into the File Explorer address bar)
+- Database: **`%APPDATA%\<app folder>\ecclesia.db`** — on a normal install this
+  is `%APPDATA%\ECCLESIA Church Management System\ecclesia.db` (type it into the
+  File Explorer address bar; the exact folder name is shown in the installer's
+  Getting Started page).
 - **Backup this folder** to protect parish records. The installer deliberately
   **never deletes it** — even when you uninstall the app, the data stays safe.
 
@@ -143,5 +164,5 @@ To stop the auto-start later: uninstall the service/task named **Ecclesia**
 | Antivirus flags the app | Electron apps are commonly false-flagged; add an exclusion for the install folder. The app only writes to `%APPDATA%\ECCLESIA` |
 | App won't start, nothing happens | Close it from the tray first (old instance may be running), then relaunch |
 | Port 3000 or 5000 already in use | Something else is on that port — close other ECCLESIA instances, or in a terminal: `netstat -ano \| findstr :5000` then `taskkill /PID <pid> /F` |
-| Forgot the admin password | Reset the seeded password in `backend/.env` (`SUPER_ADMIN_PASSWORD=...`) and re-run the seed, or see `docs/OPERATIONS.md` |
+| Forgot the admin password | Installed app: use **Forgot Password?** on the login screen (another admin can issue the one-time reset code), or see `docs/OPERATIONS.md`. Source run: reset `SUPER_ADMIN_PASSWORD` in `backend/.env` and re-run `npm run db:seed` |
 | Where is my data? | `%APPDATA%\ECCLESIA\ecclesia.db` (installed app) or `backend/prisma/dev.db` (source run) — back this up |

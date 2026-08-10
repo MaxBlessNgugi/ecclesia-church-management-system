@@ -47,10 +47,12 @@ npm run dist:linux # Creates .AppImage for Linux
 - System tray with "Open ECCLESIA" and "Quit"
 - Properly kills backend on app quit
 
-### `electron/preload.js`
+### `electron/preload.cjs` (CommonJS — required by the sandboxed renderer)
 - Minimal secure bridge via `contextBridge`
 - Exposes: `getVersion()`, `getPath()`, `platform`, `isElectron`
-- Keeps `contextIsolation: true`, `nodeIntegration: false`
+- Plus `windowControls` (minimize/maximize/close) for the frameless title bar
+- Keeps `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`
+- Must stay CommonJS: sandboxed preloads cannot use ESM (`import`)
 
 ### `package.json` (updated)
 - `"main": "electron/main.js"`
