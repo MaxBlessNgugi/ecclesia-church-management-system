@@ -13,6 +13,8 @@ import React from 'react';
 /** React core library — used here only for JSX type-checking support */
 import { NavigationTab, PanelKey } from '../types';
 /** NavigationTab: union of all valid top-level view identifiers; PanelKey: subset used for permission gating */
+import { useOffline } from '../context/OfflineContext';
+/** useOffline: hook returning the live connectivity status so the footer widget reflects reality */
 
 /**
  * Interface properties for Sidebar navigation drawer component.
@@ -61,6 +63,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   allowedPanels
 }) => {
+  // Live connectivity status (online/offline/syncing) from the global context.
+  const { status: connectivityStatus } = useOffline();
   // Main management navigation menu items configuration
   const allNavItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -177,10 +181,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Expanded footer — full system status card with auth button */}
           {isOpen ? (
             <div className="p-3 rounded-lg bg-[#ffffff] border border-[#e1e3e3] text-center space-y-1">
-              {/* Online status indicator with animated pulse dot */}
-              <div className="text-xs font-semibold text-[#1a1c1c] flex items-center justify-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                System Online
+              {/* Live connectivity status indicator — matches the Header badge */}
+              <div className="text-xs font-semibold flex items-center justify-center gap-1">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    connectivityStatus === 'online'
+                      ? 'bg-emerald-500 animate-pulse'
+                      : connectivityStatus === 'syncing'
+                      ? 'bg-blue-500 animate-pulse'
+                      : 'bg-amber-500'
+                  }`}
+                ></span>
+                <span
+                  className={
+                    connectivityStatus === 'online'
+                      ? 'text-emerald-700'
+                      : connectivityStatus === 'syncing'
+                      ? 'text-blue-700'
+                      : 'text-amber-700'
+                  }
+                >
+                  {connectivityStatus === 'online' && 'System Online'}
+                  {connectivityStatus === 'syncing' && 'Syncing...'}
+                  {connectivityStatus === 'offline' && 'System Offline'}
+                </span>
               </div>
               <p className="text-[10px] text-[#444748]">Ecclesia CMS</p>
               {/* System Auth button — navigates to the authentication/login view */}

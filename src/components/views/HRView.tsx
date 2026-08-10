@@ -24,7 +24,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Domain types used throughout the component: HRSubTab for tab routing,
 // EmployeeRecord / PayrollRecord / LeaveRecord / RecruitmentRecord /
 // RecruitmentApplicant for typed state arrays and API payloads.
-import { HRSubTab, EmployeeRecord, PayrollRecord, LeaveRecord, RecruitmentRecord, RecruitmentApplicant } from '../../types';
+import { HRSubTab, EmployeeRecord, PayrollRecord, LeaveRecord, RecruitmentRecord } from '../../types';
 // hrApi — the typed HTTP client for all /api/hr/* endpoints (employees, payroll,
 // leave, recruitment). Every data load and mutation flows through this module.
 import { hrApi } from '../../services/api';
@@ -176,9 +176,6 @@ export const HRView: React.FC = () => {
   const [selectedRecId, setSelectedRecId] = useState('');
 
   // Applicant form state
-  // Local list of applicants for display within recruitment cards (used only
-  // for the UI; the source of truth is rec.applicants from the API).
-  const [applicants, setApplicants] = useState<RecruitmentApplicant[]>([]);
   // Applicant full name — required for save.
   const [appName, setAppName] = useState('');
   // Applicant email — required for save; used as the contact address.

@@ -116,20 +116,17 @@ import {
   authApi,
   christiansApi,
   clearStoredToken,
-  contributionsApi,
   creditorsApi,
   deathsApi,
   debtorsApi,
   depositsApi,
   expensesApi,
   getStoredToken,
-  transfersApi,
   requestWithQueue,
   cacheApiResponse,
   getCachedResponse
 } from './services/api';
 import { PermissionsProvider } from './permissions';
-import { useOffline } from './context/OfflineContext';
 import { getPendingCount } from './lib/db';
 
 /**
@@ -181,9 +178,6 @@ export const App: React.FC = () => {
   // Selected parishioner context passed across multi-step action views
   /** The parishioner selected for cross-panel handoff, or null. */
   const [selectedMember, setSelectedMember] = useState<ChristianRecord | null>(null);
-
-  // Offline connectivity status
-  const { pendingCount } = useOffline();
 
   // Warn user before closing tab with unsynced changes
   useEffect(() => {

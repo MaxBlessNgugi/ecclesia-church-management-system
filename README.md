@@ -4,7 +4,9 @@ Full-stack church management system: **React 19 frontend** + **local SQLite back
 
 ---
 
-## Run everything locally (2 terminals)
+## Run as a desktop app (recommended)
+
+ECCLESIA is an **Electron desktop app** — it opens in its own native window, not the browser.
 
 ### 1. Install (once)
 
@@ -14,22 +16,31 @@ npm run setup
 
 This installs frontend + backend deps, creates the local SQLite database, and seeds **you** as Super Admin.
 
-### 2. Start backend
-
-```bash
-npm run backend
-```
-
-→ API at **http://localhost:5000**
-
-### 3. Start frontend (new terminal)
+### 2. Launch the app
 
 ```bash
 npm run dev
 ```
 
-→ App at **http://localhost:3000**  
-(Vite proxies `/api` → backend automatically)
+→ Opens the native **ECCLESIA desktop window** (starts Vite + backend + Electron together).
+On Windows you can also double-click **`start-app.cmd`** for the same result.
+
+For a distributable Windows installer: `npm run dist:win` (output in `release/`).
+
+---
+
+## Run in the browser instead (developers only)
+
+While `npm run dev` is running, the Vite dev server is still available at
+**http://localhost:3000** in any browser (it proxies `/api` → backend automatically) —
+useful for responsive-mode testing. The Electron window opens on top by default.
+
+For browser-only development without the Electron window:
+
+```bash
+npm run backend   # terminal 1 → API at http://localhost:5000
+npx vite          # terminal 2 → app at http://localhost:3000
+```
 
 ---
 
@@ -125,7 +136,7 @@ caddy run          # uses the Caddyfile at the repo root
 |---------|-------------|
 | `npm run setup` | Install both sides + create DB + seed admin |
 | `npm run backend` | Start API on port 5000 |
-| `npm run dev` | Start frontend on port 3000 |
+| `npm run dev` | Open the desktop app (Electron window) — starts Vite + backend |
 | `npm run build` | Build frontend for production |
 | `cd backend && npm run db:seed:demo` | Load realistic demo data for pitches |
 | `cd backend && npm run db:clear:demo` | Wipe demo data (commercial handover) |

@@ -13,7 +13,7 @@
 //   2. Items are replayed in FIFO order (by createdAt).
 //   3. Each item is sent to the backend via the original HTTP method.
 //   4. On success → delete from queue. On failure → mark as failed.
-//   5. A toast notification fires on each successful sync batch.
+//   5. The OfflineContext flips the UI to "Syncing" while the batch runs.
 //
 // CONFLICT HANDLING
 //   First version uses "last write wins" — if the backend rejects the
@@ -25,14 +25,13 @@
 //   - src/context/OfflineContext.tsx → Triggers sync on connectivity change
 //   - src/services/api.ts        → Enqueues mutations when offline
 // =============================================================================
-import { getPendingItems, markSynced, markFailed, getPendingCount } from '../lib/db';
+import { getPendingItems, markSynced, markFailed } from '../lib/db';
 import type { QueueItem } from '../lib/db';
 
 const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
 
 let isRunning = false;
-let abortController: AbortController | null = null;
 
 /**
  * Get the stored JWT token for replaying authenticated requests.
@@ -116,58 +115,4 @@ export async function processQueue(
   return { synced, failed };
 }
 
-/**
- * Check if the backend is reachable.
- */
-export async function isBackendReachable(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`${BASE_URL}/health`, {
-      method: 'GET',
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
-/**
- * Start the background sync loop.
- * Call this once on app mount. It will check periodically and process
- * the queue whenever the backend is reachable.
- */
-export function startSyncLoop(
-  onSyncStart?: () => void,
-  onSyncEnd?: (synced: number, failed: number) => void,
-  onItemSynced?: (item: QueueItem) => void
-): () => void {
-  const interval = setInterval(async () => {
-    const count = await getPendingCount();
-    if (count > 0 && (await isBackendReachable())) {
-      await processQueue(onSyncStart, onSyncEnd, onItemSynced);
-    }
-  }, 30_000); // Check every 30 seconds
-
-  // Also process immediately if there are items
-  void (async () => {
-    const count = await getPendingCount();
-    if (count > 0 && (await isBackendReachable())) {
-      await processQueue(onSyncStart, onSyncEnd, onItemSynced);
-    }
-  })();
-
-  return () => clearInterval(interval);
-}
-
-/**
- * Cancel any in-progress sync.
- */
-export function cancelSync(): void {
-  if (abortController) {
-    abortController.abort();
-    abortController = null;
-  }
-}

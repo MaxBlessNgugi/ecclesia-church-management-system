@@ -133,7 +133,7 @@ echo.
 echo ============================================================
 echo   INSTALL COMPLETE
 echo ============================================================
-echo   App:      http://localhost:5000
+echo   App:      Native desktop app (Electron window)
 echo   Email:    %EMAIL%
 if defined SEED_PASS (
   echo   Password: %SEED_PASS%   ^<- WRITE THIS DOWN. Shown only once.
@@ -144,7 +144,11 @@ echo   Auto-start: %SVC%
 echo.
 echo   First sign-in forces a password change.
 echo ============================================================
-start "" http://localhost:5000
+rem Wait for the service backend to be listening, then open the native
+rem desktop app (Electron) instead of the browser. Electron reuses the
+rem backend already running on :5000.
+timeout /t 5 /nobreak >nul
+start "" cmd /c "set ELECTRON_MODE=production&& node_modules\.bin\electron.cmd ."
 echo.
 pause
 exit /b 0

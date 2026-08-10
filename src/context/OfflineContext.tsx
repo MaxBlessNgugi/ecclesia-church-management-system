@@ -22,6 +22,7 @@
 // =============================================================================
 import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
 import { getPendingCount } from '../lib/db';
+import { processQueue } from '../services/sync';
 
 export type ConnectivityStatus = 'online' | 'offline' | 'syncing';
 
@@ -62,6 +63,12 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const isSyncingRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  /** Refresh the pending count from IndexedDB. */
+  const refreshPendingCount = useCallback(async () => {
+    const count = await getPendingCount();
+    setPendingCount(count);
+  }, []);
+
   /** Check backend health by hitting /api/health (or /health). */
   const checkConnectivity = useCallback(async () => {
     try {
@@ -74,21 +81,34 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       clearTimeout(timeout);
       if (res.ok) {
-        setStatus(isSyncingRef.current ? 'syncing' : 'online');
-        setLastSyncedAt(new Date().toISOString());
+        // Backend reachable — drain any offline mutations queued while away.
+        const count = await getPendingCount();
+        if (count > 0) {
+          isSyncingRef.current = true;
+          setStatus('syncing');
+          await processQueue(
+            () => setStatus('syncing'),
+            (synced, failed) => {
+              isSyncingRef.current = false;
+              setStatus('online');
+              setLastSyncedAt(new Date().toISOString());
+              void refreshPendingCount();
+              if (failed > 0) {
+                console.warn(`[Offline] Sync finished: ${synced} synced, ${failed} failed.`);
+              }
+            }
+          );
+        } else {
+          setStatus(isSyncingRef.current ? 'syncing' : 'online');
+          setLastSyncedAt(new Date().toISOString());
+        }
       } else {
         setStatus(isSyncingRef.current ? 'syncing' : 'offline');
       }
     } catch {
       setStatus(isSyncingRef.current ? 'syncing' : 'offline');
     }
-  }, []);
-
-  /** Refresh the pending count from IndexedDB. */
-  const refreshPendingCount = useCallback(async () => {
-    const count = await getPendingCount();
-    setPendingCount(count);
-  }, []);
+  }, [refreshPendingCount]);
 
   /** Toggle syncing state (called by sync service). */
   const setSyncing = useCallback(

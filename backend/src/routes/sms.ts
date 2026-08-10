@@ -7,7 +7,7 @@
 // =============================================================================
 import { Router } from 'express';
 import { z } from 'zod';
-import { appPrisma, prisma } from '../lib/prisma.js';
+import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { sendSms, maskApiKey } from '../lib/sms.js';

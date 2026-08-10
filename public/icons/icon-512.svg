@@ -1,19 +1,65 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="tile" x1="0" y1="16" x2="0" y2="496" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2B2D31"/>
-      <stop offset="1" stop-color="#15161A"/>
+    <!-- Dark Charcoal Background Gradient -->
+    <radialGradient id="bg-grad" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#22252a"/>
+      <stop offset="100%" stop-color="#121316"/>
+    </radialGradient>
+
+    <!-- Metallic Brushed Silver Gradient -->
+    <linearGradient id="silver-metal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="25%" stop-color="#D1D5DB"/>
+      <stop offset="50%" stop-color="#9CA3AF"/>
+      <stop offset="75%" stop-color="#E5E7EB"/>
+      <stop offset="100%" stop-color="#6B7280"/>
     </linearGradient>
-    <linearGradient id="rim" x1="0" y1="16" x2="0" y2="217.6" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.13"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="gold" x1="0" y1="60" x2="0" y2="444" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F8EED0"/>
-      <stop offset="1" stop-color="#D6AC5C"/>
-    </linearGradient>
+
+    <!-- Subtle Drop Shadow -->
+    <filter id="subtle-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
   </defs>
-  <rect x="16" y="16" width="480" height="480" rx="104" fill="url(#tile)"/>
-  <rect x="24" y="24" width="464" height="464" rx="96" fill="none" stroke="url(#rim)" stroke-width="8"/>
-  <path d="M164 108 V396 M164 108 H348 M164 252 L300 272 M164 396 H348" stroke="url(#gold)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Base Icon Background (Rounded App Tile) -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg-grad)"/>
+
+  <!-- Monoline E + Cross Symbol -->
+  <g filter="url(#subtle-shadow)">
+    <!-- Outer 'E' Frame & Integrated Cross -->
+    <path d="
+      M 320 160 
+      H 220 
+      A 40 40 0 0 0 180 200 
+      V 220 
+      H 280 
+      V 260 
+      H 280 
+      V 300 
+      H 180 
+      V 312 
+      A 40 40 0 0 0 220 352 
+      H 320" 
+      fill="none" 
+      stroke="url(#silver-metal)" 
+      stroke-width="16" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"/>
+
+    <!-- Central Vertical Beam of the Cross -->
+    <path d="M 256 180 V 332" 
+      fill="none" 
+      stroke="url(#silver-metal)" 
+      stroke-width="16" 
+      stroke-linecap="round"/>
+  </g>
+
+  <!-- ECCLESIA Typography -->
+  <text x="256" y="412" 
+    text-anchor="middle" 
+    fill="url(#silver-metal)" 
+    font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" 
+    font-size="26" 
+    font-weight="600" 
+    letter-spacing="7">ECCLESIA</text>
 </svg>

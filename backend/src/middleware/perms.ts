@@ -55,8 +55,8 @@
 //   - backend/prisma/schema.prisma     → User.panels, User.actions, PanelPermissions
 // =============================================================================
 
-// Import Express types for the middleware signature (Request, Response, NextFunction).
-import { Request, Response, NextFunction } from 'express';
+// Import Express types for the middleware signature (Response, NextFunction).
+import { Response, NextFunction } from 'express';
 
 // Import the Prisma client instance for database queries. appPrisma includes
 // middleware that filters soft-deleted records and provides tenant isolation.

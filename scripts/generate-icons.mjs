@@ -3,11 +3,11 @@
 // =============================================================================
 //
 // PURPOSE
-//   Renders the brand icon — a dark rounded square with a stylised
-//   golden-cream E — at
-//   every size the app, the OS, and the PWA need, with zero image dependencies
-//   (pure Node: zlib + hand-rolled PNG/ICO/ICNS encoders). Re-run after any
-//   brand tweak:
+//   Renders the brand icon — a dark charcoal rounded tile with a delicate
+//   monoline E+Cross monogram and the word "ECCLESIA" beneath it in cool
+//   brushed silver — at every size the app, the OS, and the PWA need, with
+//   zero image dependencies (pure Node: zlib + hand-rolled PNG/ICO/ICNS
+//   encoders). Re-run after any brand tweak:
 //
 //     node scripts/generate-icons.mjs
 //
@@ -24,16 +24,22 @@
 //   electron/assets/icon.icns               (multi-size — macOS app bundle)
 //   electron/assets/icon.svg                (vector source for the desktop app)
 //
-// DESIGN
-//   - Tile:     dark rounded square (#1E1E1E family) with a subtle vertical
-//               gradient and a soft top rim light for depth.
-//   - Glyph:    stylised golden-cream E built from four rounded bars (spine +
-//               three arms; the middle arm is shorter and subtly angled for an
-//               artisanal feel) with a warm gold gradient top-to-bottom.
-//   - Quality:  6x supersampled coverage anti-aliasing (4x on the 1024px
-//               render) gives smooth, crisp edges at every size; the ICO/ICNS
-//               bundles embed native-size frames (16–256 / 16–1024) so the OS
-//               never downscales a single large image.
+// DESIGN (matches electron/assets/icon.svg)
+//   - Tile:      dark charcoal radial gradient (#22252A centre → #121316 edge)
+//                on a rounded square (margin 32/512, corner radius 96/512).
+//   - Monogram:  a thin monoline "E" drawn as a single continuous outline
+//                (stroke width 16/512, round caps/joins) whose hollow centre
+//                carries a free-floating vertical cross beam that pokes above
+//                the E's top bar and crosses the outlined middle bar.
+//   - Lettering: "ECCLESIA" in a 5×7 geometric sans-serif pixel font rendered
+//                as rounded blocks, centred beneath the monogram (≈26px at
+//                512, ~7px letter-spacing).
+//   - Finish:    cool brushed silver diagonal gradient (#FFFFFF → #D1D5DB →
+//                #9CA3AF → #E5E7EB → #6B7280) with a soft 4px drop shadow
+//                (50% black) offset beneath the monogram.
+//   - Quality:   6x supersampled coverage anti-aliasing (4x on the 1024px
+//                render); ICO/ICNS bundles embed native-size frames (16–256 /
+//                16–1024) so the OS never downscales a single large image.
 // =============================================================================
 
 import { deflateSync } from 'node:zlib';
@@ -44,10 +50,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── Brand palette ────────────────────────────────────────────────────────────
-const GRAD_TOP = [43, 45, 49]; // #2B2D31 — tile highlight edge
-const GRAD_BOTTOM = [21, 22, 26]; // #15161A — tile base
-const GOLD_TOP = [248, 238, 208]; // #F8EED0 — golden-cream highlight
-const GOLD_BOTTOM = [214, 172, 92]; // #D6AC5C — deeper gold base
+const TILE_CENTER = [34, 37, 42]; // #22252A — charcoal radial centre
+const TILE_EDGE = [18, 19, 22]; // #121316 — charcoal radial edge
+const METAL_STOPS = [
+  [0.0, [255, 255, 255]], // #FFFFFF
+  [0.25, [209, 213, 219]], // #D1D5DB
+  [0.5, [156, 163, 175]], // #9CA3AF
+  [0.75, [229, 231, 235]], // #E5E7EB
+  [1.0, [107, 114, 128]], // #6B7280
+];
 
 // ── PNG encoder (RGBA, 8-bit) ────────────────────────────────────────────────
 const CRC_TABLE = (() => {
@@ -152,29 +163,135 @@ function encodeICNS(pngsBySize) {
   return Buffer.concat([header, ...chunks]);
 }
 
+// ── Deterministic hash (for grain / brushed texture) ─────────────────────────
+function hash2(x, y, seed) {
+  let h = (seed | 0) ^ Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+
+// ── 5×7 geometric sans-serif glyphs for "ECCLESIA" ───────────────────────────
+const FONT = {
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  C: ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  S: ['11111', '10000', '10000', '01110', '00001', '00001', '11111'],
+  I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+};
+
+/**
+ * Build the list of lit cells for a word, laid out left→right with
+ * `gapCells` empty columns between characters. Returns [col, row, cx, cy]
+ * in fractions of the canvas, centred on (cxCentre, cyCentre).
+ */
+function layoutWord(word, cell, cxCentre, cyCentre, gapCells = 1) {
+  const cells = [];
+  const halfW = (word.length * (5 + gapCells) - 1) / 2;
+  let col = 0;
+  for (const ch of word) {
+    const rows = FONT[ch];
+    if (!rows) throw new Error(`No glyph for "${ch}"`);
+    for (let r = 0; r < rows.length; r++) {
+      for (let c = 0; c < rows[r].length; c++) {
+        if (rows[r][c] === '1') {
+          const cx = cxCentre + (col + c + 0.5 - halfW) * cell;
+          const cy = cyCentre + (r + 0.5 - rows.length / 2) * cell;
+          cells.push([cx, cy]);
+        }
+      }
+    }
+    col += 5 + gapCells;
+  }
+  return cells;
+}
+
+// ── Separable box blur (drop-shadow approximation) ───────────────────────────
+function boxBlur(src, size, radius) {
+  const tmp = new Float32Array(size * size);
+  const out = new Float32Array(size * size);
+  const clamp = (v) => (v < 0 ? 0 : v > size - 1 ? size - 1 : v);
+  // Horizontal pass
+  for (let y = 0; y < size; y++) {
+    const row = y * size;
+    let acc = 0;
+    for (let x = -radius; x <= radius; x++) acc += src[row + clamp(x)];
+    for (let x = 0; x < size; x++) {
+      tmp[row + x] = acc / (radius * 2 + 1);
+      acc += src[row + clamp(x + radius + 1)] - src[row + clamp(x - radius)];
+    }
+  }
+  // Vertical pass
+  for (let x = 0; x < size; x++) {
+    let acc = 0;
+    for (let y = -radius; y <= radius; y++) acc += tmp[clamp(y) * size + x];
+    for (let y = 0; y < size; y++) {
+      out[y * size + x] = acc / (radius * 2 + 1);
+      acc += tmp[clamp(y + radius + 1) * size + x] - tmp[clamp(y - radius) * size + x];
+    }
+  }
+  return out;
+}
+
 // ── Rasterizer (supersampled coverage AA) ────────────────────────────────────
-// Geometry is expressed as fractions of the canvas size so every output size
-// shares the same optical proportions.
+// Geometry is expressed as fractions of the 512px SVG canvas so every output
+// size shares the same optical proportions.
 
 function renderIcon(size, { maskable = false } = {}) {
-  // Geometry (fractions of size)
-  const margin = maskable ? 0 : 0.03125; // 16/512
-  const square = 1 - 2 * margin; // 480/512
-  const radius = maskable ? 0 : 0.203125; // corner radius (maskable = full-bleed)
-  const cy = maskable ? 0.5 : 0.4921875; // optical center (slightly raised)
-  // Maskable tiles shrink the whole glyph (see `glyph` below) so it stays
-  // inside the 80%-diameter safe zone that platform masks crop to.
+  // Composition scale: normal tiles fill the canvas; maskable variants shrink
+  // the artwork into the PWA safe zone on a full-bleed tile.
+  const comp = maskable ? 0.8 : 1;
+  const cx0 = (v) => 0.5 + (v - 0.5) * comp;
+  const cy0 = (v) => 0.5 + (v - 0.5) * comp;
 
-  // Rim-light band (normal tiles only): 4px-wide ring inset 4px from the tile
-  // edge, fading out over the top ~42% of the tile.
-  const rimOuter = 0.0078125;
-  const rimThick = 0.015625;
+  // Tile geometry (fractions of size)
+  const margin = maskable ? 0 : 0.0625; // 32/512
+  const radius = maskable ? 0 : 0.1875; // 96/512 — corner radius
+  const square = 1 - 2 * margin;
+
+  // ── Monogram: monoline E outline + central cross beam (stroke 16/512) ─────
+  const BW = 0.015625; // half stroke width (16/512 / 2)
+
+  // Outer 'E' frame — the SVG path `M 320 160 H 220 A … 180 200 V 220 H 280
+  // V 260 V 300 H 180 V 312 A … 220 352 H 320`, decomposed into capsules for
+  // the straight runs and 90° arc bands for the two rounded left corners.
+  const topBar = [cx0(0.4296875), cy0(0.3125), cx0(0.625), cy0(0.3125)]; // (220,160)→(320,160)
+  const cornerTL = { cx: cx0(0.4296875), cy: cy0(0.390625), r: 0.078125, quad: 'TL' }; // arc centre (220,200) r40
+  const leftSpine = [cx0(0.3515625), cy0(0.390625), cx0(0.3515625), cy0(0.609375)]; // (180,200)→(180,312)
+  const midTop = [cx0(0.3515625), cy0(0.4296875), cx0(0.546875), cy0(0.4296875)]; // (180,220)→(280,220)
+  const midRight = [cx0(0.546875), cy0(0.4296875), cx0(0.546875), cy0(0.5859375)]; // (280,220)→(280,300)
+  const midBottom = [cx0(0.546875), cy0(0.5859375), cx0(0.3515625), cy0(0.5859375)]; // (280,300)→(180,300)
+  const cornerBL = { cx: cx0(0.4296875), cy: cy0(0.609375), r: 0.078125, quad: 'BL' }; // arc centre (220,312) r40
+  const botBar = [cx0(0.4296875), cy0(0.6875), cx0(0.625), cy0(0.6875)]; // (220,352)→(320,352)
+  const crossBeam = [cx0(0.5), cy0(0.3515625), cx0(0.5), cy0(0.6484375)]; // (256,180)→(256,332)
+  const capsules = [topBar, leftSpine, midTop, midRight, midBottom, botBar, crossBeam];
+  const arcs = [cornerTL, cornerBL];
+
+  // Metal gradient bbox = monogram extents (stroke edges), comp-scaled.
+  const gx0 = cx0(0.3359375); // 172/512 (left spine outer edge)
+  const gx1 = cx0(0.640625); // 328/512 (top/bottom bar outer edge)
+  const gy0 = cy0(0.296875); // 152/512 (top bar outer edge)
+  const gy1 = cy0(0.703125); // 360/512 (bottom bar outer edge)
+
+  // "ECCLESIA" lettering beneath the monogram (≈26px font at 512, baseline
+  // at 412/512 ≈ 0.8047, letter-spacing ≈ 7px).
+  const cell = 0.0052 * comp;
+  const gapCells = 2.6; // 7px spacing / 2.66px cell
+  const textCy = 0.8046875 - 3.5 * cell; // bottom edge at baseline 412/512
+  const wordCells = layoutWord('ECCLESIA', cell, cx0(0.5), cy0(textCy), gapCells);
+
+  const textY0 = cy0(textCy) - 3.5 * cell;
+  const textY1 = cy0(textCy) + 3.5 * cell;
+  const textHalfW = (8 * (5 + gapCells) - 1) / 2;
+  const textX0 = cx0(0.5) - textHalfW * cell;
+  const textX1 = cx0(0.5) + textHalfW * cell;
 
   const SS = size <= 512 ? 6 : 4; // supersample factor
   const SS2 = SS * SS;
-  const rgba = Buffer.alloc(size * size * 4);
+  const cov = new Float32Array(size * size); // monogram coverage (0..1)
+  const tileA = new Float32Array(size * size); // tile coverage (0..1)
 
-  // Rounded-rect inside test (coordinates relative to the tile centre).
+  // Rounded-rect inside test (coordinates relative to the rect centre).
   const inRRect = (dx, dy, half, r) => {
     if (r <= 0) return Math.abs(dx) <= half && Math.abs(dy) <= half; // plain square
     const ax = Math.max(Math.abs(dx) - (half - r), 0);
@@ -182,8 +299,7 @@ function renderIcon(size, { maskable = false } = {}) {
     return ax * ax + ay * ay <= r * r;
   };
 
-  // Capsule test: point within radius r of the segment (x1,y1)-(x2,y2). Used
-  // to draw the stylised E as four rounded bars.
+  // Capsule test: point within radius r of the segment (x1,y1)-(x2,y2).
   const inCapsule = (pxN, pyN, x1, y1, x2, y2, r) => {
     const vx = x2 - x1;
     const vy = y2 - y1;
@@ -197,85 +313,141 @@ function renderIcon(size, { maskable = false } = {}) {
     return dx * dx + dy * dy <= r * r;
   };
 
-  // Stylised E: vertical spine + three arms (middle one shorter and slightly
-  // angled for an artisanal feel). Coordinates are fractions of the canvas;
-  // the whole glyph is scaled around its optical centre for the maskable tile.
-  const glyph = maskable ? 0.88 : 1;
-  const gx = (v) => 0.5 + (v - 0.5) * glyph; // scale x around 0.5
-  const gy = (v) => cy + (v - cy) * glyph; // scale y around cy
-  const bars = [
-    [gx(0.3203125), gy(0.2109375), gx(0.3203125), gy(0.7734375)], // spine
-    [gx(0.3203125), gy(0.2109375), gx(0.6796875), gy(0.2109375)], // top arm
-    [gx(0.3203125), gy(0.4921875), gx(0.5859375), gy(0.53125)], // middle arm (angled)
-    [gx(0.3203125), gy(0.7734375), gx(0.6796875), gy(0.7734375)], // bottom arm
-  ];
-  const barR = 0.09375 * glyph; // bar radius (48/512)
-  const eTop = gy(0.2109375) - barR; // E gradient extent (incl. caps)
-  const eBot = gy(0.7734375) + barR;
-  const inE = (pxN, pyN) => bars.some(([x1, y1, x2, y2]) => inCapsule(pxN, pyN, x1, y1, x2, y2, barR));
+  // 90° arc band test for the E's two rounded left corners.
+  const inArcBand = (pxN, pyN, arc, halfW) => {
+    const dx = pxN - arc.cx;
+    const dy = pyN - arc.cy;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (Math.abs(d - arc.r) > halfW) return false;
+    if (arc.quad === 'TL') return dx < 0 && dy < 0; // top-left quadrant
+    return dx < 0 && dy > 0; // bottom-left quadrant
+  };
 
-  const half = square / 2;
-  const rimOuterHalf = half - rimOuter;
-  const rimInnerHalf = half - rimOuter - rimThick;
-  const rimOuterR = Math.max(radius - rimOuter, 0);
-  const rimInnerR = Math.max(radius - rimOuter - rimThick, 0);
-  const tileTop = margin * size;
+  // ── Pass 1: supersampled coverage ─────────────────────────────────────────
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let mono = 0;
+      let tile = 0;
+      for (let sy = 0; sy < SS; sy++) {
+        for (let sx = 0; sx < SS; sx++) {
+          const pxN = (x + (sx + 0.5) / SS) / size;
+          const pyN = (y + (sy + 0.5) / SS) / size;
+          if (inRRect(pxN - 0.5, pyN - 0.5, square / 2, radius)) tile++;
+
+          let hit = false;
+          for (const [x1, y1, x2, y2] of capsules) {
+            if (inCapsule(pxN, pyN, x1, y1, x2, y2, BW)) {
+              hit = true;
+              break;
+            }
+          }
+          if (!hit) {
+            for (const arc of arcs) {
+              if (inArcBand(pxN, pyN, arc, BW)) {
+                hit = true;
+                break;
+              }
+            }
+          }
+          if (!hit && pyN >= textY0 && pyN <= textY1 && pxN >= textX0 && pxN <= textX1) {
+            // "ECCLESIA" lettering — rounded blocks, one per lit glyph cell.
+            const cellHalf = cell * 0.49;
+            const cellR = cell * 0.22;
+            for (const [cxx, cyy] of wordCells) {
+              if (inRRect(pxN - cxx, pyN - cyy, cellHalf, cellR)) {
+                hit = true;
+                break;
+              }
+            }
+          }
+          if (hit) mono++;
+        }
+      }
+      cov[y * size + x] = mono / SS2;
+      tileA[y * size + x] = tile / SS2;
+    }
+  }
+
+  // ── Pass 2: drop shadow — blurred monogram shifted down 4px (50% black) ───
+  const blurR = Math.max(1, Math.round(0.0195 * size)); // σ≈6 at 512
+  const offY = Math.round(0.0078125 * size); // 4px at 512
+  const blurred = boxBlur(cov, size, blurR);
+
+  // ── Pass 3: composite ─────────────────────────────────────────────────────
+  const rgba = Buffer.alloc(size * size * 4);
+
+  /** Cool brushed-silver diagonal gradient at a normalised point. */
+  const metal = (pxN, pyN) => {
+    const t = Math.min(
+      Math.max(((pxN - gx0) / (gx1 - gx0) + (pyN - gy0) / (gy1 - gy0)) / 2, 0),
+      1,
+    );
+    let i = 0;
+    while (i < METAL_STOPS.length - 2 && t > METAL_STOPS[i + 1][0]) i++;
+    const [t0, c0] = METAL_STOPS[i];
+    const [t1, c1] = METAL_STOPS[i + 1];
+    const f = Math.min(Math.max((t - t0) / (t1 - t0), 0), 1);
+    // Subtle dither so smooth gradients don't band at small sizes.
+    const d = 1 + 0.004 * (hash2(Math.round(pxN * 1024), Math.round(pyN * 1024), 3) - 0.5) * 2;
+    return [
+      Math.min(255, (c0[0] + (c1[0] - c0[0]) * f) * d),
+      Math.min(255, (c0[1] + (c1[1] - c0[1]) * f) * d),
+      Math.min(255, (c0[2] + (c1[2] - c0[2]) * f) * d),
+    ];
+  };
+
+  /** Matte charcoal radial-gradient tile colour (centre (0.5,0.4), r 0.6). */
+  const tileColor = (pxN, pyN) => {
+    const dx = pxN - 0.5;
+    const dy = pyN - 0.4;
+    const t = Math.min(Math.max(Math.sqrt(dx * dx + dy * dy) / 0.6, 0), 1);
+    let r = TILE_CENTER[0] + (TILE_EDGE[0] - TILE_CENTER[0]) * t;
+    let g = TILE_CENTER[1] + (TILE_EDGE[1] - TILE_CENTER[1]) * t;
+    let b = TILE_CENTER[2] + (TILE_EDGE[2] - TILE_CENTER[2]) * t;
+    // Fine matte grain.
+    const grain = (hash2(Math.round(pxN * 1024), Math.round(pyN * 1024), 11) - 0.5) * 5;
+    r += grain;
+    g += grain;
+    b += grain;
+    return [r, g, b];
+  };
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      let sumR = 0, sumG = 0, sumB = 0, sumA = 0;
-      for (let sy = 0; sy < SS; sy++) {
-        for (let sx = 0; sx < SS; sx++) {
-          const px = x + (sx + 0.5) / SS;
-          const py = y + (sy + 0.5) / SS;
-          const pxN = px / size;
-          const pyN = py / size;
-          // Tile geometry is centered on the canvas; only the E glyph uses the
-          // optically raised center (cy).
-          const dxT = pxN - 0.5;
-          const dyT = pyN - 0.5;
-          if (!inRRect(dxT, dyT, half, radius)) continue; // outside tile
+      const i = (y * size + x) * 4;
+      const a = tileA[y * size + x];
+      if (a <= 0) {
+        rgba[i + 3] = 0;
+        continue;
+      }
+      const pxN = (x + 0.5) / size;
+      const pyN = (y + 0.5) / size;
+      let [r, g, b] = tileColor(pxN, pyN);
 
-          // Base: vertical gradient over the tile height.
-          const t = Math.min(Math.max((py - tileTop) / (square * size), 0), 1);
-          let r = GRAD_TOP[0] + (GRAD_BOTTOM[0] - GRAD_TOP[0]) * t;
-          let g = GRAD_TOP[1] + (GRAD_BOTTOM[1] - GRAD_TOP[1]) * t;
-          let b = GRAD_TOP[2] + (GRAD_BOTTOM[2] - GRAD_TOP[2]) * t;
-
-          // Rim light: soft white sheen along the top inside edge.
-          if (!maskable && inRRect(dxT, dyT, rimOuterHalf, rimOuterR) && !inRRect(dxT, dyT, rimInnerHalf, rimInnerR)) {
-            const fade = 1 - Math.min(Math.max((py - tileTop) / (0.42 * square * size), 0), 1);
-            const a = 0.13 * fade;
-            r = r * (1 - a) + 255 * a;
-            g = g * (1 - a) + 255 * a;
-            b = b * (1 - a) + 255 * a;
-          }
-
-          if (inE(pxN, pyN)) {
-            const tg = Math.min(Math.max((pyN - eTop) / (eBot - eTop), 0), 1);
-            r = GOLD_TOP[0] + (GOLD_BOTTOM[0] - GOLD_TOP[0]) * tg;
-            g = GOLD_TOP[1] + (GOLD_BOTTOM[1] - GOLD_TOP[1]) * tg;
-            b = GOLD_TOP[2] + (GOLD_BOTTOM[2] - GOLD_TOP[2]) * tg;
-          }
-
-          sumR += r;
-          sumG += g;
-          sumB += b;
-          sumA += 255;
+      // Drop shadow: darken by the offset blurred monogram (opacity 0.5).
+      const sy = y - offY;
+      if (sy >= 0) {
+        const s = 0.5 * blurred[sy * size + x];
+        if (s > 0) {
+          r *= 1 - s;
+          g *= 1 - s;
+          b *= 1 - s;
         }
       }
 
-      const i = (y * size + x) * 4;
-      if (sumA === 0) {
-        rgba[i] = rgba[i + 1] = rgba[i + 2] = rgba[i + 3] = 0;
-        continue;
+      // Monogram + lettering, blended by coverage for smooth AA edges.
+      const m = cov[y * size + x];
+      if (m > 0) {
+        const [mr, mg, mb] = metal(pxN, pyN);
+        r += (mr - r) * m;
+        g += (mg - g) * m;
+        b += (mb - b) * m;
       }
-      // Straight alpha: colour averaged over covered samples, alpha = coverage.
-      const count = sumA / 255;
-      rgba[i] = Math.round(sumR / count);
-      rgba[i + 1] = Math.round(sumG / count);
-      rgba[i + 2] = Math.round(sumB / count);
-      rgba[i + 3] = Math.round(sumA / SS2);
+
+      rgba[i] = Math.round(r);
+      rgba[i + 1] = Math.round(g);
+      rgba[i + 2] = Math.round(b);
+      rgba[i + 3] = Math.round(a * 255);
     }
   }
   return rgba;
@@ -283,34 +455,70 @@ function renderIcon(size, { maskable = false } = {}) {
 
 // ── SVG source (vector twin of the raster design) ────────────────────────────
 function svgIcon(size) {
-  const m = 0.03125 * size;
-  const s = size - 2 * m;
-  const r = 0.203125 * size;
-  const cy = 0.4921875 * size;
-  const rimOuter = 0.0078125 * size; // band outer inset
-  const rimThick = 0.015625 * size; // band thickness
-  const bar = 0.1875 * size; // E bar thickness
-  const p = (v) => v * size; // fraction → px
-  const gx = (v) => p(0.5 + (v - 0.5)); // E x (centred on canvas)
-  const gy = (v) => p(cy / size + (v - cy / size)); // E y (centred on cy)
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="${size}" height="${size}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="tile" x1="0" y1="${m}" x2="0" y2="${size - m}" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2B2D31"/>
-      <stop offset="1" stop-color="#15161A"/>
+    <!-- Dark Charcoal Background Gradient -->
+    <radialGradient id="bg-grad" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#22252a"/>
+      <stop offset="100%" stop-color="#121316"/>
+    </radialGradient>
+
+    <!-- Metallic Brushed Silver Gradient -->
+    <linearGradient id="silver-metal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="25%" stop-color="#D1D5DB"/>
+      <stop offset="50%" stop-color="#9CA3AF"/>
+      <stop offset="75%" stop-color="#E5E7EB"/>
+      <stop offset="100%" stop-color="#6B7280"/>
     </linearGradient>
-    <linearGradient id="rim" x1="0" y1="${m}" x2="0" y2="${m + 0.42 * s}" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.13"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="gold" x1="0" y1="${gy(0.2109375) - bar / 2}" x2="0" y2="${gy(0.7734375) + bar / 2}" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F8EED0"/>
-      <stop offset="1" stop-color="#D6AC5C"/>
-    </linearGradient>
+
+    <!-- Subtle Drop Shadow -->
+    <filter id="subtle-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
   </defs>
-  <rect x="${m}" y="${m}" width="${s}" height="${s}" rx="${r}" fill="url(#tile)"/>
-  <rect x="${m + rimOuter + rimThick / 2}" y="${m + rimOuter + rimThick / 2}" width="${s - rimOuter * 2 - rimThick}" height="${s - rimOuter * 2 - rimThick}" rx="${r - rimOuter - rimThick / 2}" fill="none" stroke="url(#rim)" stroke-width="${rimThick}"/>
-  <path d="M${gx(0.3203125)} ${gy(0.2109375)} V${gy(0.7734375)} M${gx(0.3203125)} ${gy(0.2109375)} H${gx(0.6796875)} M${gx(0.3203125)} ${gy(0.4921875)} L${gx(0.5859375)} ${gy(0.53125)} M${gx(0.3203125)} ${gy(0.7734375)} H${gx(0.6796875)}" stroke="url(#gold)" stroke-width="${bar}" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Base Icon Background (Rounded App Tile) -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg-grad)"/>
+
+  <!-- Monoline E + Cross Symbol -->
+  <g filter="url(#subtle-shadow)">
+    <!-- Outer 'E' Frame & Integrated Cross -->
+    <path d="
+      M 320 160 
+      H 220 
+      A 40 40 0 0 0 180 200 
+      V 220 
+      H 280 
+      V 260 
+      H 280 
+      V 300 
+      H 180 
+      V 312 
+      A 40 40 0 0 0 220 352 
+      H 320" 
+      fill="none" 
+      stroke="url(#silver-metal)" 
+      stroke-width="16" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"/>
+
+    <!-- Central Vertical Beam of the Cross -->
+    <path d="M 256 180 V 332" 
+      fill="none" 
+      stroke="url(#silver-metal)" 
+      stroke-width="16" 
+      stroke-linecap="round"/>
+  </g>
+
+  <!-- ECCLESIA Typography -->
+  <text x="256" y="412" 
+    text-anchor="middle" 
+    fill="url(#silver-metal)" 
+    font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" 
+    font-size="26" 
+    font-weight="600" 
+    letter-spacing="7">ECCLESIA</text>
 </svg>
 `;
 }

@@ -130,24 +130,10 @@ export async function getPendingItems(): Promise<QueueItem[]> {
 }
 
 /**
- * Get all failed queue items.
- */
-export async function getFailedItems(): Promise<QueueItem[]> {
-  return db.queue.where('status').equals('failed').toArray();
-}
-
-/**
  * Count pending queue items.
  */
 export async function getPendingCount(): Promise<number> {
   return db.queue.where('status').equals('pending').count();
-}
-
-/**
- * Mark a queue item as syncing (in-progress).
- */
-export async function markSyncing(id: string): Promise<void> {
-  await db.queue.update(id, { status: 'syncing', updatedAt: new Date().toISOString() });
 }
 
 /**
@@ -161,30 +147,15 @@ export async function markSynced(id: string): Promise<void> {
  * Mark a queue item as failed with an error message.
  */
 export async function markFailed(id: string, error: string): Promise<void> {
+  // Bump the retry counter properly: `??` binds looser than `+`, so the
+  // previous version parsed as `(retryCount) ?? (0 + 1)` and never incremented.
+  const current = await db.queue.get(id);
   await db.queue.update(id, {
     status: 'failed',
     error,
-    retryCount: (await db.queue.get(id))?.retryCount ?? 0 + 1,
+    retryCount: (current?.retryCount ?? 0) + 1,
     updatedAt: new Date().toISOString(),
   });
-}
-
-/**
- * Reset a failed item back to pending for retry.
- */
-export async function retryItem(id: string): Promise<void> {
-  await db.queue.update(id, {
-    status: 'pending',
-    error: undefined,
-    updatedAt: new Date().toISOString(),
-  });
-}
-
-/**
- * Clear the entire queue (use with caution).
- */
-export async function clearQueue(): Promise<void> {
-  await db.queue.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -212,24 +183,4 @@ export async function getCache<T = unknown>(key: string): Promise<T | null> {
 export async function getCacheTimestamp(key: string): Promise<string | null> {
   const item = await db.cache.get(key);
   return item?.timestamp ?? null;
-}
-
-/**
- * Remove a cached item.
- */
-export async function clearCache(key: string): Promise<void> {
-  await db.cache.delete(key);
-}
-
-// ---------------------------------------------------------------------------
-// Meta helpers
-// ---------------------------------------------------------------------------
-
-export async function setMeta(key: string, value: unknown): Promise<void> {
-  await db.meta.put({ key, value });
-}
-
-export async function getMeta<T = unknown>(key: string): Promise<T | null> {
-  const item = await db.meta.get(key);
-  return item ? (item.value as T) : null;
 }

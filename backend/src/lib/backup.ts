@@ -87,7 +87,6 @@ export async function backupDatabase(): Promise<{ file: string; size: number; at
   const stamp = at.toISOString().replace(/[:.]/g, '-');
   // Construct the full backup file path
   const target = path.join(BACKUP_DIR, `ecclesia-backup-${stamp}.db`);
-  const dbPath = dbFilePath();
 
   // Escape single quotes in the path to prevent SQL injection in the VACUUM INTO command
   const escaped = target.replace(/'/g, "''");

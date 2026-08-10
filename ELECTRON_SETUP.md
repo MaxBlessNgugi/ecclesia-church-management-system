@@ -60,7 +60,7 @@ npm run dist:linux # Creates .AppImage for Linux
 - `asarUnpack` for Prisma query engine
 
 ### `electron/assets/`
-- `icon.svg` - Vector source (dark tile + golden-cream E brand mark)
+- `icon.svg` - Vector source (matte charcoal tile + brushed-silver E+Cross monogram with ECCLESIA lettering)
 - `icon.png` - 512px PNG (electron-builder Linux icon)
 - `icon-16.png` … `icon-512.png` - Fixed-size PNGs (BrowserWindow, tray)
 - `icon.ico` - Multi-size Windows icon (installer, shortcuts, taskbar)
@@ -91,11 +91,19 @@ npm run dist:linux # Creates .AppImage for Linux
 # dependency-free generator — no ImageMagick required.
 node scripts/generate-icons.mjs
 ```
-The generator renders the brand mark (dark rounded square + golden-cream E) at
-every size with 6x supersampled anti-aliasing and bundles native-size frames
-into `icon.ico` (16–256) and `icon.icns` (16–1024) so the OS never downscales.
-It also emits the PWA/favicon icons in `public/icons/` (including the
-full-bleed `icon-maskable-512.png` referenced by the PWA manifest).
+The generator renders the brand mark (dark charcoal radial tile + monoline
+silver E+cross + ECCLESIA lettering) at every size with 6x supersampled
+anti-aliasing and bundles native-size frames into `icon.ico` (16–256) and
+`icon.icns` (16–1024) so the OS never downscales. It also emits the
+PWA/favicon icons in `public/icons/` (including the full-bleed
+`icon-maskable-512.png` referenced by the PWA manifest).
+
+To eyeball the result, rebuild the self-contained preview page and open it:
+
+```bash
+node scripts/build-icon-preview.mjs
+# then open icon-preview.html in a browser
+```
 
 ## Troubleshooting
 

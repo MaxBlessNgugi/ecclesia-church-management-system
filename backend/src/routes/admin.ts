@@ -589,7 +589,7 @@ router.get('/export', async (_req, res, next) => {
 router.post('/import', requireSuperAdmin, async (req: AuthRequest, res, next) => {
   try {
     // Validate request body: requires confirm flag (must be true) and bundle data
-    const { confirm, bundle } = z
+    const { bundle } = z
       .object({ confirm: z.literal(true), bundle: z.unknown() }) // confirm must be literal true
       .parse(req.body);
     // Import data bundle: replaces entire database (destructive operation)

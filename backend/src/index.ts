@@ -105,9 +105,6 @@ import { errorHandler } from './middleware/errorHandler.js';
 // Structured logger for production monitoring (replaces console.log).
 import { logger } from './lib/logger.js';
 
-// CSRF token generation middleware for protecting state-changing endpoints.
-import { generateCsrfToken } from './middleware/csrf.js';
-
 // ── Startup: fail-fast checks ──────────────────────────────────────────────
 
 // Validate that JWT_SECRET is present; throws in production if missing.

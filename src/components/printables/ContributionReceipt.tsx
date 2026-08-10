@@ -20,7 +20,7 @@
 //   - src/types.ts                        → ContributionRecord shape
 //   - src/components/views/ActivitiesView.tsx → wires this into the payment flow
 // =============================================================================
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { ContributionRecord } from '../../types';
 
 /** Props for the printable contribution receipt. */

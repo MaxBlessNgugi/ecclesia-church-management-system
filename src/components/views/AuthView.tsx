@@ -18,6 +18,9 @@ import { authApi, storeToken } from '../../services/api';
 //   changePassword() methods that wrap HTTP calls to the authentication endpoints.
 // storeToken: helper that persists a JWT in localStorage (or sessionStorage)
 //   so the session survives page reloads.
+import { useOffline } from '../../context/OfflineContext';
+// useOffline: hook returning the global connectivity status (online/offline/syncing)
+//   so the login screen can show whether the backend is reachable before signing in.
 
 /**
  * Props accepted by AuthView.
@@ -39,6 +42,9 @@ interface AuthViewProps {
 type AuthMode = 'login' | 'setPassword' | 'forgot' | 'reset';
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
+  // Connectivity status from the global offline context (online/offline/syncing).
+  const { status: connectivityStatus, pendingCount } = useOffline();
+
   // -------------------------------------------------------------------------
   // State — login form
   // -------------------------------------------------------------------------
@@ -460,6 +466,43 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
             )}
           </div>
         )}
+
+        {/* Connectivity status footer — shows whether the backend is reachable
+            before the user attempts to sign in. */}
+        <div className="pt-4 border-t border-[#e1e3e3] flex items-center justify-center gap-1.5">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              connectivityStatus === 'online'
+                ? 'bg-emerald-500'
+                : connectivityStatus === 'syncing'
+                ? 'bg-blue-500 animate-pulse'
+                : 'bg-amber-500'
+            }`}
+          />
+          <span
+            className={`text-[10px] font-bold tracking-wide ${
+              connectivityStatus === 'online'
+                ? 'text-emerald-700'
+                : connectivityStatus === 'syncing'
+                ? 'text-blue-700'
+                : 'text-amber-700'
+            }`}
+            title={
+              connectivityStatus === 'online'
+                ? 'Backend is reachable. You can sign in.'
+                : connectivityStatus === 'syncing'
+                ? 'Syncing offline changes to the server...'
+                : 'Backend unreachable — sign-in may fail. Offline changes will sync when it returns.'
+            }
+          >
+            {connectivityStatus === 'online' && 'System Online'}
+            {connectivityStatus === 'syncing' && 'Syncing...'}
+            {connectivityStatus === 'offline' && 'System Offline'}
+          </span>
+          {pendingCount > 0 && (
+            <span className="text-[10px] text-[#444748]">· {pendingCount} queued</span>
+          )}
+        </div>
 
         {/* ================================================================= */}
         {/* RESET PASSWORD MODE — code entry or post-reset confirmation        */}
