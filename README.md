@@ -2,11 +2,18 @@
 
 Full-stack church management system: **React 19 frontend** + **local SQLite backend**.
 
+> **For management/executive audiences:** see **[REPORT.md](REPORT.md)** (status &
+> capability report) — and **[INSTALL.md](INSTALL.md)** for deploying on another PC.
+
 ---
 
 ## Run as a desktop app (recommended)
 
 ECCLESIA is an **Electron desktop app** — it opens in its own native window, not the browser.
+
+> **Installing on another PC?** See **[INSTALL.md](INSTALL.md)** — ready-made installer
+> (.exe), portable source-folder run, and the one-click parish setup.
+
 
 ### 1. Install (once)
 
