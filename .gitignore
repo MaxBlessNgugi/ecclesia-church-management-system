@@ -11,6 +11,10 @@ coverage/
 
 # Build outputs (installers, unpacked apps)
 release*/
+win-unpacked/
+*.blockmap
+builder-debug.yml
+latest.yml
 
 # Local agent workspace
 .freebuff/
@@ -19,6 +23,7 @@ release*/
 backend/node_modules/
 backend/dist/
 backend/.env
+backend/logs/
 backend/prisma/*.db
 backend/prisma/*.db-journal
 *.db

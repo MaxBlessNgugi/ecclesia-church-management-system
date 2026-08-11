@@ -220,8 +220,9 @@ paid, widely-distributed commercial release.
    validate in the field.
 3. **Add automatic updates** — so installed parishes receive future versions
    without a technician visiting.
-4. **Sales readiness** — demo data + script already prepared (`docs/pitch/`); the
-   feature sheet and pricing are ready for presentations.
+4. **Sales readiness** — demo dataset ready (`npm run db:seed:demo` loads a
+   realistic 30-member parish; `npm run db:clear:demo` wipes it) for
+   presentations.
 
 ---
 
