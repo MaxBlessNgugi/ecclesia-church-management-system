@@ -52,6 +52,7 @@ import { appPrisma, prisma } from '../lib/prisma.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
 import { softDelete, resolveActor } from '../lib/audit.js';
+import { emitChange } from '../lib/events.js';
 
 // Create a new Express router instance for all Christian-related routes.
 const router = Router();
@@ -272,6 +273,9 @@ router.post('/', async (req, res, next) => {
 
     // Return 201 Created with the mapped response.
     res.status(201).json(mapChristian(created));
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('christians', 'created', mapChristian(created));
   } catch (e) {
     next(e);
   }
@@ -299,6 +303,9 @@ router.put('/:id', async (req, res, next) => {
 
     // Map to API response shape and return.
     res.json(mapChristian(updated));
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('christians', 'updated', mapChristian(updated));
   } catch (e) {
     next(e);
   }
@@ -330,6 +337,9 @@ router.patch('/:id/sacraments', async (req, res, next) => {
 
     // Return full mapped Christian (client needs all fields for UI update).
     res.json(mapChristian(updated));
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('christians', 'updated', mapChristian(updated));
   } catch (e) {
     next(e);
   }
@@ -360,6 +370,9 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
 
     // Step 4: Return 204 No Content (successful deletion, no response body).
     res.status(204).send();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('christians', 'deleted', { id: req.params.id });
   } catch (e) {
     next(e);
   }

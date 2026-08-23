@@ -81,6 +81,7 @@ import { appPrisma } from '../lib/prisma.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
 import { softDelete, resolveActor, HttpError } from '../lib/audit.js';
+import { emitChange } from '../lib/events.js';
 
 // Create a new Express router for all inventory-related routes.
 const router = Router();
@@ -199,6 +200,9 @@ router.post('/items', async (req, res, next) => {
 
     // Return 201 Created with the item object.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('inventory-items', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -242,6 +246,9 @@ router.put('/items/:id', async (req, res, next) => {
 
     // Return the updated item.
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('inventory-items', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -272,6 +279,9 @@ router.delete('/items/:id', async (req: AuthRequest, res, next) => {
 
     // Return 204 No Content (successful deletion, no response body).
     res.status(204).send();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('inventory-items', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 
@@ -339,6 +349,11 @@ router.post('/items/batch-update', async (req, res, next) => {
 
     // Return all updated items.
     res.json(updated);
+
+    // Broadcast real-time events for each updated item.
+    for (const item of updated) {
+      emitChange('inventory-items', 'updated', item);
+    }
   } catch (e) { next(e); }
 });
 
@@ -379,6 +394,9 @@ router.post('/deliveries', async (req, res, next) => {
 
     // Optionally increase stock of matching category items – left simple for now
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('deliveries', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -427,6 +445,9 @@ router.post('/sales', async (req, res, next) => {
 
     // Return 201 Created with the sale record.
     res.status(201).json(created);
+
+    // Broadcast real-time events: new sale + potential stock decrement.
+    emitChange('sales', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -465,6 +486,9 @@ router.post('/stock-takes', async (req, res, next) => {
 
     // Return 201 Created with the stock take object.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('stock-takes', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -487,6 +511,9 @@ router.patch('/stock-takes/:id/physical', async (req, res, next) => {
 
     // Return the updated stock take object.
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('stock-takes', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -519,6 +546,9 @@ router.post('/issues', async (req, res, next) => {
 
     // Return 201 Created with the stock issue object.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('stock-issues', 'created', created);
   } catch (e) { next(e); }
 });
 

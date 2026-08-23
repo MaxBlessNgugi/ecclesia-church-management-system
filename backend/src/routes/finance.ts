@@ -50,6 +50,7 @@ import { z } from 'zod';                   // Zod — TypeScript-first schema va
 import { appPrisma } from '../lib/prisma.js'; // Singleton Prisma Client instance providing access to the application database
 import { requireAuth } from '../middleware/auth.js';   // Middleware that rejects requests without a valid JWT bearer token
 import { requireModule } from '../middleware/perms.js'; // Middleware that checks the user has permission for a specific module
+import { emitChange } from '../lib/events.js';
 
 // ----- Router Setup -----------------------------------------------------------
 
@@ -140,6 +141,9 @@ router.post('/deposits', async (req, res, next) => {
 
     // Return 201 Created status with the newly created deposit record
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('deposits', 'created', created);
   } catch (e) { next(e); } // Forward validation or database errors to error handler
 });
 
@@ -196,6 +200,9 @@ router.post('/creditors', async (req, res, next) => {
 
     // Return 201 Created with the new creditor record
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('creditors', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -230,6 +237,9 @@ router.put('/creditors/:id', async (req, res, next) => {
 
     // Return 200 OK with the updated creditor record
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('creditors', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -250,6 +260,9 @@ router.patch('/creditors/:id/paid', async (req, res, next) => {
 
     // Return 200 OK with the updated creditor record
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('creditors', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -303,6 +316,9 @@ router.post('/debtors', async (req, res, next) => {
 
     // Return 201 Created with the new debtor record
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('debtors', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -345,6 +361,9 @@ router.post('/debtors/:id/payments', async (req, res, next) => {
 
     // Return 200 OK with the updated debtor record
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('debtors', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -425,6 +444,9 @@ router.post('/expenses', async (req, res, next) => {
 
     // Return 201 Created with the newly created expense record
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('expenses', 'created', created);
   } catch (e) { next(e); }
 });
 

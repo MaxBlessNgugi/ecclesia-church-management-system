@@ -1,6 +1,7 @@
 // Manual backup trigger: `npm run backup` (tsx scripts/backup.ts)
-// Creates a consistent SQLite snapshot in BACKUP_DIR and mirrors it to
+// Creates a PostgreSQL dump in BACKUP_DIR and mirrors it to
 // BACKUP_DEST_DIR when configured. Safe to run while the server is up.
+// Requires pg_dump to be in PATH.
 import 'dotenv/config';
 import { backupDatabase } from '../src/lib/backup.js';
 

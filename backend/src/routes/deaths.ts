@@ -38,6 +38,7 @@ import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
+import { emitChange } from '../lib/events.js';
 
 // Create a new Express router for all death-record routes.
 const router = Router();
@@ -109,6 +110,10 @@ router.post('/', async (req, res, next) => {
 
     // Return 201 Created with the death record.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('deaths', 'created', created);
+    emitChange('christians', 'updated', { id: data.christianId, status: 'Deceased' });
   } catch (e) { next(e); }
 });
 

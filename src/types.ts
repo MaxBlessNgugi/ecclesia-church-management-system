@@ -1112,8 +1112,8 @@ export interface DiagnosticsInfo {
   uptimeSeconds: number;
   /** Runtime environment variables (node environment, port). */
   env: { nodeEnv?: string; port?: string };
-  /** SQLite database file information. */
-  db: { path: string; exists: boolean; sizeBytes: number | null; freeBytes: number | null };
+  /** Database connection information. */
+  db: { connected: boolean; provider: string; freeBytes: number | null };
   /** Row counts for all database tables. */
   rowCounts: Record<string, number>;
   /** Backup directory information. */

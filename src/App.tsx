@@ -128,6 +128,7 @@ import {
 } from './services/api';
 import { PermissionsProvider } from './permissions';
 import { getPendingCount } from './lib/db';
+import { useRealtime } from './hooks/useRealtime';
 
 /**
  * Main Application Component for Ecclesia Church Management System.
@@ -178,6 +179,38 @@ export const App: React.FC = () => {
   // Selected parishioner context passed across multi-step action views
   /** The parishioner selected for cross-panel handoff, or null. */
   const [selectedMember, setSelectedMember] = useState<ChristianRecord | null>(null);
+
+  // ── Real-time listeners (Socket.IO) ──────────────────────────────────────
+  // These update local state when OTHER users make changes via the backend.
+  useRealtime('christians', ({ action, data }) => {
+    if (action === 'created') setChristians(prev => [data, ...prev]);
+    if (action === 'updated') setChristians(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
+    if (action === 'deleted') setChristians(prev => prev.filter(c => c.id !== data.id));
+  });
+  useRealtime('deposits', ({ action, data }) => {
+    if (action === 'created') setDeposits(prev => [data, ...prev]);
+    if (action === 'updated') setDeposits(prev => prev.map(d => d.id === data.id ? { ...d, ...data } : d));
+    if (action === 'deleted') setDeposits(prev => prev.filter(d => d.id !== data.id));
+  });
+  useRealtime('creditors', ({ action, data }) => {
+    if (action === 'created') setCreditors(prev => [data, ...prev]);
+    if (action === 'updated') setCreditors(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
+    if (action === 'deleted') setCreditors(prev => prev.filter(c => c.id !== data.id));
+  });
+  useRealtime('debtors', ({ action, data }) => {
+    if (action === 'created') setDebtors(prev => [data, ...prev]);
+    if (action === 'updated') setDebtors(prev => prev.map(d => d.id === data.id ? { ...d, ...data } : d));
+    if (action === 'deleted') setDebtors(prev => prev.filter(d => d.id !== data.id));
+  });
+  useRealtime('expenses', ({ action, data }) => {
+    if (action === 'created') setExpenses(prev => [data, ...prev]);
+    if (action === 'updated') setExpenses(prev => prev.map(e => e.id === data.id ? { ...e, ...data } : e));
+    if (action === 'deleted') setExpenses(prev => prev.filter(e => e.id !== data.id));
+  });
+  useRealtime('deaths', ({ action, data }) => {
+    if (action === 'created') setDeathRecords(prev => [data, ...prev]);
+    if (action === 'deleted') setDeathRecords(prev => prev.filter(d => d.id !== data.id));
+  });
 
   // Warn user before closing tab with unsynced changes
   useEffect(() => {

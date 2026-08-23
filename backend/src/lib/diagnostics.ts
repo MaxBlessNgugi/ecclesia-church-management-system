@@ -1,16 +1,15 @@
 // =============================================================================
 // Support diagnostics
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // One endpoint (`GET /api/admin/diagnostics`) that lets a support engineer see
 // the health of a deployment without access to the machine: version, uptime,
-// DB file size/location, per-table row counts, last backup, and disk space.
+// DB connectivity, per-table row counts, last backup, and memory.
 // No secrets are included.
 // =============================================================================
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
 import { appPrisma } from './prisma.js';
-import { dbFilePath, lastBackupTime, backupDirPath } from './backup.js';
+import { lastBackupTime, backupDirPath } from './backup.js';
 import { appVersion } from './export.js';
 
 const COUNT_MODELS = [
@@ -44,9 +43,8 @@ export interface DiagnosticsInfo {
   uptimeSeconds: number;
   env: { nodeEnv: string | undefined; port: string | undefined };
   db: {
-    path: string;
-    exists: boolean;
-    sizeBytes: number | null;
+    connected: boolean;
+    provider: string;
     freeBytes: number | null;
   };
   rowCounts: Record<string, number>;
@@ -54,23 +52,16 @@ export interface DiagnosticsInfo {
 }
 
 export async function collectDiagnostics(): Promise<DiagnosticsInfo> {
-  const dbPath = dbFilePath();
-  let sizeBytes: number | null = null;
-  let exists = false;
-  let freeBytes: number | null = null;
+  // Check database connectivity
+  let connected = false;
+  try {
+    await appPrisma.$queryRaw`SELECT 1`;
+    connected = true;
+  } catch {
+    /* DB unreachable */
+  }
 
-  try {
-    exists = fs.existsSync(dbPath);
-    if (exists) sizeBytes = fs.statSync(dbPath).size;
-  } catch {
-    /* report as missing */
-  }
-  try {
-    const s = fs.statfsSync(path.dirname(dbPath));
-    freeBytes = s.bavail * s.bsize;
-  } catch {
-    freeBytes = os.freemem();
-  }
+  const freeBytes = os.freemem();
 
   const rowCounts: Record<string, number> = {};
   for (const model of COUNT_MODELS) {
@@ -83,7 +74,7 @@ export async function collectDiagnostics(): Promise<DiagnosticsInfo> {
 
   let backupCount = 0;
   try {
-    backupCount = fs.readdirSync(backupDirPath()).filter((f) => f.endsWith('.db')).length;
+    backupCount = fs.readdirSync(backupDirPath()).filter((f) => f.endsWith('.sql')).length;
   } catch {
     backupCount = 0;
   }
@@ -95,7 +86,7 @@ export async function collectDiagnostics(): Promise<DiagnosticsInfo> {
     platform: `${os.platform()} ${os.arch()}`,
     uptimeSeconds: Math.round(process.uptime()),
     env: { nodeEnv: process.env.NODE_ENV, port: process.env.PORT },
-    db: { path: dbPath, exists, sizeBytes, freeBytes },
+    db: { connected, provider: 'postgresql', freeBytes },
     rowCounts,
     backups: {
       dir: backupDirPath(),

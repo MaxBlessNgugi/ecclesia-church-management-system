@@ -7,21 +7,27 @@
 //   the built frontend (when available). No separate web server (nginx, Apache)
 //   needed — parish PC runs `npm start` and gets the full app on one port.
 //
+//   Now enhanced with Socket.IO for real-time multi-user access:
+//   - All connected browsers receive instant updates when any data changes
+//   - JWT-authenticated WebSocket connections for secure real-time sync
+//   - http.Server wraps Express so Socket.IO can share the same port
+//
 // STARTUP SEQUENCE
 //   1. Load .env (dotenv/config) — must run before any other imports
 //   2. resolveJwtSecret()      → Fail-fast if JWT_SECRET missing in production
-//   3. startBackupScheduler()  → Periodic SQLite .db → .backup timestamped files
-//   4. Mount global middleware:
+//   3. Mount global middleware:
 //      - helmet()               → Security headers (CSP, HSTS, X-Frame-Options)
 //      - cors({origin: true})   → Permissive for LAN/dev (credentials: true)
 //      - morgan('dev')          → Request logging (method, url, status, ms)
 //      - express.json(2mb)      → Body parser with size limit
-//   5. Mount feature routers under /api/* (exact contract match with API.md)
-//   6. Self-host frontend build from <repo>/dist when present
+//   4. Mount feature routers under /api/* (exact contract match with API.md)
+//   5. Self-host frontend build from <repo>/dist when present
 //      - express.static(FRONTEND_DIST)    → Serves assets with cache headers
 //      - SPA fallback: /* → index.html    → Client-side routing for non-/api
-//   7. Register centralized errorHandler as final middleware
-//   8. app.listen(PORT) — default 5000
+//   6. Register centralized errorHandler as final middleware
+//   7. Create http.Server from Express app
+//   8. Initialize Socket.IO on the HTTP server (JWT-authenticated WebSocket)
+//   9. httpServer.listen(PORT) — default 5000
 //
 // ROUTE MOUNT MAP (must match API.md exactly)
 //   ┌──────────────────┬──────────────────────────────────────────────────────┐
@@ -58,7 +64,8 @@
 //
 // RELATED FILES
 //   - backend/src/lib/config.ts        → resolveJwtSecret()
-//   - backend/src/lib/backup.ts        → startBackupScheduler(), backupDatabase()
+//   - backend/src/lib/socket.ts        → initSocket(), getIO()
+//   - backend/src/lib/events.ts        → emitChange() for route handlers
 //   - backend/src/middleware/errorHandler.ts → Centralized error handler
 //   - backend/src/routes/*.ts          → Feature route modules
 //   - vite.config.ts                   → Frontend build output → ../dist
@@ -79,6 +86,9 @@ import path from 'node:path';
 // used to locate the frontend dist relative to this source file.
 import { fileURLToPath } from 'node:url';
 
+// Node.js built-in: http module for creating a shared server (Express + Socket.IO).
+import http from 'node:http';
+
 // Express framework: creates the HTTP server and provides routing/middleware.
 import express from 'express';
 
@@ -96,22 +106,19 @@ import morgan from 'morgan';
 // Fails fast in production if JWT_SECRET is not set.
 import { resolveJwtSecret } from './lib/config.js';
 
-// Starts the periodic SQLite backup scheduler that creates timestamped .backup files.
-import { startBackupScheduler } from './lib/backup.js';
-
 // Centralized error-handling middleware that catches all unhandled errors.
 import { errorHandler } from './middleware/errorHandler.js';
 
 // Structured logger for production monitoring (replaces console.log).
 import { logger } from './lib/logger.js';
 
+// Socket.IO initializer — creates the real-time WebSocket server on the HTTP server.
+import { initSocket } from './lib/socket.js';
+
 // ── Startup: fail-fast checks ──────────────────────────────────────────────
 
 // Validate that JWT_SECRET is present; throws in production if missing.
 resolveJwtSecret();
-
-// Begin periodic SQLite backups (runs on a timer in the background).
-startBackupScheduler();
 
 // ── Feature route imports ──────────────────────────────────────────────────
 
@@ -180,7 +187,18 @@ const servingFrontend = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'));
 // ── Global middleware stack (order matters) ─────────────────────────────────
 
 // Security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, etc.
-app.use(helmet());
+// CSP includes connect-src for Socket.IO WebSocket connections.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      connectSrc: [
+        "'self'",
+        "ws:",
+        "wss:",
+      ],
+    },
+  },
+}));
 
 // CORS: allow any origin (for LAN parish networks), with credentials (cookies).
 app.use(cors({ origin: true, credentials: true }));
@@ -287,13 +305,24 @@ if (servingFrontend) {
 // Catches all errors thrown/passed via next(e) from route handlers above.
 app.use(errorHandler);
 
+// ── Create HTTP server + Initialize Socket.IO ──────────────────────────────
+
+// Wrap Express in a Node.js http.Server so Socket.IO can share the same port.
+const httpServer = http.createServer(app);
+
+// Initialize Socket.IO on the HTTP server — sets up JWT auth and connection handling.
+// The io instance is accessible via getIO() from any route handler.
+initSocket(httpServer);
+
 // ── Start the HTTP server ──────────────────────────────────────────────────
 
-// Bind to the configured port and log startup information.
-app.listen(PORT, () => {
+// Bind to the configured port. Uses httpServer.listen (not app.listen) so
+// both HTTP requests and WebSocket connections are served on the same port.
+httpServer.listen(PORT, () => {
   // Log server startup with structured logger for production monitoring.
   logger.info(`Ecclesia Server running on http://localhost:${PORT}`);
   logger.info(`Health: http://localhost:${PORT}/api/health`);
+  logger.info(`WebSocket: ws://localhost:${PORT} (Socket.IO)`);
 
   // If the frontend dist exists, log the full app URL.
   if (servingFrontend) {

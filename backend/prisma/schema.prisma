@@ -2,7 +2,7 @@
 // Ecclesia CMS — Prisma Database Schema
 // =============================================================================
 //
-// DATABASE: SQLite (file: ./dev.db, env: DATABASE_URL)
+// DATABASE: PostgreSQL (env: DATABASE_URL)
 // ORM:      Prisma Client (generate: `npx prisma generate`)
 // MIGRATIONS: `npx prisma migrate dev` (dev) / `prisma migrate deploy` (prod)
 // SEED:     `npx prisma db seed` → backend/prisma/seed.ts
@@ -59,7 +59,6 @@
 //
 // MIGRATION NOTES
 //   - Run `npx prisma migrate dev --name <description>` for schema changes
-//   - SQLite doesn't support DROP COLUMN in transactions — Prisma handles this
 //   - JSON column changes require NO migration (just update Zod schemas + types)
 //   - Adding required fields: provide @default or make nullable first
 //
@@ -77,10 +76,9 @@ generator client {
 }
 
 // Database connection — reads DATABASE_URL from the environment.
-// Default is SQLite file:./dev.db for local development.
-// Production should override with a PostgreSQL connection string.
+// PostgreSQL connection string via DATABASE_URL env var.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

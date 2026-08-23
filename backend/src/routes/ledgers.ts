@@ -56,6 +56,7 @@ import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
 import { HttpError } from '../lib/audit.js';
+import { emitChange } from '../lib/events.js';
 
 // Create a new Express router for all ledger-related routes.
 const router = Router();
@@ -108,6 +109,9 @@ router.post('/', async (req, res, next) => {
 
     // Return 201 Created with the ledger object.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('ledgers', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -184,6 +188,11 @@ router.post('/transfer', async (req, res, next) => {
 
     // Return 201 Created with the movement record.
     res.status(201).json(movement);
+
+    // Broadcast real-time events: new movement + updated ledger balances.
+    emitChange('ledger-movements', 'created', movement);
+    emitChange('ledgers', 'updated', { id: fromLedgerId });
+    emitChange('ledgers', 'updated', { id: toLedgerId });
   } catch (e) { next(e); }
 });
 

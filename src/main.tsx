@@ -40,6 +40,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { OfflineProvider } from './context/OfflineContext';
+import { SocketProvider } from './context/SocketContext';
 import './assets/fonts.css';
 import './index.css';
 
@@ -51,7 +52,9 @@ const rootElement = document.getElementById('root')!;
 createRoot(rootElement).render(
   <StrictMode>
     <OfflineProvider>
-      <App />
+      <SocketProvider>
+        <App />
+      </SocketProvider>
     </OfflineProvider>
   </StrictMode>,
 );

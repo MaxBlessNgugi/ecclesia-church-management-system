@@ -86,6 +86,7 @@ import { requireModule } from '../middleware/perms.js';
 
 // Audit utilities: softDelete for marking records deleted, restoreFromLog for restoring, listAuditLogs for querying audit trail, resolveActor for user info, loadCurrentRecord for current state, restoreMany for bulk restore, HttpError for custom errors
 import { softDelete, restoreFromLog, listAuditLogs, resolveActor, loadCurrentRecord, restoreMany, HttpError } from '../lib/audit.js';
+import { emitChange } from '../lib/events.js';
 
 // Backup utility: backupDatabase creates SQLite database snapshots
 import { backupDatabase } from '../lib/backup.js';
@@ -226,6 +227,9 @@ router.post('/users', async (req: AuthRequest, res, next) => {
     });
     // Return created user in safe public format with 201 Created status
     res.status(201).json(publicUser(user));
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('users', 'created', publicUser(user));
   } catch (e) { next(e); } // Pass validation or database errors to error handler
 });
 
@@ -279,6 +283,9 @@ router.put('/users/:id', async (req: AuthRequest, res, next) => {
     const user = await appPrisma.user.update({ where: { id: target.id }, data: update });
     // Return updated user in safe public format
     res.json(publicUser(user));
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('users', 'updated', publicUser(user));
   } catch (e) { next(e); } // Pass errors to error handler
 });
 
@@ -310,6 +317,9 @@ router.delete('/users/:id', async (req: AuthRequest, res, next) => {
     await softDelete('User', target.id, actor);
     // Return 204 No Content on successful deletion
     res.status(204).end();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('users', 'deleted', { id: target.id });
   } catch (e) { next(e); } // Pass errors to error handler
 });
 
@@ -567,7 +577,7 @@ router.post('/audit-logs/:id/restore', async (req: AuthRequest, res, next) => {
 // POST /backup — Manual backup trigger — support / admin can snapshot on demand.
 router.post('/backup', async (_req, res, next) => {
   try {
-    // Execute database backup (creates SQLite snapshot file)
+    // Execute database backup (creates PostgreSQL dump file)
     const info = await backupDatabase();
     // Return backup metadata: filename, size in bytes, timestamp
     res.json({ file: info.file, sizeBytes: info.size, at: info.at.toISOString() });

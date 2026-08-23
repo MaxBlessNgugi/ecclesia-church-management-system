@@ -55,6 +55,7 @@ import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
+import { emitChange } from '../lib/events.js';
 
 // Create a new Express router for all activity-related routes.
 const router = Router();
@@ -151,7 +152,7 @@ router.post('/contributions', async (req, res, next) => {
     });
 
     // Return 201 Created with the response (JSON fields already parsed by client).
-    res.status(201).json({
+    const contributionResponse = {
       id: created.id,
       christianId: created.christianId,
       memberName: created.memberName,
@@ -161,7 +162,11 @@ router.post('/contributions', async (req, res, next) => {
       monthlyTracker: data.monthlyTracker,     // Return parsed object, not raw JSON
       amountKES: created.amountKES,
       date: created.date,
-    });
+    };
+    res.status(201).json(contributionResponse);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('contributions', 'created', contributionResponse);
   } catch (e) {
     next(e);
   }
@@ -236,6 +241,9 @@ router.post('/transfers', async (req, res, next) => {
 
     // Return 201 Created with the transfer record.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('transfers', 'created', created);
   } catch (e) {
     next(e);
   }
@@ -315,7 +323,7 @@ router.post('/billed-items', async (req, res, next) => {
     });
 
     // Return 201 Created with the response object.
-    res.status(201).json({
+    const billedResponse = {
       id: created.id,
       christianId: created.christianId ?? undefined,  // Map null → undefined for client
       memberName: created.memberName,
@@ -326,7 +334,11 @@ router.post('/billed-items', async (req, res, next) => {
       quantity: created.quantity,
       totalAmount: created.totalAmount,
       date: created.date,
-    });
+    };
+    res.status(201).json(billedResponse);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('billed-items', 'created', billedResponse);
   } catch (e) {
     next(e);
   }

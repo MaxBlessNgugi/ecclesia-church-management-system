@@ -67,6 +67,7 @@ import { requireModule } from '../middleware/perms.js';
 // `resolveActor(userId)` looks up the User record for the given ID and returns
 // an actor object suitable for audit trail fields.
 import { softDelete, resolveActor } from '../lib/audit.js';
+import { emitChange } from '../lib/events.js';
 
 // =============================================================================
 // ROUTER INITIALIZATION
@@ -184,6 +185,9 @@ router.post('/employees', async (req, res, next) => {
     });
     // Return 201 Created with the new employee record.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('employees', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -209,6 +213,9 @@ router.put('/employees/:id', async (req, res, next) => {
     // Update the employee record by primary key with the provided fields.
     const updated = await appPrisma.employee.update({ where: { id: req.params.id }, data });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('employees', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -225,6 +232,9 @@ router.delete('/employees/:id', async (req: any, res, next) => {
     await softDelete('Employee', req.params.id, actor);
     // 204 No Content – the deletion was successful, no body returned.
     res.status(204).send();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('employees', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 
@@ -322,6 +332,9 @@ router.post('/payrolls', async (req, res, next) => {
     });
     // Return 201 Created with the new payroll record and its employee.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('payrolls', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -371,6 +384,9 @@ router.put('/payrolls/:id', async (req, res, next) => {
       include: { employee: true },
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('payrolls', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -386,6 +402,9 @@ router.delete('/payrolls/:id', async (req: any, res, next) => {
     await softDelete('Payroll', req.params.id, actor);
     // 204 No Content – deletion successful.
     res.status(204).send();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('payrolls', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 
@@ -402,6 +421,9 @@ router.patch('/payrolls/:id/approve', async (req, res, next) => {
       include: { employee: true },
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('payrolls', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -418,6 +440,9 @@ router.patch('/payrolls/:id/pay', async (req, res, next) => {
       include: { employee: true },
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('payrolls', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -501,6 +526,9 @@ router.post('/leaves', async (req, res, next) => {
     });
     // Return 201 Created with the new leave record and its employee.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('leaves', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -537,6 +565,9 @@ router.put('/leaves/:id', async (req, res, next) => {
       include: { employee: true },
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('leaves', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -552,6 +583,9 @@ router.delete('/leaves/:id', async (req: any, res, next) => {
     await softDelete('Leave', req.params.id, actor);
     // 204 No Content – deletion successful.
     res.status(204).send();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('leaves', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 
@@ -572,6 +606,9 @@ router.patch('/leaves/:id/approve', async (req: any, res, next) => {
       include: { employee: true },
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('leaves', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -594,6 +631,9 @@ router.patch('/leaves/:id/reject', async (req, res, next) => {
       include: { employee: true },
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('leaves', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -677,6 +717,9 @@ router.post('/recruitments', async (req, res, next) => {
     });
     // Return 201 Created with the new recruitment record.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('recruitments', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -711,6 +754,9 @@ router.put('/recruitments/:id', async (req, res, next) => {
       include: { applicants: true },
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('recruitments', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -726,6 +772,9 @@ router.delete('/recruitments/:id', async (req: any, res, next) => {
     await softDelete('Recruitment', req.params.id, actor);
     // 204 No Content – deletion successful.
     res.status(204).send();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('recruitments', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 
@@ -773,6 +822,9 @@ router.post('/recruitments/:id/applicants', async (req, res, next) => {
     });
     // Return 201 Created with the new applicant record.
     res.status(201).json(created);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('recruitment-applicants', 'created', created);
   } catch (e) { next(e); }
 });
 
@@ -804,6 +856,9 @@ router.put('/applicants/:id', async (req, res, next) => {
       data,
     });
     res.json(updated);
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('recruitment-applicants', 'updated', updated);
   } catch (e) { next(e); }
 });
 
@@ -819,6 +874,9 @@ router.delete('/applicants/:id', async (req: any, res, next) => {
     await softDelete('RecruitmentApplicant', req.params.id, actor);
     // 204 No Content – deletion successful.
     res.status(204).send();
+
+    // Broadcast real-time event to all connected clients.
+    emitChange('recruitment-applicants', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 
