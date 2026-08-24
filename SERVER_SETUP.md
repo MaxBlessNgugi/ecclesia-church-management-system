@@ -52,8 +52,8 @@ cd ..
 Create or edit `backend/.env`:
 
 ```bash
-# Database (SQLite for simplicity)
-DATABASE_URL="file:./dev.db"
+# PostgreSQL — multi-user concurrent database
+DATABASE_URL="postgresql://postgres:ecclesia@localhost:5432/ecclesia?schema=public"
 
 # Security — CHANGE THIS to a random secret!
 JWT_SECRET="your-random-secret-here"
@@ -388,11 +388,15 @@ If you need to change the backend port:
 
 ## Backup Strategy
 
-The SQLite database is in `backend/dev.db`. Back it up regularly:
+The PostgreSQL database is backed up automatically using `pg_dump`. Backups are stored in `backend/backups/` and rotated (keeping 14 by default).
 
 **Manual Backup:**
 ```bash
-cp backend/dev.db backups/ecclesia-backup-$(date +%Y%m%d).db
+# Using the admin API endpoint
+POST /api/admin/backup
+
+# Or using pg_dump directly
+pg_dump -U postgres ecclesia > backups/ecclesia-backup-$(date +%Y%m%d).sql
 ```
 
 **Automated Backup (Linux cron):**

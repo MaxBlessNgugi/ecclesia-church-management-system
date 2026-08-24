@@ -78,7 +78,7 @@ generator client {
 // Database connection — reads DATABASE_URL from the environment.
 // PostgreSQL connection string via DATABASE_URL env var.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
