@@ -148,7 +148,7 @@ export type HRSubTab = 'directory' | 'onboarding' | 'payroll' | 'leave' | 'recru
  * - 'push_payments': M-Pesa push payment configuration
  * - 'audit': Soft-delete audit trail and trash
  */
-export type AdminSubTab = 'rights' | 'users' | 'push_payments' | 'audit';
+export type AdminSubTab = 'rights' | 'users' | 'push_payments' | 'audit' | 'parish';
 
 /**
  * Represents sacramental data for a single sacrament (Baptism, Confirmation, etc.).
@@ -921,22 +921,43 @@ export interface PushPaymentSettings {
 }
 
 /**
- * Parish-level system settings — singleton row storing the parish identity
- * and first-run wizard state. Sourced from GET /api/settings; the receipt and
- * certificate views use parishName/diocese instead of hardcoded placeholders.
+ * Parish-level settings — singleton row storing the full parish identity
+ * and first-run wizard state. Sourced from GET /api/parish; the receipt and
+ * certificate views use this instead of hardcoded placeholders.
  */
-export interface SystemSettings {
+export interface ParishSettings {
   /** Singleton id ("default"). */
   id: string;
-  /** Name of the parish as configured during setup. */
-  parishName: string;
+  /** Parish name (e.g. "St. Mary's Parish"). */
+  name: string;
   /** Diocese the parish belongs to (e.g. "Archdiocese of Nairobi"). */
   diocese: string;
+  /** Local church / outstation name. */
+  localChurch: string;
+  /** Label for the Small Christian Community grouping (default "Jumuiya"). */
+  sccLabel: string;
+  /** County (administrative region). */
+  county: string;
+  /** Country (default "Kenya"). */
+  country: string;
+  /** Physical address. */
+  address: string;
+  /** Contact phone number. */
+  phone: string;
+  /** Contact email address. */
+  email: string;
+  /** Parish motto / tagline. */
+  motto: string;
+  /** Parish logo as a base64 data URL, or null if not uploaded. */
+  logoData: string | null;
   /** Whether the first-run setup wizard has been completed. */
   setupCompleted: boolean;
-  /** Current step of the first-run setup wizard. */
-  setupStep: number;
+  /** ISO date-time of last update. */
+  updatedAt: string;
 }
+
+/** @deprecated Use ParishSettings instead. Kept for backward compatibility. */
+export type SystemSettings = ParishSettings;
 
 /**
  * User role identifiers — determines the base level of system access.

@@ -110,7 +110,8 @@ import {
   InventoryView,
   LedgersView,
   ReportsView,
-  SacramentsView
+  SacramentsView,
+  SetupView
 } from './components/views';
 import {
   authApi,
@@ -122,6 +123,7 @@ import {
   depositsApi,
   expensesApi,
   getStoredToken,
+  parishApi,
   requestWithQueue,
   cacheApiResponse,
   getCachedResponse
@@ -171,6 +173,10 @@ export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   /** Whether the app is still verifying the existing session on mount (shows loading screen). */
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  /** Whether the parish setup wizard must be completed before entering the app. */
+  const [needsSetup, setNeedsSetup] = useState(false);
+  /** Whether the user must change their temporary password before accessing the app. */
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   // Currently signed-in user (with per-user panel/action permissions)
   /** The currently authenticated user object including role and permissions, or null if unauthenticated. */
@@ -287,10 +293,44 @@ export const App: React.FC = () => {
     try {
       const me = await authApi.me();
       setCurrentUser(me);
+      // If the user must change their temporary password, force them to do so
+      // before entering any part of the app.
+      if (me.mustChangePassword) {
+        setMustChangePassword(true);
+        setIsAuthenticated(true);
+        return;
+      }
+      setMustChangePassword(false);
     } catch {
       setCurrentUser(null);
     }
     setIsAuthenticated(true);
+    // Check if parish setup has been completed
+    try {
+      const parish = await parishApi.get();
+      if (!parish.setupCompleted) {
+        setNeedsSetup(true);
+        return; // Don't load dashboard data — wizard is the gate
+      }
+    } catch {
+      // If parish settings can't be fetched, assume setup is needed
+      setNeedsSetup(true);
+      return;
+    }
+    setNeedsSetup(false);
+    setCurrentTab('dashboard');
+    await loadDashboardData();
+  };
+
+  /** Called after the password change completes — re-checks the session. */
+  const handlePasswordChangeComplete = async () => {
+    setMustChangePassword(false);
+    await handleAuthSuccess();
+  };
+
+  /** Called after the setup wizard completes — reloads parish data and enters the app. */
+  const handleSetupComplete = async () => {
+    setNeedsSetup(false);
     setCurrentTab('dashboard');
     await loadDashboardData();
   };
@@ -309,6 +349,24 @@ export const App: React.FC = () => {
         const me = await authApi.me();
         setCurrentUser(me);
         setIsAuthenticated(true);
+        // If user must change password, force them to do so before anything else
+        if (me.mustChangePassword) {
+          setMustChangePassword(true);
+          return;
+        }
+        setMustChangePassword(false);
+        // Check if parish setup has been completed
+        try {
+          const parish = await parishApi.get();
+          if (!parish.setupCompleted) {
+            setNeedsSetup(true);
+            return; // Don't load dashboard — wizard is the gate
+          }
+        } catch {
+          setNeedsSetup(true);
+          return;
+        }
+        setNeedsSetup(false);
         setCurrentTab('dashboard');
         await loadDashboardData();
       } catch {
@@ -681,6 +739,16 @@ export const App: React.FC = () => {
 
   if (!isAuthenticated) {
     return <AuthView onSuccessAuth={() => void handleAuthSuccess()} />;
+  }
+
+  // Parish setup wizard gate — blocks access to the main app until completed
+  if (needsSetup) {
+    return <SetupView onComplete={() => void handleSetupComplete()} />;
+  }
+
+  // Forced password change gate — blocks access until user changes temp password
+  if (mustChangePassword) {
+    return <AuthView onSuccessAuth={() => void handlePasswordChangeComplete()} />;
   }
 
   return (

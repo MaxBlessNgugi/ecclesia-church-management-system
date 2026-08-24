@@ -70,7 +70,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   // Pending offline mutations — shown in the registry metrics sidebar
   const { pendingCount } = useOffline();
   // Configured parish identity — used on receipts instead of a hardcoded name
-  const { parishName } = useParishInfo();
+  const parish = useParishInfo();
   // Controls which of the three sub-tab panels is currently rendered
   const [subTab, setSubTab] = useState<ActivitiesSubTab>(initialSubTab);
 
@@ -978,9 +978,18 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           {/* White receipt card — centered, shadowed, scrollable */}
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            {/* Receipt header — parish name, subtitle, and receipt number/date */}
+            {/* Receipt header — parish logo, name, subtitle, and receipt number/date */}
             <div className="text-center border-b border-[#e1e3e3] pb-4 space-y-1">
-              <div className="text-xl font-bold font-serif text-[#1a1c1c]">† {parishName || 'ECCLESIA PARISH'}</div>
+              {/* Parish logo (if available) */}
+              {parish.logoData && (
+                <div className="flex justify-center mb-1">
+                  <img src={parish.logoData} alt="Parish logo" className="w-10 h-10 object-contain" />
+                </div>
+              )}
+              <div className="text-xl font-bold font-serif text-[#1a1c1c]">† {parish.name || 'ECCLESIA PARISH'}</div>
+              {parish.localChurch && (
+                <p className="text-xs text-[#444748]">{parish.localChurch}</p>
+              )}
               <p className="text-[10px] text-[#444748] uppercase tracking-widest">
                 Official Sacrament & Service Receipt
               </p>
@@ -1058,7 +1067,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
             <ContributionReceipt
               ref={contributionReceiptRef}
               receipt={lastContribution}
-              parishName={parishName || 'ECCLESIA PARISH'}
+              parish={parish}
             />
 
             {/* Action buttons — Close and Print Receipt */}

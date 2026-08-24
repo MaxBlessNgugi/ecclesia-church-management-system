@@ -78,7 +78,7 @@ generator client {
 // Database connection — reads DATABASE_URL from the environment.
 // PostgreSQL connection string via DATABASE_URL env var.
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -536,16 +536,23 @@ model InventoryPriceAuditLog {
 // ── Administration / Ops ─────────────────────────────────────────────────────
 
 // Singleton row (id="default") holding first-run wizard state and parish identity.
-// Created lazily by GET /api/settings; PATCH flips setupCompleted once the wizard
+// Created lazily by GET /api/parish; PUT flips setupCompleted once the wizard
 // is finished so the login screen can redirect new users into onboarding.
-model SystemSettings {
-  id             String   @id @default("default")
-  parishName     String   @default("")
-  diocese        String   @default("")
-  setupCompleted Boolean  @default(false)
-  setupStep      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model ParishSettings {
+  id              String   @id @default("default")
+  name            String   @default("")
+  diocese         String   @default("")
+  localChurch     String   @default("")
+  sccLabel        String   @default("Jumuiya")
+  county          String   @default("")
+  country         String   @default("Kenya")
+  address         String   @default("")
+  phone           String   @default("")
+  email           String   @default("")
+  motto           String   @default("")
+  logoData        String?
+  setupCompleted  Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
 
   @@map("system_settings")
 }
