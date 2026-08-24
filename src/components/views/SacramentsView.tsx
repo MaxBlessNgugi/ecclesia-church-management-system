@@ -64,7 +64,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
   // Configured parish identity — printed on the certificate instead of a mock name
-  const { parishName, diocese } = useParishInfo();
+  const parish = useParishInfo();
+  const parishName = parish.name || 'ECCLESIA PARISH';
   // Controls which of the two sub-tabs is currently rendered
   const [subTab, setSubTab] = useState<SacramentsSubTab>(initialSubTab);
 
@@ -716,12 +717,42 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               </div>
             </div>
 
-            {/* Certificate header — parish name and document title */}
+            {/* Certificate header — parish logo, name, local church, and document title */}
             <div className="text-center space-y-2 border-b border-[#1e1e1e] pb-4 relative">
-              <div className="text-3xl font-bold text-[#1a1c1c]">† {parishName || 'ECCLESIA PARISH'}</div>
+              {/* Parish logo (or placeholder) */}
+              {parish.logoData ? (
+                <div className="flex justify-center mb-2">
+                  <img src={parish.logoData} alt="Parish logo" className="w-16 h-16 object-contain" />
+                </div>
+              ) : (
+                <div className="flex justify-center mb-2">
+                  <div className="w-16 h-16 rounded border-2 border-dashed border-[#c4c7c7] flex items-center justify-center text-xs text-[#999]">
+                    Logo
+                  </div>
+                </div>
+              )}
+              {/* Parish name and local church */}
+              <div className="text-3xl font-bold text-[#1a1c1c]">† {parishName}</div>
+              {parish.localChurch && (
+                <p className="text-sm text-[#444748]">{parish.localChurch}</p>
+              )}
+              {/* Diocese and document title */}
               <p className="text-xs tracking-widest uppercase font-semibold text-[#444748]">
-                {diocese ? `${diocese} • ` : ''}Sacramental Record Certificate
+                {parish.diocese ? `${parish.diocese} • ` : ''}Sacramental Record Certificate
               </p>
+              {/* Address and contact */}
+              {(parish.address || parish.phone || parish.email) && (
+                <div className="text-[10px] text-[#444748] space-y-0.5">
+                  {parish.address && <p>{parish.address}</p>}
+                  {(parish.phone || parish.email) && (
+                    <p>
+                      {parish.phone && <span>{parish.phone}</span>}
+                      {parish.phone && parish.email && <span> • </span>}
+                      {parish.email && <span>{parish.email}</span>}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Certificate body — member name and sacrament records */}
@@ -758,6 +789,13 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Parish motto */}
+            {parish.motto && (
+              <p className="text-center text-xs italic text-[#444748] pt-2">
+                &ldquo;{parish.motto}&rdquo;
+              </p>
+            )}
 
             {/* Certificate footer — signature line and action buttons */}
             <div className="pt-6 border-t border-[#1e1e1e] flex justify-between items-end text-xs">

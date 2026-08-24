@@ -162,7 +162,7 @@ import { RecruitmentApplicant } from '../types';
 import { ApplicantCreateInput } from '../types';
 
 /** Push-payment gateway settings (card reader / online payment config). */
-import { PushPaymentSettings, SystemSettings } from '../types';
+import { ParishSettings, PushPaymentSettings, SystemSettings } from '../types';
 
 /** Aggregated row for the Sacrament Report view. */
 import { SacramentReportRow } from '../types';
@@ -1589,30 +1589,42 @@ export const reportsApi = {
 };
 
 /**
- * Parish system settings — GET /api/settings (creates the singleton lazily).
- * Drives the parish name / diocese shown on receipts and certificates.
+ * Parish settings API — canonical endpoint is GET/PUT /api/parish.
+ * Also exposes the legacy settingsApi alias for backward compat.
  */
-export const settingsApi = {
+export const parishApi = {
   /**
-   * Retrieve the current parish system settings.
+   * Retrieve the full parish settings singleton.
    *
-   * **GET** `/settings`
+   * **GET** `/parish`
    *
-   * @returns The `SystemSettings` object (created on first call).
+   * @returns The `ParishSettings` object (created on first call).
    */
-  get: () => request<SystemSettings>('/settings'),
+  get: () => request<ParishSettings>('/parish'),
 
   /**
-   * Partially update the parish system settings.
+   * Update parish settings (full or partial).
    *
-   * **PATCH** `/settings`
+   * **PUT** `/parish`
    *
-   * @param body - Partial settings to update (parishName, diocese, setup*).
-   * @returns The updated `SystemSettings`.
+   * @param body - Partial settings to update.
+   * @returns The updated `ParishSettings`.
    */
+  update: (body: Partial<ParishSettings>) =>
+    request<ParishSettings>('/parish', {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    })
+};
+
+/**
+ * @deprecated Use parishApi instead. Backward-compatible alias.
+ */
+export const settingsApi = {
+  get: () => request<SystemSettings>('/parish'),
   update: (body: Partial<SystemSettings>) =>
-    request<SystemSettings>('/settings', {
-      method: 'PATCH',
+    request<SystemSettings>('/parish', {
+      method: 'PUT',
       body: JSON.stringify(body)
     })
 };

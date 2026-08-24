@@ -44,3 +44,6 @@ export { AdminView } from './AdminView';
 
 // AuthView — authentication screens: login, registration, and password reset
 export { AuthView } from './AuthView';
+
+// SetupView — first-run parish identity wizard (shown when setupCompleted === false)
+export { SetupView } from './SetupView';

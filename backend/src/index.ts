@@ -275,7 +275,8 @@ app.use('/api/reports', reportsRoutes);
 // Dashboard: /api/dashboard (summary counts and recent activity for homepage).
 app.use('/api/dashboard', dashboardRoutes);
 
-// Settings: /api/settings (singleton parish config + first-run wizard state).
+// Parish settings: /api/parish (canonical) + /api/settings (backward-compat alias)
+app.use('/api/parish', settingsRoutes);
 app.use('/api/settings', settingsRoutes);
 
 // SMS: /api/sms/settings + /api/sms/send (Africa's Talking integration).

@@ -21,7 +21,7 @@
 //   - src/components/views/ActivitiesView.tsx → wires this into the payment flow
 // =============================================================================
 import { forwardRef } from 'react';
-import { ContributionRecord } from '../../types';
+import { ContributionRecord, ParishSettings } from '../../types';
 
 /** Props for the printable contribution receipt. */
 export interface ContributionReceiptProps {
@@ -29,10 +29,8 @@ export interface ContributionReceiptProps {
   receipt: ContributionRecord;
   /** Receipt reference printed under the header (defaults to the record id). */
   receiptNo?: string;
-  /** Parish name shown in the letterhead. */
-  parishName?: string;
-  /** Optional parish address line under the letterhead. */
-  parishAddress?: string;
+  /** Parish identity from GET /api/parish. */
+  parish?: ParishSettings;
 }
 
 /**
@@ -92,9 +90,10 @@ function amountInWords(amount: number): string {
  */
 export const ContributionReceipt = forwardRef<HTMLDivElement, ContributionReceiptProps>(
   function ContributionReceipt(
-    { receipt, receiptNo, parishName = 'ECCLESIA PARISH', parishAddress },
+    { receipt, receiptNo, parish },
     ref
   ) {
+    const parishName = parish?.name || 'ECCLESIA PARISH';
     // Months the member has marked as paid in the monthly giving tracker.
     const paidMonths = Object.entries(receipt.monthlyTracker ?? {})
       .filter(([, paid]) => paid)
@@ -104,9 +103,34 @@ export const ContributionReceipt = forwardRef<HTMLDivElement, ContributionReceip
       <div ref={ref} className="bg-white text-[#1a1c1c] font-serif">
         {/* Letterhead */}
         <div className="text-center border-b-2 border-[#1a1c1c] pb-3">
+          {/* Parish logo (or placeholder) */}
+          {parish?.logoData ? (
+            <div className="flex justify-center mb-1">
+              <img src={parish.logoData} alt="Parish logo" className="w-10 h-10 object-contain" />
+            </div>
+          ) : null}
+          {/* Parish name */}
           <div className="text-2xl font-bold tracking-wide">† {parishName}</div>
-          {parishAddress && (
-            <p className="text-[10px] text-[#444748] mt-0.5">{parishAddress}</p>
+          {/* Local church name */}
+          {parish?.localChurch && (
+            <p className="text-xs text-[#444748] mt-0.5">{parish.localChurch}</p>
+          )}
+          {/* Diocese */}
+          {parish?.diocese && (
+            <p className="text-[10px] text-[#444748] uppercase tracking-wider mt-0.5">{parish.diocese}</p>
+          )}
+          {/* Address and contact */}
+          {(parish?.address || parish?.phone || parish?.email) && (
+            <div className="text-[10px] text-[#444748] mt-0.5 space-y-0.5">
+              {parish?.address && <p>{parish.address}</p>}
+              {(parish?.phone || parish?.email) && (
+                <p>
+                  {parish?.phone && <span>{parish.phone}</span>}
+                  {parish?.phone && parish?.email && <span> • </span>}
+                  {parish?.email && <span>{parish.email}</span>}
+                </p>
+              )}
+            </div>
           )}
           <p className="text-[10px] text-[#444748] uppercase tracking-[0.2em] mt-1">
             Official Contribution Receipt
@@ -161,7 +185,7 @@ export const ContributionReceipt = forwardRef<HTMLDivElement, ContributionReceip
         </div>
 
         <p className="text-center text-[10px] italic text-[#444748] pt-4">
-          "Thank you for supporting the sanctuary and mission of our Parish."
+          {parish?.motto ? `“${parish.motto}”` : '"Thank you for supporting the sanctuary and mission of our Parish."'}
         </p>
       </div>
     );

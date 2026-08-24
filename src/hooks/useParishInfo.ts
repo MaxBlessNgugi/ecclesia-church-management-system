@@ -3,41 +3,56 @@
 // =============================================================================
 //
 // PURPOSE
-//   Loads the parish identity (parishName + diocese) from GET /api/settings so
-//   receipts and certificates print the REAL configured parish instead of a
-//   hardcoded placeholder. The settings singleton is created lazily by the
-//   backend, so an empty string simply means setup has not been completed yet.
+//   Loads the full parish identity from GET /api/parish so receipts,
+//   certificates, header, footer, and the admin form all display the real
+//   configured parish data. The settings singleton is created lazily by the
+//   backend, so empty strings simply mean setup has not been completed yet.
 //
 // RELATED FILES
-//   - src/services/api.ts              → settingsApi.get()
-//   - src/components/printables/ContributionReceipt.tsx → consumes parishName
-//   - src/components/views/ActivitiesView.tsx / SacramentsView.tsx → consumers
+//   - src/services/api.ts              → parishApi.get()
+//   - src/components/printables/       → consumes parish name + logo
+//   - src/components/Header.tsx        → dual brand lockup
+//   - src/components/Footer.tsx        → dual brand lockup
 // =============================================================================
-import { useEffect, useState } from 'react';
-import { settingsApi } from '../services/api';
+import { useEffect, useState, useCallback } from 'react';
+import { parishApi } from '../services/api';
+import { ParishSettings } from '../types';
 
-export interface ParishInfo {
-  /** Configured parish name ('' until the setup wizard is completed). */
-  parishName: string;
-  /** Configured diocese ('' until configured). */
-  diocese: string;
-}
+/** Default (empty) parish settings used while loading or when unavailable. */
+const EMPTY_PARISH: ParishSettings = {
+  id: 'default',
+  name: '',
+  diocese: '',
+  localChurch: '',
+  sccLabel: 'Jumuiya',
+  county: '',
+  country: 'Kenya',
+  address: '',
+  phone: '',
+  email: '',
+  motto: '',
+  logoData: null,
+  setupCompleted: false,
+  updatedAt: '',
+};
 
 /**
  * Fetches the configured parish identity once on mount.
- * Returns empty strings while loading or when settings are unavailable, so
- * callers can apply their own neutral fallback.
+ * Returns empty/default values while loading or when settings are unavailable,
+ * so callers can apply their own neutral fallback.
+ *
+ * Also exposes a `refetch` callback so callers can force-reload after a save.
  */
-export function useParishInfo(): ParishInfo {
-  const [parish, setParish] = useState<ParishInfo>({ parishName: '', diocese: '' });
+export function useParishInfo() {
+  const [parish, setParish] = useState<ParishSettings>(EMPTY_PARISH);
 
-  useEffect(() => {
+  const fetchParish = useCallback(() => {
     let cancelled = false;
-    settingsApi
+    parishApi
       .get()
       .then((settings) => {
         if (!cancelled) {
-          setParish({ parishName: settings.parishName ?? '', diocese: settings.diocese ?? '' });
+          setParish(settings);
         }
       })
       .catch(() => {
@@ -48,5 +63,16 @@ export function useParishInfo(): ParishInfo {
     };
   }, []);
 
-  return parish;
+  useEffect(() => {
+    const cleanup = fetchParish();
+    return cleanup;
+  }, [fetchParish]);
+
+  return {
+    // Full ParishSettings fields
+    ...parish,
+    refetch: fetchParish,
+    // Backward-compatible aliases for existing consumers
+    parishName: parish.name,
+  };
 }

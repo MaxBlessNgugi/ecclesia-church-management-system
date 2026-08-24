@@ -39,6 +39,7 @@ import {
 } from '../../types';
 // API client for all admin endpoints: users, permissions, push payments, audit, and ops
 import { adminApi } from '../../services/api';
+import { ParishIdentitySection } from './ParishIdentitySection';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
 
@@ -877,6 +878,17 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
           }`}
         >
           TRASH &amp; AUDIT
+        </button>
+        {/* PARISH tab — parish identity settings */}
+        <button
+          onClick={() => setActiveSubTab('parish')}
+          className={`pb-2 transition-colors cursor-pointer ${
+            activeSubTab === 'parish'
+              ? 'border-b-2 border-[#1e1e1e] text-[#1a1c1c]'
+              : 'text-[#444748] hover:text-[#1a1c1c]'
+          }`}
+        >
+          PARISH IDENTITY
         </button>
       </div>
 
@@ -1947,6 +1959,11 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
             </div>
           </div>
         )}
+
+      {/* 6. PARISH IDENTITY — same form as first-run wizard, editable by admin */}
+      {activeSubTab === 'parish' && (
+        <ParishIdentitySection notification={notification} showNotif={showNotif} />
+      )}
 
        {/* EDIT USER MODAL — pre-filled form for editing an existing account */}
        {showEditUser && (
