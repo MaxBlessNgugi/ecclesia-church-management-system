@@ -1,6 +1,6 @@
 # ECCLESIA ChMS — Church Management System (Parish ERP)
 
-Multi-user church management system: **React 19 frontend** + **Express + Prisma + SQLite backend**.
+Multi-user church management system: **React 19 frontend** + **Express + Prisma + PostgreSQL backend**.
 
 > **For management/executive audiences:** see **[REPORT.md](REPORT.md)** (status &
 > capability report) — and **[INSTALL.md](INSTALL.md)** for deploying on another PC.
@@ -201,7 +201,7 @@ caddy run          # uses the Caddyfile at the repo root
 ```
 .
 ├── src/                 # React frontend
-├── backend/             # Production API (Express + Prisma + SQLite)
+├── backend/             # Production API (Express + Prisma + PostgreSQL)
 │   ├── src/routes/      # All REST endpoints
 │   ├── prisma/          # Schema + seed (+ seed-demo.ts, demo only)
 │   └── start-local.sh
@@ -238,6 +238,6 @@ Or: `npm run backend:setup` then `npm run backend`
 ## Requirements
 
 - Node.js 18+
-- Nothing else (SQLite is a local file)
+- PostgreSQL 14+ (or use Docker for easy setup)
 
 Private — Max Bless Ngugi / Ecclesia
