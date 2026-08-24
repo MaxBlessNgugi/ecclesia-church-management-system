@@ -56,36 +56,39 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onSelectTab }) => {
           <img
             src={parish.logoData}
             alt="Parish logo"
-            className="w-5 h-5 rounded object-contain"
+            className="w-6 h-6 rounded object-contain"
           />
         ) : (
-          <div className="w-5 h-5 rounded border border-dashed border-slate-400 dark:border-slate-600 flex items-center justify-center text-[8px] text-slate-400 dark:text-slate-500 leading-none">
+          <div className="w-6 h-6 rounded border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-[7px] font-bold text-slate-400 dark:text-slate-500 leading-none">
             Logo
           </div>
         )}
 
-        {/* Parish name (or fallback) */}
-        {parish.name && (
-          <span className="text-[11px] font-semibold tracking-tight text-slate-700 dark:text-slate-300 max-w-[140px] truncate hidden sm:inline">
-            {parish.name}
+        {/* Parish name + local church (secondary line) */}
+        <div className="flex flex-col min-w-0">
+          <span className="text-[11px] font-semibold tracking-tight text-slate-800 dark:text-slate-200 max-w-[120px] sm:max-w-[160px] truncate leading-tight">
+            {parish.name || 'Ecclesia'}
           </span>
-        )}
+          {parish.localChurch && (
+            <span className="text-[9px] text-slate-500 dark:text-slate-400 max-w-[120px] sm:max-w-[160px] truncate leading-tight hidden sm:block">
+              {parish.localChurch}
+            </span>
+          )}
+        </div>
 
         {/* Vertical divider between parish and ECCLESIA brand */}
-        {parish.name && (
-          <span className="text-slate-300 dark:text-slate-600 text-xs hidden sm:inline">|</span>
-        )}
+        <span className="text-slate-300 dark:text-slate-600 text-xs">|</span>
 
         {/* ECCLESIA brand tile: dark rounded square with cross glyph */}
-        <div className="w-5 h-5 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-bold text-[11px] leading-none group-hover:bg-slate-700 dark:group-hover:bg-slate-300 transition-colors">
+        <div className="w-6 h-6 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-bold text-sm leading-none group-hover:bg-slate-700 dark:group-hover:bg-slate-300 transition-colors">
           †
         </div>
-        {/* Clear, prominent app title */}
-        <span className="text-sm font-semibold tracking-tight">Ecclesia ChMS</span>
-        {/* Optional status tag */}
-        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-widest uppercase bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-          Beta
-        </span>
+
+        {/* ECCLESIA app title + subtitle */}
+        <div className="flex flex-col">
+          <span className="text-xs font-bold tracking-wide text-slate-900 dark:text-slate-50 leading-tight">ECCLESIA</span>
+          <span className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight hidden sm:block">Parish ERP</span>
+        </div>
       </button>
 
       {/* Center: flexible drag region for moving the frameless window */}

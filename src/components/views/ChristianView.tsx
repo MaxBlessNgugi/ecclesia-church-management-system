@@ -119,6 +119,12 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       return;
     }
 
+    // Parish settings must be loaded before creating a member
+    if (!parish.diocese || !parish.name) {
+      alert('Parish settings not loaded. Please refresh and try again.');
+      return;
+    }
+
     // Client-side id from the timestamp (prefixed `c_`) so the new row is keyable
     // immediately; regNo is left empty and assigned upstream on save (matches the
     // "auto-generated on save" UI hint in the form header).
