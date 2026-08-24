@@ -43,6 +43,13 @@ const EMPTY_PARISH: ParishSettings = {
  *
  * Also exposes a `refetch` callback so callers can force-reload after a save.
  */
+/**
+ * Event name dispatched (via CustomEvent) when parish settings are saved
+ * from any component.  All useParishInfo() consumers listen for this
+ * and refetch so the live brand lockup updates immediately.
+ */
+export const PARISH_CHANGED_EVENT = 'parish-settings-changed';
+
 export function useParishInfo() {
   const [parish, setParish] = useState<ParishSettings>(EMPTY_PARISH);
 
@@ -65,7 +72,13 @@ export function useParishInfo() {
 
   useEffect(() => {
     const cleanup = fetchParish();
-    return cleanup;
+    // Listen for broadcast from ParishIdentitySection / SetupView saves
+    const handler = () => fetchParish();
+    window.addEventListener(PARISH_CHANGED_EVENT, handler);
+    return () => {
+      cleanup();
+      window.removeEventListener(PARISH_CHANGED_EVENT, handler);
+    };
   }, [fetchParish]);
 
   return {

@@ -24,7 +24,7 @@
 // =============================================================================
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getStoredToken } from '../services/api';
+import { getStoredToken, getServerUrl } from '../services/api';
 
 interface SocketContextType {
   /** The Socket.IO client instance, or null if not yet connected. */
@@ -56,13 +56,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!token) return;
 
     // Resolve the Socket.IO server URL:
-    // - VITE_API_BASE_URL is the API base (e.g. http://localhost:5000/api)
-    // - Socket.IO needs the origin without /api suffix
-    // - Fallback to same-origin for production builds served by the backend
+    // 1. Configured server URL from localStorage (set on first launch)
+    // 2. VITE_API_BASE_URL env var
+    // 3. Same-origin fallback
+    const savedUrl = getServerUrl();
     const apiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
-    const serverUrl = apiBase
-      ? apiBase.replace(/\/api\/?$/, '').replace(/\/$/, '')
-      : window.location.origin;
+    const serverUrl = savedUrl 
+      || (apiBase ? apiBase.replace(/\/api\/?$/, '').replace(/\/$/, '') : window.location.origin);
 
     const newSocket = io(serverUrl, {
       auth: { token },

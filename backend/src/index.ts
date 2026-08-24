@@ -209,6 +209,18 @@ app.use(morgan('dev'));
 // JSON body parser: limits request body to 2MB to prevent abuse.
 app.use(express.json({ limit: '2mb' }));
 
+// ── Server configuration endpoint ───────────────────────────────────────
+
+// GET /api/server/config — returns server metadata for client configuration.
+// Allows clients to discover server name and version on first connection.
+app.get('/api/server/config', (_req, res) => {
+  res.json({
+    name: process.env.SERVER_NAME || 'Ecclesia Parish Server',
+    version: process.env.npm_package_version || '1.0.0',
+    port: PORT,
+  });
+});
+
 // ── Health check endpoint ──────────────────────────────────────────────────
 
 // GET /api/health — lightweight endpoint for load balancers and monitoring.
@@ -319,11 +331,12 @@ initSocket(httpServer);
 
 // Bind to the configured port. Uses httpServer.listen (not app.listen) so
 // both HTTP requests and WebSocket connections are served on the same port.
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   // Log server startup with structured logger for production monitoring.
-  logger.info(`Ecclesia Server running on http://localhost:${PORT}`);
+  logger.info(`Ecclesia Server running on http://0.0.0.0:${PORT}`);
   logger.info(`Health: http://localhost:${PORT}/api/health`);
   logger.info(`WebSocket: ws://localhost:${PORT} (Socket.IO)`);
+  logger.info(`Server is accessible from other devices on the LAN`);
 
   // If the frontend dist exists, log the full app URL.
   if (servingFrontend) {

@@ -66,6 +66,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
   // type="text" (visible). Starts hidden (false).
   const [showPassword, setShowPassword] = useState(false);
 
+  // Separate toggles for the newPassword and confirmPassword fields in the
+  // setPassword and reset modes, so they can be shown independently.
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   // "Remember me" checkbox. When true the JWT is stored in localStorage;
   // when false it is stored in sessionStorage (cleared on tab close).
   const [remember, setRemember] = useState(true);
@@ -574,28 +579,52 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
               {/* New password input — required, min 8 chars, browsers may offer suggestions */}
               <div>
                 <label className="block text-[#1a1c1c] font-medium mb-1">New Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showNewPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
               </div>
               {/* Confirmation input — must match the new password */}
               <div>
                 <label className="block text-[#1a1c1c] font-medium mb-1">Confirm New Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                    title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
               </div>
               {/* Submit button — disabled while saving */}
               <button
@@ -776,28 +805,52 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
                   {/* New password input — min 8 chars, required */}
                   <div>
                     <label className="block text-[#1a1c1c] font-medium mb-1">New Password</label>
-                    <input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      autoComplete="new-password"
-                      className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        required
+                        minLength={8}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        autoComplete="new-password"
+                        className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                        title={showNewPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {showNewPassword ? 'visibility_off' : 'visibility'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                   {/* Confirmation input — must match the new password */}
                   <div>
                     <label className="block text-[#1a1c1c] font-medium mb-1">Confirm New Password</label>
-                    <input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      autoComplete="new-password"
-                      className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        required
+                        minLength={8}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                        className="flex-1 px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="px-2 py-2 text-[#444748] hover:text-[#1a1c1c] cursor-pointer"
+                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                   {/* Submit button — disables while the reset request is in flight */}
                   <button

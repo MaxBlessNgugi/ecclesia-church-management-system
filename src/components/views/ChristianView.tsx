@@ -14,14 +14,9 @@
 //        deleteSearch + memberToDelete + showConfirmModal (delete workflow).
 // =============================================================================
 import React, { useState } from 'react';
-// Provides React core and the useState hook for local state management.
 import { ChristianRecord, ChristianSubTab } from '../../types';
-// Provides the TypeScript interfaces for individual parishioner records and the
-// union type that restricts which sub-tab keys ('add' | 'find' | 'delete') are
-// allowed in the component's local navigation state.
 import { usePermissions } from '../../permissions';
-// Provides the usePermissions hook that exposes role-based permission checks
-// (canEdit, canDelete) used to enable/disable the Save and Delete buttons.
+import { useParishInfo } from '../../hooks/useParishInfo';
 
 /**
  * Props for the Christian Registry panel.
@@ -65,16 +60,16 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
   // the matching block below; find/delete filters re-evaluate every render.
   const [subTab, setSubTab] = useState<ChristianSubTab>(initialSubTab);
 
-  // Form State for Add New Christian — one flat object so inputs can spread-update
-  // a single field ({ ...formData, [field]: value }) without per-field setters.
+  // Parish settings — diocese and parish name are fixed constants from ParishSettings
+  const parish = useParishInfo();
+
+  // Form State for Add New Christian — diocese/parish omitted (injected from ParishSettings)
   const [formData, setFormData] = useState({
     nationalId: '',
     baptismalName: '',
     secondName: '',
     sirName: '',
     phone: '',
-    diocese: '',
-    parish: '',
     localChurch: '',
     scc: ''
   });
@@ -95,7 +90,6 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
   // Delete Record button and dismissed by Cancel / after a successful delete.
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  // Resets the biodata form to all-empty so the next record starts clean.
   const handleClear = () => {
     setFormData({
       nationalId: '',
@@ -103,8 +97,6 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       secondName: '',
       sirName: '',
       phone: '',
-      diocese: '',
-      parish: '',
       localChurch: '',
       scc: ''
     });
@@ -120,12 +112,10 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       !formData.sirName ||
       !formData.nationalId ||
       !formData.phone ||
-      !formData.diocese ||
-      !formData.parish ||
       !formData.localChurch ||
       !formData.scc
     ) {
-      alert('Please complete all required fields: names, National ID, phone, diocese, parish, local church and SCC.');
+      alert('Please complete all required fields: names, National ID, phone, local church and SCC.');
       return;
     }
 
@@ -140,11 +130,11 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       secondName: formData.secondName,
       sirName: formData.sirName,
       phone: formData.phone,
-      diocese: formData.diocese,
-      parish: formData.parish,
+      diocese: parish.diocese,
+      parish: parish.name,
       localChurch: formData.localChurch,
       scc: formData.scc,
-      status: 'Active' // new registrants always enter the roll as Active
+      status: 'Active'
     };
 
     // Hand the record to the parent for persistence, then show a transient
@@ -239,7 +229,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
 
       {/* SUCCESS NOTIFICATION BANNER — transient (3s) confirmation after a save;
           the ✕ button dismisses it early. */}
-      {savedSuccess && (
+      {savedSuccess && (
         <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-base">check_circle</span>
@@ -252,7 +242,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       {/* 1. ADD NEW CHRISTIAN — biodata capture form; the only sub-tab that WRITES
           new data (via onAddChristian). regNo is left empty and auto-generated
           upstream on save. */}
-      {subTab === 'add' && (
+      {subTab === 'add' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs">
           {/* Form header — flex row with title on left and registration number
               badge on right, separated by a bottom border */}
@@ -363,51 +353,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                 />
               </div>
 
-              {/* Diocese — required dropdown; restricts to predefined Kenyan dioceses;
-                  value stored as string; validated in handleSave */}
-              <div>
-                <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                  Diocese
-                </label>
-                {/* Select dropdown — first option is empty placeholder text;
-                    onChange updates formData.diocese; no HTML required but
-                    handleSave guard validates it; options are hardcoded to the
-                    Kenyan Catholic dioceses the system supports */}
-                <select
-                  value={formData.diocese}
-                  onChange={(e) => setFormData({ ...formData, diocese: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                >
-                  <option value="">Select Diocese...</option>
-                  <option value="Archdiocese of Nairobi">Archdiocese of Nairobi</option>
-                  <option value="Diocese of Nakuru">Diocese of Nakuru</option>
-                  <option value="Diocese of Machakos">Diocese of Machakos</option>
-                  <option value="Diocese of Mombasa">Diocese of Mombasa</option>
-                </select>
-              </div>
-
-              {/* Parish — required dropdown; narrows the location within the
-                  selected diocese; value stored as string; validated in handleSave */}
-              <div>
-                <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                  Parish
-                </label>
-                {/* Select dropdown — placeholder option with empty value prompts user
-                    to pick; options list the parishes the system covers; onChange
-                    updates formData.parish */}
-                <select
-                  value={formData.parish}
-                  onChange={(e) => setFormData({ ...formData, parish: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                >
-                  <option value="">Select Parish...</option>
-                  <option value="St. Mary's Parish">St. Mary's Parish</option>
-                  <option value="St. Joseph Parish">St. Joseph Parish</option>
-                  <option value="Holy Family Cathedral">Holy Family Cathedral</option>
-                </select>
-              </div>
-
-              {/* Local Church / Outstation — required dropdown; the specific
+              {/* Local Church / Outstation — the specific
                   chapel or outstation within the parish; validated in handleSave */}
               <div>
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
@@ -479,7 +425,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
 
       {/* 2. FIND A CHRISTIAN — read-only directory; filters `christians` live and
           hands a row off to Sacraments (update_card) or Activities (payments). */}
-      {subTab === 'find' && (
+      {subTab === 'find' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
           {/* Search header — flex row that stacks vertically on mobile; contains
               section title on left and search input on right */}
@@ -538,7 +484,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                       No Christian records match your search criteria.
                     </td>
                   </tr>
-                ) : (
+                ) : (
                   filteredFind.map((member) => (
                     <tr key={member.id} className="hover:bg-[#f9f9f9]">
                       {/* Reg No cell — monospace font for alignment, bold weight
@@ -602,7 +548,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
 
       {/* 3. DELETE CHRISTIAN — exact-match lookup; renders the found member as a
           preview card with a Delete button that opens the confirm modal below. */}
-      {subTab === 'delete' && (
+      {subTab === 'delete' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
           {/* Header block — red-tinted title and instructional subtext, separated
               by a bottom border from the rest of the panel */}
@@ -637,7 +583,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
           {/* Three-state edge case: exact match found -> preview card; no match but
               non-empty query -> "no matching record" notice; empty query -> render
               nothing (avoids a noisy error while the user is still typing). */}
-          {memberFoundForDelete ? (
+          {memberFoundForDelete ? (
             <div className="p-4 bg-[#f9f9f9] border border-[#e1e3e3] rounded-lg max-w-lg space-y-3">
               {/* Card header row — flex between layout; left side has reg number,
                   full name, and SCC/church info; right side has status pill */}
@@ -680,7 +626,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                 </button>
               </div>
             </div>
-          ) : deleteSearch.trim() ? (
+          ) : deleteSearch.trim() ? (
             <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 max-w-lg">
               No matching record found for "{deleteSearch}". Please verify the exact Registration Number.
             </div>
@@ -691,7 +637,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       {/* CONFIRM DELETE MODAL — full-screen overlay guarded by BOTH showConfirmModal
           and a non-null memberToDelete. Confirm fires onDeleteChristian then resets
           all delete-related state and clears the search box. */}
-      {showConfirmModal && memberToDelete && (
+      {showConfirmModal && memberToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           {/* Modal card — white background, rounded corners, shadow-xl for depth;
               max-w-md constrains width; space-y-4 adds vertical gaps between

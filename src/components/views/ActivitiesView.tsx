@@ -9,7 +9,7 @@
 // Data flow:
 //   - `onRecordPayment` lifts a ContributionRecord up to App.tsx (client-side
 //     state update only; the contribution API itself is not called here).
-//   - `onTransferChristian` lifts the destination diocese/parish/outstation/SCC.
+//   - `onTransferChristian` lifts the destination localChurch/SCC.
 //   - BILLED ITEMS is the only sub-tab that hits the network: it POSTs a
 //     BilledItemReceipt via billedItemsApi.create and, on success, displays the
 //     server-persisted receipt in a printable modal.
@@ -54,7 +54,7 @@ interface ActivitiesViewProps {
   /** Callback lifting a completed contribution (payment) record to the parent for storage */
   onRecordPayment: (payment: ContributionRecord) => void;
   /** Callback lifting a parish transfer (new diocese/parish/outstation/SCC) for a member */
-  onTransferChristian: (memberId: string, dest: { diocese: string; parish: string; localChurch: string; scc: string }) => void;
+  onTransferChristian: (memberId: string, dest: { localChurch: string; scc: string }) => void;
 }
 
 // Functional component — the Activities & Contributions panel
@@ -108,10 +108,6 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   // Transfer Christian state
   // Member being transferred — defaults to the first registry entry
   const [transferMember, setTransferMember] = useState<ChristianRecord | null>(christians[0] || null);
-  // Destination diocese — pre-filled with a placeholder value
-  const [destDiocese, setDestDiocese] = useState('Diocese of Nakuru');
-  // Destination parish — pre-filled with a placeholder value
-  const [destParish, setDestParish] = useState('St. Joseph Parish');
   // Destination local church (outstation) — pre-filled with a placeholder value
   const [destLocalChurch, setDestLocalChurch] = useState('St. Monica Chapel');
   // Destination SCC (Small Christian Community) — pre-filled with a placeholder value
@@ -219,14 +215,13 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     // Guard: a transfer must target a real parishioner
     if (!transferMember) return;
     // Lift the transfer destination to the parent for persistence
+    // In single-parish mode, only localChurch and scc change
     onTransferChristian(transferMember.id, {
-      diocese: destDiocese,
-      parish: destParish,
       localChurch: destLocalChurch,
       scc: destSCC
     });
     // Confirm the transfer to the operator
-    alert(`Transfer record updated for ${transferMember.baptismalName} ${transferMember.sirName} to ${destParish}!`);
+    alert(`Transfer record updated for ${transferMember.baptismalName} ${transferMember.sirName}!`);
   };
 
   /**
@@ -595,21 +590,15 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
               </h3>
               {/* Instructional subtitle */}
               <p className="text-xs text-[#444748] mt-1">
-                Record official transfers to another diocese or local church outstation
+                Transfer a member to another local church or SCC within the parish
               </p>
             </div>
 
-            {/* Transfer form — member select + destination fields + submit */}
             <form onSubmit={handleTransferSubmit} className="space-y-6">
-              {/* Select Member to Transfer — options are drawn from the lifted
-                  christians array; picking one swaps transferMember, which is
-                  also pre-synced by the cross-panel selectedMember effect. */}
               <div>
-                {/* Label for the member selector */}
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Select Parishioner to Transfer
                 </label>
-                {/* Dropdown listing all parishioners with name, regNo, and SCC */}
                 <select
                   value={transferMember?.id}
                   onChange={(e) => {
@@ -627,35 +616,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                 </select>
               </div>
 
-              {/* Destination Details — four text inputs in a 2-column grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Diocese the member is transferring to */}
-                <div>
-                  <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                    Diocese Transferred To
-                  </label>
-                  <input
-                    type="text"
-                    value={destDiocese}
-                    onChange={(e) => setDestDiocese(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                  />
-                </div>
-
-                {/* Parish the member is transferring to */}
-                <div>
-                  <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                    Parish Transferred To
-                  </label>
-                  <input
-                    type="text"
-                    value={destParish}
-                    onChange={(e) => setDestParish(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                  />
-                </div>
-
-                {/* Local church (outstation) the member is transferring to */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                     Local Church Transferred To
@@ -668,7 +629,6 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                   />
                 </div>
 
-                {/* SCC (Jumuiya / Small Christian Community) the member is transferring to */}
                 <div>
                   <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                     SCC (Jumuiya) Transferred To
@@ -682,14 +642,12 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                 </div>
               </div>
 
-              {/* Submit button — right-aligned, disabled when permission lacks edit */}
               <div className="pt-4 border-t border-[#e1e3e3] flex justify-end">
                 <button
                   type="submit"
                   disabled={!perms.canEdit('activities')}
                   className="px-6 py-2 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded transition-colors shadow-2xs opacity-50 cursor-not-allowed flex items-center gap-2"
                 >
-                  {/* Move icon */}
                   <span className="material-symbols-outlined text-sm">move_item</span>
                   Save & Update Status
                 </button>

@@ -21,43 +21,13 @@
 // =============================================================================
 import React, { useState, useRef, useCallback } from 'react';
 import { parishApi } from '../../services/api';
+import { PARISH_CHANGED_EVENT } from '../../hooks/useParishInfo';
+import { resizeImage } from '../../lib/image';
 
 /** Props accepted by the setup wizard. */
 interface SetupViewProps {
   /** Called after the wizard completes successfully. Triggers app reload. */
   onComplete: () => void;
-}
-
-/**
- * Resizes an image file to fit within maxDim × maxDim while preserving aspect
- * ratio. Returns a base64 data URL string suitable for storing in logoData.
- */
-function resizeImage(file: File, maxDim = 256): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Canvas not supported'));
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = reader.result as string;
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
 }
 
 /**
@@ -128,6 +98,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
         logoData,
         setupCompleted: true,
       });
+      window.dispatchEvent(new CustomEvent(PARISH_CHANGED_EVENT));
       onComplete();
     } catch (err) {
       console.error('Failed to save parish settings', err);

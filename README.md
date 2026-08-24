@@ -1,39 +1,109 @@
 # ECCLESIA ChMS — Church Management System (Parish ERP)
 
-Full-stack church management system: **React 19 frontend** + **local SQLite backend**.
+Multi-user church management system: **React 19 frontend** + **Express + Prisma + SQLite backend**.
 
 > **For management/executive audiences:** see **[REPORT.md](REPORT.md)** (status &
 > capability report) — and **[INSTALL.md](INSTALL.md)** for deploying on another PC.
 
 ---
 
-## Run as a desktop app (recommended)
+## Architecture Overview
 
-ECCLESIA is an **Electron desktop app** — it opens in its own native window, not the browser.
+ECCLESIA is a **client-server application** designed for multi-user access on a local network:
 
-> **Installing on another PC?** See **[INSTALL.md](INSTALL.md)** — ready-made installer
-> (.exe), portable source-folder run, and the one-click parish setup.
+- **Server**: Runs on a dedicated parish computer (office PC, mini-server, or NAS)
+- **Clients**: Access the app through web browsers or a thin Electron shell
+- **Real-time sync**: All changes appear instantly on all connected devices via Socket.IO
+- **Friendly URL**: Access at `http://ecclesia.local` on your parish network
 
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        PARISH NETWORK                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │   Admin PC   │    │  Treasurer   │    │   Secretary  │      │
+│  │   (Browser)  │    │   (Browser)  │    │   (Browser)  │      │
+│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘      │
+│         │                   │                   │              │
+│         └───────────────────┼───────────────────┘              │
+│                             │                                  │
+│                    http://ecclesia.local                        │
+│                             │                                  │
+│                    ┌────────▼────────┐                         │
+│                    │  ECCLESIA Server │                         │
+│                    │  (Express + DB)  │                         │
+│                    └─────────────────┘                         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### 1. Install (once)
+---
+
+## Quick Start (Server Setup)
+
+### 1. Install prerequisites
+
+- **Node.js 18+** (https://nodejs.org)
+- A dedicated computer on your parish network
+
+### 2. Download and setup
 
 ```bash
+# Clone or download the repository
+git clone https://github.com/MaxBlessNgugi/ecclesia-church-management-system.git
+cd ecclesia-church-management-system
+
+# Install dependencies and setup database
 npm run setup
 ```
 
-This installs frontend + backend deps, creates the local SQLite database, and seeds **you** as Super Admin.
+### 3. Configure the friendly hostname (ecclesia.local)
 
-> **Fresh installs (installer .exe) have no pre-seeded login.** The first launch
-> shows a guided **"Welcome to ECCLESIA"** screen where you create the parish
-> administrator (name, email, password) — those are your sign-in credentials.
+```bash
+# Linux (Ubuntu/Debian)
+sudo bash scripts/setup-hostname.sh
 
-### 2. Launch the app
+# Windows (Run as Administrator)
+powershell -ExecutionPolicy Bypass -File scripts\setup-hostname.ps1
+```
+
+### 4. Start the server
+
+```bash
+cd backend
+npm start
+```
+
+The server is now accessible at:
+- **http://ecclesia.local:5000** (from any computer on your network)
+- Or **https://ecclesia.local** (if using Caddy for HTTPS)
+
+---
+
+## Client Access
+
+From any computer on the same network:
+
+1. Open a web browser (Chrome, Firefox, Edge, or Safari)
+2. Go to: **http://ecclesia.local**
+3. First time: Click **Connect to Server** (address should be pre-filled)
+4. Log in with your credentials
+5. Start using ECCLESIA!
+
+See **[CLIENT_SETUP.md](CLIENT_SETUP.md)** for detailed instructions.
+
+---
+
+## Run as a desktop app (Electron)
+
+ECCLESIA also has an **Electron desktop app** that connects to the server:
 
 ```bash
 npm run dev
 ```
 
-→ Opens the native **ECCLESIA desktop window** (starts Vite + backend + Electron together).
+→ Opens the native **ECCLESIA desktop window** that connects to the server.
 On Windows you can also double-click **`start-app.cmd`** for the same result.
 
 For a distributable Windows installer: `npm run dist:win` (output in `release/`).

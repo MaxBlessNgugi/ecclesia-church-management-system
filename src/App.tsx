@@ -99,6 +99,7 @@ import {
 } from './types';
 
 import { Footer, GlobalSearchModal, Header, Sidebar, TitleBar } from './components';
+import { ServerConnection } from './components/ServerConnection';
 import {
   ActivitiesView,
   AdminView,
@@ -123,11 +124,12 @@ import {
   depositsApi,
   expensesApi,
   getStoredToken,
-  parishApi,
+  getServerUrl,
   requestWithQueue,
   cacheApiResponse,
   getCachedResponse
 } from './services/api';
+import { checkParishSetup } from './lib/parish';
 import { PermissionsProvider } from './permissions';
 import { getPendingCount } from './lib/db';
 import { useRealtime } from './hooks/useRealtime';
@@ -173,6 +175,8 @@ export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   /** Whether the app is still verifying the existing session on mount (shows loading screen). */
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  /** Whether the server URL is configured (false on first client launch). */
+  const [serverConfigured, setServerConfigured] = useState(() => !!getServerUrl());
   /** Whether the parish setup wizard must be completed before entering the app. */
   const [needsSetup, setNeedsSetup] = useState(false);
   /** Whether the user must change their temporary password before accessing the app. */
@@ -216,6 +220,16 @@ export const App: React.FC = () => {
   useRealtime('deaths', ({ action, data }) => {
     if (action === 'created') setDeathRecords(prev => [data, ...prev]);
     if (action === 'deleted') setDeathRecords(prev => prev.filter(d => d.id !== data.id));
+  });
+
+  // Real-time listener for parish settings changes (name, logo, motto, etc.)
+  // When another admin updates parish identity, all connected clients refetch
+  // so the header/footer dual brand lockup updates immediately.
+  useRealtime('settings', ({ action, data }) => {
+    if (action === 'updated') {
+      // Broadcast to all useParishInfo consumers via CustomEvent
+      window.dispatchEvent(new CustomEvent('parish-settings-changed'));
+    }
   });
 
   // Warn user before closing tab with unsynced changes
@@ -302,20 +316,18 @@ export const App: React.FC = () => {
       }
       setMustChangePassword(false);
     } catch {
+      // Transient network error — re-throw so caller can handle it.
+      // Don't set isAuthenticated=true with a null user.
       setCurrentUser(null);
+      setIsAuthenticated(false);
+      return;
     }
     setIsAuthenticated(true);
     // Check if parish setup has been completed
-    try {
-      const parish = await parishApi.get();
-      if (!parish.setupCompleted) {
-        setNeedsSetup(true);
-        return; // Don't load dashboard data — wizard is the gate
-      }
-    } catch {
-      // If parish settings can't be fetched, assume setup is needed
+    const { needsSetup: setupNeeded } = await checkParishSetup();
+    if (setupNeeded) {
       setNeedsSetup(true);
-      return;
+      return; // Don't load dashboard data — wizard is the gate
     }
     setNeedsSetup(false);
     setCurrentTab('dashboard');
@@ -356,15 +368,10 @@ export const App: React.FC = () => {
         }
         setMustChangePassword(false);
         // Check if parish setup has been completed
-        try {
-          const parish = await parishApi.get();
-          if (!parish.setupCompleted) {
-            setNeedsSetup(true);
-            return; // Don't load dashboard — wizard is the gate
-          }
-        } catch {
+        const { needsSetup: setupNeeded } = await checkParishSetup();
+        if (setupNeeded) {
           setNeedsSetup(true);
-          return;
+          return; // Don't load dashboard — wizard is the gate
         }
         setNeedsSetup(false);
         setCurrentTab('dashboard');
@@ -533,15 +540,12 @@ export const App: React.FC = () => {
   };
 
   /**
-   * Updates parishioner status and destination hierarchy on parish transfer.
+   * Updates parishioner status and local church/SCC on parish transfer.
    * Uses offline queue when backend is unavailable.
-   * @param {string} memberId - The unique ID of the parishioner to transfer.
-   * @param {object} dest - The destination parish hierarchy.
-   * @returns {Promise<void>} Resolves when the API call completes.
    */
   const handleTransferChristian = async (
     memberId: string,
-    dest: { diocese: string; parish: string; localChurch: string; scc: string }
+    dest: { localChurch: string; scc: string }
   ) => {
     const member = christians.find((c) => c.id === memberId);
     if (!member) return;
@@ -551,8 +555,8 @@ export const App: React.FC = () => {
         {
           christianId: memberId,
           memberName: `${member.baptismalName} ${member.sirName}`,
-          diocese: dest.diocese,
-          parish: dest.parish,
+          diocese: member.diocese,
+          parish: member.parish,
           localChurch: dest.localChurch,
           scc: dest.scc,
           date: new Date().toISOString().split('T')[0],
@@ -564,8 +568,6 @@ export const App: React.FC = () => {
                 ? {
                     ...c,
                     status: 'Transferred',
-                    diocese: dest.diocese,
-                    parish: dest.parish,
                     localChurch: dest.localChurch,
                     scc: dest.scc,
                   }
@@ -728,6 +730,11 @@ export const App: React.FC = () => {
       alert(error instanceof Error ? error.message : 'Failed to add expense');
     }
   };
+
+  // Server connection gate — show on first launch when no server URL is configured
+  if (!serverConfigured) {
+    return <ServerConnection onConnected={() => setServerConfigured(true)} />;
+  }
 
   if (isAuthChecking) {
     return (
