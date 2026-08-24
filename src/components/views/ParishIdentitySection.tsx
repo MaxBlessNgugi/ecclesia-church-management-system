@@ -17,39 +17,12 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { parishApi } from '../../services/api';
 import { ParishSettings } from '../../types';
+import { PARISH_CHANGED_EVENT } from '../../hooks/useParishInfo';
+import { resizeImage } from '../../lib/image';
 
 interface ParishIdentitySectionProps {
   notification: string | null;
   showNotif: (msg: string) => void;
-}
-
-/** Resize an image to fit within maxDim × maxDim (client-side). */
-function resizeImage(file: File, maxDim = 256): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Canvas not supported'));
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = reader.result as string;
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
 }
 
 export const ParishIdentitySection: React.FC<ParishIdentitySectionProps> = ({ notification, showNotif }) => {
@@ -130,6 +103,7 @@ export const ParishIdentitySection: React.FC<ParishIdentitySectionProps> = ({ no
         motto: motto.trim(),
         logoData,
       });
+      window.dispatchEvent(new CustomEvent(PARISH_CHANGED_EVENT));
       showNotif('Parish identity updated successfully!');
     } catch (err) {
       console.error('Failed to save parish settings', err);

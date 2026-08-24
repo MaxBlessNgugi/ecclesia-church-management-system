@@ -10,21 +10,69 @@
 #   2. Start the backend:    (backend/)    npm run build && npm start
 #   3. Run Caddy from the repo root:       caddy run
 #
-# SETUP A — Internet/domain install: the parish has a domain. Caddy
+# SETUP A — LAN-only install (default): Caddy issues a self-signed cert
+#   and the app is reachable at https://ecclesia.local from any device on the
+#   network. Clients must accept the self-signed warning once.
+#
+# SETUP B — Internet/domain install: the parish has a domain. Caddy
 #   auto-provisions a real Let's Encrypt certificate. Put your domain in a
 #   caddy.env file:
 #       DOMAIN=ecclesia.example.com
-#
-# SETUP B — LAN-only install: no domain needed. Caddy issues a self-signed cert
-#   and the app is reachable at https://<this-pc-ip> from any device on the
-#   network. Clients must accept the self-signed warning once. Leave DOMAIN
-#   unset and Caddy falls back to the machine's own name.
 # =============================================================================
 
-{$DOMAIN:localhost} {
+# Default: LAN-only with ecclesia.local
+# This provides HTTPS access at https://ecclesia.local
+{
+	# Use internal CA for self-signed certificates on LAN
+	# Clients will see a warning on first visit - they must accept it
+	security {
+		issuer internal {
+			install {
+				trust
+			}
+		}
+	}
+}
+
+# Main site block - ecclesia.local with HTTPS
+https://ecclesia.local {
 	encode gzip
 
-	# Everything — API and static frontend — is proxied to the self-hosted app.
-	# One process on one port; Caddy just wraps it in HTTPS.
+	# Proxy everything to the Express backend
 	reverse_proxy 127.0.0.1:5000
+
+	# Security headers
+	header {
+		# HSTS (1 year)
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Prevent MIME type sniffing
+		X-Content-Type-Options "nosniff"
+		# XSS protection
+		X-XSS-Protection "1; mode=block"
+		# Frame options
+		X-Frame-Options "DENY"
+	}
 }
+
+# Also accept plain HTTP and redirect to HTTPS
+http://ecclesia.local {
+	redir https://ecclesia.local{uri}
+}
+
+# Fallback: IP-based access (for when ecclesia.local doesn't resolve)
+# Uncomment and replace YOUR_IP with the server's actual IP address
+# https://YOUR_IP {
+# 	encode gzip
+# 	reverse_proxy 127.0.0.1:5000
+# 
+# 	header {
+# 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+# 		X-Content-Type-Options "nosniff"
+# 		X-XSS-Protection "1; mode=block"
+# 		X-Frame-Options "DENY"
+# 	}
+# }
+# 
+# http://YOUR_IP {
+# 	redir https://YOUR_IP{uri}
+# }

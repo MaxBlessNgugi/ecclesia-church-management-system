@@ -10,6 +10,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { emitChange } from '../lib/events.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -72,6 +73,8 @@ router.put('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       update: data,
       create: { id: 'default', ...data },
     });
+    // Broadcast parish settings change to all connected clients
+    emitChange('settings', 'updated', updated);
     res.json(updated);
   } catch (e) {
     next(e);
@@ -108,6 +111,8 @@ router.patch('/', async (req: AuthRequest, res: Response, next: NextFunction) =>
       update: mapped,
       create: { id: 'default', ...mapped },
     });
+    // Broadcast parish settings change to all connected clients
+    emitChange('settings', 'updated', updated);
     res.json(updated);
   } catch (e) {
     next(e);

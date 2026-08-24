@@ -211,13 +211,51 @@ import { ExportBundle } from '../types';
  * never physically destroyed; they land in the Admin > Trash & Audit view.
  */
 
+/** localStorage key for the configured server URL. */
+const SERVER_URL_KEY = 'ecclesia_server_url';
+
+/**
+ * Get the configured server URL from localStorage.
+ * Returns null if no server URL is configured (first launch).
+ */
+export function getServerUrl(): string | null {
+  return localStorage.getItem(SERVER_URL_KEY);
+}
+
+/**
+ * Save the server URL to localStorage.
+ * @param url - The full server URL (e.g. http://192.168.1.100:5000)
+ */
+export function setServerUrl(url: string): void {
+  // Normalize: strip trailing slash
+  localStorage.setItem(SERVER_URL_KEY, url.replace(/\/$/, ''));
+}
+
+/**
+ * Clear the configured server URL from localStorage.
+ */
+export function clearServerUrl(): void {
+  localStorage.removeItem(SERVER_URL_KEY);
+}
+
 /**
  * Base URL for all API requests.
- * Uses the Vite environment variable `VITE_API_BASE_URL` if set,
- * otherwise falls back to `/api` (same-origin). Trailing slash is stripped.
+ * Resolution order:
+ *   1. Server URL from localStorage (configured by user on first launch)
+ *   2. VITE_API_BASE_URL env var (for dev/testing)
+ *   3. `/api` (same-origin fallback)
  */
-const BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
+function resolveBaseUrl(): string {
+  // Check localStorage first (configured by user)
+  const savedUrl = getServerUrl();
+  if (savedUrl) {
+    return `${savedUrl}/api`;
+  }
+  // Fall back to env var or same-origin
+  return (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
+}
+
+const BASE_URL: string = resolveBaseUrl();
 
 // -----------------------------------------------------------------------------
 // Session token storage
