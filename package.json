@@ -3,9 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently -k -n \"VITE,BACKEND,ELECTRON\" -c \"green,blue,magenta\" \"vite --port=3000 --strictPort --host=0.0.0.0\" \"npm run dev --prefix backend\" \"wait-on http://localhost:3000 http://localhost:5000 && cross-env NODE_ENV=development electron .\"",
+    "dev": "concurrently -k -n \"VITE,BACKEND\" -c \"green,blue\" \"vite --port=3000 --strictPort --host=0.0.0.0\" \"npm run dev --prefix backend\"",
     "backend": "npm run dev --prefix backend",
     "backend:setup": "npm install --prefix backend && npm run db:push --prefix backend && npm run db:seed --prefix backend",
     "backend:build": "npm run build --prefix backend",
@@ -14,15 +13,7 @@
     "build": "vite build && npm run backend:build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
-    "prepare:template": "node scripts/prepare-template-db.mjs",
-    "dist": "npm run build && npm run prepare:template && electron-builder",
-    "dist:win": "npm run build && npm run prepare:template && electron-builder --win nsis",
-    "dist:mac": "npm run build && npm run prepare:template && electron-builder --mac dmg",
-    "dist:linux": "npm run build && npm run prepare:template && electron-builder --linux AppImage",
-    "electron:dev": "concurrently -k -n \"VITE,BACKEND,ELECTRON\" -c \"green,blue,magenta\" \"vite --port=3000 --strictPort --host=0.0.0.0\" \"npm run dev --prefix backend\" \"wait-on http://localhost:3000 http://localhost:5000 && cross-env NODE_ENV=development electron .\"",
-    "electron:build": "npm run build && npm run backend:build && npm run prepare:template && electron-builder --win",
-    "electron:build:dir": "npm run build && npm run backend:build && npm run prepare:template && electron-builder --win --dir"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -47,132 +38,14 @@
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
-    "electron": "^43.3.0",
-    "electron-builder": "^24.13.3",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3",
-    "wait-on": "^7.2.0"
+    "vite": "^6.2.3"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,
     "esbuild@0.28.1": true
-  },
-  "build": {
-    "appId": "com.ecclesia.chms",
-    "productName": "ECCLESIA Church Management System",
-    "copyright": "Copyright © 2024 Max Bless Ngugi",
-    "directories": {
-      "output": "release",
-      "buildResources": "electron/assets"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "backend/dist/**/*",
-      "backend/prisma/**/*",
-      "backend/node_modules/**/*",
-      "backend/package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "backend/dist",
-        "to": "backend/dist",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "backend/prisma",
-        "to": "backend/prisma",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "backend/node_modules",
-        "to": "backend/node_modules",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "public/icons",
-        "to": "icons",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "backend/template.db",
-        "to": "backend/template.db"
-      },
-      {
-        "from": "dist",
-        "to": "dist",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "asar": true,
-    "asarUnpack": [
-      "backend/node_modules/@prisma/client/**/*",
-      "backend/node_modules/.prisma/**/*"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "electron/assets/icon.ico",
-      "artifactName": "ECCLESIA-ChMS-Setup-${version}.${ext}",
-      "publisherName": "Max Bless Ngugi"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "runAfterFinish": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "ECCLESIA",
-      "uninstallDisplayName": "ECCLESIA Church Management System",
-      "license": "LICENSE.txt",
-      "installerIcon": "electron/assets/icon.ico",
-      "uninstallerIcon": "electron/assets/icon.ico",
-      "include": "electron/assets/installer.nsh"
-    },
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "icon": "electron/assets/icon.icns",
-      "category": "public.app-category.business"
-    },
-    "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "electron/assets/icon.png",
-      "category": "Office",
-      "maintainer": "Max Bless Ngugi"
-    }
   }
 }

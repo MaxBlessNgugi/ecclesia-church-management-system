@@ -10,6 +10,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { AppError } from '../middleware/errorHandler.js';
 import { emitChange } from '../lib/events.js';
 
 const router = Router();
@@ -64,7 +65,7 @@ router.put('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     // Authorization: only admin or super_admin
     if (req.user?.role !== 'super_admin' && req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Only administrators can update parish settings.' });
+      return next(new AppError('Only administrators can update parish settings.', 403, 'FORBIDDEN'));
     }
 
     const data = updateSchema.parse(req.body);
@@ -88,7 +89,7 @@ router.put('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 router.patch('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (req.user?.role !== 'super_admin' && req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Only administrators can update parish settings.' });
+      return next(new AppError('Only administrators can update parish settings.', 403, 'FORBIDDEN'));
     }
 
     // Map old field names to new ones

@@ -54,6 +54,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { AppError } from '../middleware/errorHandler.js';
 import { requireModule } from '../middleware/perms.js';
 import { HttpError } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
@@ -144,7 +145,7 @@ router.post('/transfer', async (req, res, next) => {
 
     // Guard: Prevent transferring money from a ledger to itself (no-op / error).
     if (fromLedgerId === toLedgerId) {
-      return res.status(400).json({ error: 'Cannot transfer a ledger to itself' });
+      return next(new AppError('Cannot transfer a ledger to itself', 400, 'BAD_REQUEST'));
     }
 
     // Everything — existence, balance check, both balance writes, the movement —

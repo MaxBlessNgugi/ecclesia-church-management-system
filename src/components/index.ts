@@ -2,8 +2,8 @@
 // (e.g. `import { Header, Sidebar } from './components'`).
 
 /**
- * Re-exports the TitleBar component — the slim OS-style title bar for the
- * frameless Electron window (brand, drag region, window controls).
+ * Re-exports the TitleBar component — the slim brand strip at the top of the
+ * application (parish identity + ECCLESIA brand).
  * @see TitleBar.tsx
  */
 export { TitleBar } from './TitleBar'; // Named re-export from TitleBar module

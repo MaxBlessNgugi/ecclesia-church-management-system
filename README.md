@@ -3,16 +3,17 @@
 Multi-user church management system: **React 19 frontend** + **Express + Prisma + PostgreSQL backend**.
 
 > **For management/executive audiences:** see **[REPORT.md](REPORT.md)** (status &
-> capability report) — and **[INSTALL.md](INSTALL.md)** for deploying on another PC.
+> capability report) — and **[SERVER_SETUP.md](SERVER_SETUP.md)** for deploying on
+> another PC.
 
 ---
 
 ## Architecture Overview
 
-ECCLESIA is a **client-server application** designed for multi-user access on a local network:
+ECCLESIA is a **pure web application** designed for multi-user access on a local network:
 
 - **Server**: Runs on a dedicated parish computer (office PC, mini-server, or NAS)
-- **Clients**: Access the app through web browsers or a thin Electron shell
+- **Clients**: Access the app through any modern web browser (Chrome, Firefox, Edge, Safari)
 - **Real-time sync**: All changes appear instantly on all connected devices via Socket.IO
 - **Friendly URL**: Access at `http://ecclesia.local` on your parish network
 
@@ -45,6 +46,7 @@ ECCLESIA is a **client-server application** designed for multi-user access on a 
 ### 1. Install prerequisites
 
 - **Node.js 18+** (https://nodejs.org)
+- **PostgreSQL 14+** (https://postgresql.org)
 - A dedicated computer on your parish network
 
 ### 2. Download and setup
@@ -95,28 +97,7 @@ See **[CLIENT_SETUP.md](CLIENT_SETUP.md)** for detailed instructions.
 
 ---
 
-## Run as a desktop app (Electron)
-
-ECCLESIA also has an **Electron desktop app** that connects to the server:
-
-```bash
-npm run dev
-```
-
-→ Opens the native **ECCLESIA desktop window** that connects to the server.
-On Windows you can also double-click **`start-app.cmd`** for the same result.
-
-For a distributable Windows installer: `npm run dist:win` (output in `release/`).
-
----
-
-## Run in the browser instead (developers only)
-
-While `npm run dev` is running, the Vite dev server is still available at
-**http://localhost:3000** in any browser (it proxies `/api` → backend automatically) —
-useful for responsive-mode testing. The Electron window opens on top by default.
-
-For browser-only development without the Electron window:
+## Development
 
 ```bash
 npm run backend   # terminal 1 → API at http://localhost:5000
@@ -217,21 +198,9 @@ caddy run          # uses the Caddyfile at the repo root
 |---------|-------------|
 | `npm run setup` | Install both sides + create DB + seed admin |
 | `npm run backend` | Start API on port 5000 |
-| `npm run dev` | Open the desktop app (Electron window) — starts Vite + backend |
 | `npm run build` | Build frontend for production |
 | `cd backend && npm run db:seed:demo` | Load realistic demo data for pitches |
 | `cd backend && npm run db:clear:demo` | Wipe demo data (commercial handover) |
-
----
-
-## Backend only
-
-```bash
-cd backend
-./start-local.sh
-```
-
-Or: `npm run backend:setup` then `npm run backend`
 
 ---
 

@@ -38,7 +38,7 @@
 // IMPLEMENTATION NOTES
 //   - All endpoints do IN-MEMORY aggregation over full table reads (JS map/filter)
 //   - This is INTENTIONAL at parish scale (hundreds to low thousands of rows)
-//   - Avoids SQLite date/JSON quirks and complex Prisma groupBy/raw SQL
+//   - Avoids complex Prisma groupBy/raw SQL at parish scale
 //   - If data grows, migrate to SQL views or materialized tables
 //
 // DATA SHAPES (match src/types.ts report row interfaces)

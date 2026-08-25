@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { signToken } from '../src/lib/auth.js';
-import { errorHandler } from '../src/middleware/error.js';
+import { errorHandler } from '../src/middleware/errorHandler.js';
 import { prisma as appPrismaSingleton } from '../src/lib/prisma.js';
 
 import authRoutes from '../src/routes/auth.js';

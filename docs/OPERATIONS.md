@@ -5,24 +5,25 @@ All paths are relative to the `backend/` directory unless noted.
 
 ## 1. Backups
 
-The backend snapshots the SQLite database automatically:
+The backend snapshots the PostgreSQL database automatically using `pg_dump`:
 
-- **Where:** `backend/backups/ecclesia-backup-<timestamp>.db`
+- **Where:** `backend/backups/ecclesia-backup-<timestamp>.sql`
 - **When:** once on boot if a backup is due, then every 6h it re-checks and backs
   up when the last snapshot is older than `BACKUP_INTERVAL_HOURS` (default 24).
 - **Rotation:** keeps the newest `BACKUP_KEEP` snapshots (default 14).
 - **Off-site mirror:** set `BACKUP_DEST_DIR` in `backend/.env` to a network share
   or cloud-synced folder (e.g. Google Drive) to copy every snapshot there.
+- **Requires:** `pg_dump` must be in PATH.
 
 Manual operations:
 
 ```bash
 npm run backup                          # snapshot right now (server may be running)
-npm run restore -- --file=../backups/ecclesia-backup-xxx.db --yes   # server MUST be stopped
+npm run restore -- --file=../backups/ecclesia-backup-xxx.sql --yes   # server MUST be stopped
 ```
 
-> A backup is a consistent snapshot (SQLite `VACUUM INTO`) — safe to copy even
-> mid-write. Always keep at least one copy OFF the parish PC.
+> A backup is a consistent SQL dump — safe to copy even mid-write.
+> Always keep at least one copy OFF the parish server.
 
 ## 2. Security
 
@@ -57,7 +58,7 @@ npm run export           # writes JSON + a CSV per table into backend/exports/
 
 Or via the UI: **Admin > Users > Export Data** (downloads the JSON bundle).
 The JSON bundle can be re-imported onto a fresh install (server-side, super
-admin only). The parish owns its data: JSON, CSV, or the raw `.db` file on
+admin only). The parish owns its data: JSON, CSV, or raw SQL dumps on
 request, any time.
 
 ## 4. Diagnostics & support
@@ -75,21 +76,17 @@ request, any time.
 
 ## 5. First-run checklist for a new parish
 
-**Automated (Windows):** copy the project to the parish PC, then double-click
-`install-parish.cmd`. It generates a strong `JWT_SECRET`, prompts for the admin
-email/password, cleans + rebuilds the DB, builds both sides, registers the app
-to auto-start on boot (NSSM service if installed, else a startup task), and
-opens the app. Manual steps below only for a non-Windows or hands-on install.
-
-1. `npm run setup` (root) — installs, creates DB, seeds super admin.
-2. Copy the printed super admin password; set `SUPER_ADMIN_PASSWORD` env if a
+1. Install Node.js 18+ and PostgreSQL 14+ on the server.
+2. `npm run setup` (root) — installs, creates DB, seeds super admin.
+3. Copy the printed super admin password; set `SUPER_ADMIN_PASSWORD` env if a
    known value is preferred.
-3. Set a real `JWT_SECRET` in `backend/.env` and `NODE_ENV=production` when
+4. Set a real `JWT_SECRET` in `backend/.env` and `NODE_ENV=production` when
    deploying beyond localhost.
-4. Configure `BACKUP_DEST_DIR` to an off-site folder.
-5. Put Caddy (or another TLS proxy) in front of the API.
-6. Sign in as super admin, change the forced password, create staff accounts.
-7. Verify: Admin > Users > **Backup Now** and **Export Data** both work.
+5. Configure `BACKUP_DEST_DIR` to an off-site folder.
+6. Put Caddy (or another TLS proxy) in front of the API if needed.
+7. Sign in as super admin, change the forced password, create staff accounts.
+8. Complete the first-run parish setup wizard.
+9. Verify: Admin > Users > **Backup Now** and **Export Data** both work.
 
 ## 6. Demo data (sales pitches only)
 
@@ -109,3 +106,28 @@ the super-admin-only import route.
 **Before handing a system to a customer**, run `npm run db:clear:demo` (or skip
 the demo seeder entirely on the production box). For an iron-clad build, delete
 `prisma/seed-demo.ts` and `scripts/clear-demo.ts` from the shipped code.
+
+## 7. License / Activation
+
+Not yet implemented. A future version may add an offline license-key check
+stored in `ParishSettings`. For now, the product is free to use.
+
+## 8. Automatic Updates
+
+Not applicable for a self-hosted web application. Parishes update by pulling
+new code and rebuilding:
+
+```bash
+git pull
+npm install
+cd backend && npm install && npx prisma generate && npx prisma db push
+cd ..
+npm run build
+cd backend && npm restart
+```
+
+## 9. Crash Reporting
+
+Not yet implemented. A future version may add Sentry integration behind an
+environment variable (`SENTRY_DSN`). For now, errors are logged to
+`backend/logs/error.log`.

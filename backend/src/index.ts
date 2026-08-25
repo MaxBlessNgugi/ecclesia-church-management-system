@@ -17,7 +17,7 @@
 //   2. resolveJwtSecret()      → Fail-fast if JWT_SECRET missing in production
 //   3. Mount global middleware:
 //      - helmet()               → Security headers (CSP, HSTS, X-Frame-Options)
-//      - cors({origin: true})   → Permissive for LAN/dev (credentials: true)
+//      - cors({origin: true})   → Permissive for LAN/dev (no credentials needed)
 //      - morgan('dev')          → Request logging (method, url, status, ms)
 //      - express.json(2mb)      → Body parser with size limit
 //   4. Mount feature routers under /api/* (exact contract match with API.md)
@@ -200,11 +200,15 @@ app.use(helmet({
   },
 }));
 
-// CORS: allow any origin (for LAN parish networks), with credentials (cookies).
-app.use(cors({ origin: true, credentials: true }));
+// CORS: allow any origin (for LAN parish networks). No credentials needed —
+// auth is Bearer-token-in-header, not cookie-based.
+app.use(cors({ origin: true }));
 
 // Request logging: logs method, URL, status code, and response time in ms.
-app.use(morgan('dev'));
+// Only in development — production uses the structured logger.
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
 
 // JSON body parser: limits request body to 2MB to prevent abuse.
 app.use(express.json({ limit: '2mb' }));

@@ -20,7 +20,7 @@
 //   └──────────────────────┴────────┴────────────────────────────────────────┘
 //
 // SACRAMENT FIELDS
-//   Stored as JSON TEXT in SQLite (via serializeOptionalJson) and re-parsed
+//   Stored as JSON strings in PostgreSQL (via serializeOptionalJson) and re-parsed
 //   on the way out (parseOptionalJson) so the API contract uses plain JS
 //   objects: { date, minister, place } — not raw JSON strings.
 //
@@ -50,6 +50,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma, prisma } from '../lib/prisma.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { AppError } from '../middleware/errorHandler.js';
 import { requireModule } from '../middleware/perms.js';
 import { softDelete, resolveActor } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
@@ -81,7 +82,7 @@ const sacramentSchema = z.object({
 
 // ── JSON serialization helpers ─────────────────────────────────────────────
 
-// Parses a JSON TEXT column value from SQLite into a typed JS object.
+// Parses a JSON TEXT column value from PostgreSQL into a typed JS object.
 // Returns undefined for null/empty/malformed values (graceful fallback).
 function parseOptionalJson<T>(value: string | null | undefined): T | undefined {
   // Guard: null, undefined, or empty string → return undefined.
@@ -95,7 +96,7 @@ function parseOptionalJson<T>(value: string | null | undefined): T | undefined {
   }
 }
 
-// Serializes a JS object to JSON TEXT for storage in SQLite TEXT columns.
+// Serializes a JS object to JSON TEXT for storage in PostgreSQL columns.
 // Returns undefined for null/undefined values (don't write empty JSON).
 function serializeOptionalJson<T>(value: T | undefined): string | undefined {
   // Guard: undefined or null → don't serialize, return undefined.
@@ -203,7 +204,7 @@ router.get('/', async (req, res, next) => {
     const where: any = {};
     if (status) where.status = status;
 
-    // SQLite: filter in memory for case-insensitive search
+    // Filter in memory for case-insensitive search
     // Fetch all matching records ordered by createdAt descending (newest first).
     const rows = await appPrisma.christian.findMany({ where, orderBy: { createdAt: 'desc' } });
 
@@ -238,7 +239,7 @@ router.get('/:id', async (req, res, next) => {
     const c = await appPrisma.christian.findUnique({ where: { id: req.params.id } });
 
     // Return 404 if no record matches the given ID.
-    if (!c) return res.status(404).json({ error: 'Christian not found' });
+    if (!c) return next(new AppError('Christian not found', 404, 'NOT_FOUND'));
 
     // Map to API response shape and return.
     res.json(mapChristian(c));

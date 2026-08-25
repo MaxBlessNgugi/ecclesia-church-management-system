@@ -24,7 +24,7 @@
 // CONTRIBUTIONS
 //   - Stores member giving records with category tags (e.g., Tithe, Offertory)
 //     and a monthly tracker (JSON object mapping month→boolean for 12 months).
-//   - categories and monthlyTracker are stored as JSON TEXT in SQLite.
+//   - categories and monthlyTracker are stored as JSON strings in PostgreSQL.
 //   - amountKES is in Kenyan Shillings.
 //
 // TRANSFERS
@@ -137,7 +137,7 @@ router.post('/contributions', async (req, res, next) => {
       })
       .parse(req.body);
 
-    // Create the contribution record, serializing JSON fields for SQLite storage.
+    // Create the contribution record, serializing JSON fields for storage.
     const created = await appPrisma.contribution.create({
       data: {
         christianId: data.christianId,

@@ -89,9 +89,8 @@ export default defineConfig(() => {
         },
         // Dev service worker DISABLED: the generated dev SW precaches
         // index.html and serves the stale copy on later loads, which breaks
-        // the Electron renderer's HMR websocket (old token/host → connection
-        // refused) after vite restarts. The desktop app is the primary target;
-        // the production PWA (vite build) still gets its SW as configured.
+        // HMR websocket connections after vite restarts. The production PWA
+        // (vite build) still gets its SW as configured.
         devOptions: {
           enabled: false,
         },
@@ -103,10 +102,9 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // Pin the HMR websocket to the explicit IPv4 loopback. The Electron
-      // renderer's Chromium can resolve `localhost` to ::1 while vite binds
-      // 0.0.0.0 (IPv4 only), which makes the first HMR connection fail with
-      // ERR_CONNECTION_REFUSED. An explicit host sidesteps resolution entirely.
+      // Pin the HMR websocket to the explicit IPv4 loopback to avoid
+      // resolution issues with localhost resolving to ::1 (IPv6) while
+      // vite binds 0.0.0.0 (IPv4 only).
       hmr:
         process.env.DISABLE_HMR === 'true'
           ? false
@@ -114,10 +112,9 @@ export default defineConfig(() => {
               host: '127.0.0.1',
             },
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
-      // CSP delivered as an HTTP response header so Electron's dev-mode
-      // security check (which reads headers, not the <meta> tag) stays quiet
-      // and dev responses are hardened. Mirrors the CSP <meta> in index.html;
-      // production gets its header from helmet() in the backend.
+      // CSP delivered as an HTTP response header for dev-mode hardening.
+      // Mirrors the CSP <meta> in index.html; production gets its header
+      // from helmet() in the backend.
       headers: {
         'Content-Security-Policy':
           "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:* wss://localhost:* wss://127.0.0.1:* http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* http://172.16.*:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",

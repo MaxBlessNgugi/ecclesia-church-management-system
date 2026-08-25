@@ -34,6 +34,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../lib/auth.js';
 import { appPrisma } from '../lib/prisma.js';
+import { AppError } from './errorHandler.js';
 
 /**
  * Extended Express Request interface augmented with the decoded JWT payload.
@@ -84,7 +85,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   // Validate that the header exists and starts with 'Bearer ' (7 characters).
   // If not present or malformed, the request is immediately rejected with 401.
   if (!header?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required' });
+    return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
   }
 
   let payload: { id: string; email: string; role: string };
@@ -96,7 +97,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   } catch {
     // Token is invalid, expired, or malformed — return 401 with a generic message
     // to avoid leaking whether the token was expired vs. invalidly signed.
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return next(new AppError('Invalid or expired token', 401, 'UNAUTHORIZED'));
   }
 
   try {
@@ -117,7 +118,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     // account was deleted; an inactive user has been deactivated. Both are
     // treated as authentication failures, not authorization failures.
     if (!user || !user.isActive) {
-      return res.status(401).json({ error: 'Account is inactive or has been removed' });
+      return next(new AppError('Account is inactive or has been removed', 401, 'UNAUTHORIZED'));
     }
 
     // Use the LIVE role from the database, not the role from the JWT claim.
@@ -157,12 +158,12 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
 export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   // Defensive check: if req.user is missing, requireAuth was not mounted before
   // this middleware. Return 401 to indicate the user is not authenticated.
-  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  if (!req.user) return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
 
   // Check that the user's role is exactly 'super_admin'. Unlike requireAdmin,
   // this does NOT accept 'admin' — only the highest privilege level passes.
   if (req.user.role !== 'super_admin') {
-    return res.status(403).json({ error: 'Super admin access required' });
+    return next(new AppError('Super admin access required', 403, 'FORBIDDEN'));
   }
 
   // Authorization succeeded — pass control to the next middleware/route handler.
@@ -191,12 +192,12 @@ export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFun
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   // Defensive check: if req.user is missing, requireAuth was not mounted before
   // this middleware. Return 401 to indicate the user is not authenticated.
-  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  if (!req.user) return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
 
   // Check that the user's role is either 'super_admin' or 'admin'.
   // Uses Array.includes() for clean membership testing — accepts both admin levels.
   if (!['super_admin', 'admin'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'Admin access required' });
+    return next(new AppError('Admin access required', 403, 'FORBIDDEN'));
   }
 
   // Authorization succeeded — pass control to the next middleware/route handler.

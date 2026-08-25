@@ -56,6 +56,9 @@ import {
 // Import auth middleware and typed request interface for protected routes
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 
+// Import AppError for consistent error handling via the centralized error handler
+import { AppError } from '../middleware/errorHandler.js';
+
 // Create Express router instance to define auth routes
 const router = Router();
 
@@ -135,7 +138,7 @@ const defaultPanels = {
 const defaultActions = { view: true, edit: true, delete: true };
 
 /**
- * Safe JSON parse for the `panels`/`actions` columns. SQLite stores these as
+ * Safe JSON parse for the `panels`/`actions` columns. PostgreSQL stores these as
  * TEXT; any malformed legacy value degrades gracefully to the default object
  * instead of crashing the login response.
  *
@@ -205,15 +208,13 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     // Validation: Check if user exists and is active
     if (!user || !user.isActive) {
       // Uniform "invalid credentials" response — don't leak whether the email exists.
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return next(new AppError('Invalid email or password', 401, 'UNAUTHORIZED'));
     }
 
     // Validation: Check if account is temporarily locked due to failed attempts
     // Per-account lockout window after repeated failures.
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-      return res.status(423).json({
-        error: 'Account temporarily locked due to too many failed attempts. Try again later.',
-      });
+      return next(new AppError('Account temporarily locked due to too many failed attempts. Try again later.', 423, 'UNAUTHORIZED'));
     }
 
     // Verify password against stored hash
@@ -229,7 +230,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
       }
       // Database query: Update user with failed attempt count or lockout
       await appPrisma.user.update({ where: { id: user.id }, data: update });
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return next(new AppError('Invalid email or password', 401, 'UNAUTHORIZED'));
     }
 
     // Success: Update login timestamps and clear lockout state
@@ -274,7 +275,7 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     // Authorization: Only super_admin can create new users
     if (req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only the super admin can add new users' });
+      return next(new AppError('Only the super admin can add new users', 403, 'FORBIDDEN'));
     }
     // Validate and parse request body against registration schema
     const data = registerSchema.parse(req.body);
@@ -282,7 +283,7 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
     // Database query: Find any user with this email (including soft-deleted)
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     // Validation: Check if email is already taken
-    if (existing) return res.status(409).json({ error: 'Email already registered' });
+    if (existing) return next(new AppError('Email already registered', 409, 'CONFLICT'));
 
     // Hash the plaintext password with bcrypt
     const passwordHash = await hashPassword(data.password);
@@ -310,9 +311,9 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
 // ---------------------------------------------------------------------------
 // First-run bootstrap — creates the initial super admin on a fresh database.
 // ---------------------------------------------------------------------------
-// A packaged install ships an empty schema (backend/template.db copied into
-// userData on first launch), so there is no pre-seeded admin: the parish
-// creates its administrator in the guided first-run screen instead of relying
+// A fresh installation starts with an empty schema, so there is no pre-seeded
+// admin: the parish creates its administrator in the guided first-run screen
+// instead of relying
 // on a random password printed to an invisible console. Both endpoints are
 // public but only function while the user table is empty.
 // ---------------------------------------------------------------------------
@@ -359,7 +360,7 @@ router.post('/bootstrap', async (req, res, next) => {
     // constraint or this check on the now-populated table).
     const count = await appPrisma.user.count();
     if (count > 0) {
-      return res.status(409).json({ error: 'Setup already completed. Please sign in.' });
+      return next(new AppError('Setup already completed. Please sign in.', 409, 'CONFLICT'));
     }
 
     // Hash the plaintext password with bcrypt
@@ -415,7 +416,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
     // Database query: Fetch fresh user data from database
     const user = await appPrisma.user.findUnique({ where: { id: req.user!.id } });
     // Validation: Check if user exists and is active
-    if (!user || !user.isActive) return res.status(401).json({ error: 'User not found' });
+    if (!user || !user.isActive) return next(new AppError('User not found', 401, 'UNAUTHORIZED'));
     // Touch the last-seen timestamp so admin "Last Active" reflects real usage.
     // Database query: Update user's last active timestamp
     await appPrisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
@@ -442,12 +443,12 @@ router.put('/change-password', requireAuth, async (req: AuthRequest, res, next) 
     // Database query: Fetch user from database to verify current password
     const user = await appPrisma.user.findUnique({ where: { id: req.user!.id } });
     // Validation: Check if user exists
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return next(new AppError('User not found', 404, 'NOT_FOUND'));
 
     // Verify current password against stored hash
     const ok = await verifyPassword(currentPassword, user.passwordHash);
     // Validation: Check if current password is correct
-    if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+    if (!ok) return next(new AppError('Current password is incorrect', 401, 'UNAUTHORIZED'));
 
     // Hash the new password with bcrypt
     const newHash = await hashPassword(newPassword);
@@ -541,7 +542,7 @@ router.post('/reset-password', resetPasswordLimiter, async (req, res, next) => {
     const user = await appPrisma.user.findFirst({ where: { resetTokenHash: hash } });
     // Validation: Check if user exists and is active
     if (!user || !user.isActive) {
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return next(new AppError('Invalid or expired reset code', 400, 'BAD_REQUEST'));
     }
 
     // Validation: Check if reset token has expired
@@ -561,7 +562,7 @@ router.post('/reset-password', resetPasswordLimiter, async (req, res, next) => {
       }
       // Database query: Update user with failed attempt count or lockout
       await appPrisma.user.update({ where: { id: user.id }, data: update });
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return next(new AppError('Invalid or expired reset code', 400, 'BAD_REQUEST'));
     }
 
     // Success: Hash new password and update user

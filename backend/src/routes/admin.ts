@@ -28,7 +28,7 @@
 //   │ /audit-logs/:id/current     │ GET      │ Current record state for JSON diff      │
 //   │ /audit-logs/restore-bulk    │ POST     │ Restore multiple soft-deleted records   │
 //   │ /audit-logs/:id/restore     │ POST     │ Restore single record from audit log    │
-//   │ /backup                     │ POST     │ Manual SQLite backup trigger            │
+//   │ /backup                     │ POST     │ Manual database backup trigger           │
 //   │ /export                     │ GET      │ Full parish data export (secrets stripped)│
 //   │ /import                     │ POST     │ Full DB replace (super_admin + confirm) │
 //   │ /diagnostics                │ GET      │ Health snapshot (no secrets)            │
@@ -81,6 +81,9 @@ import { hashPassword, generateResetToken, hashResetToken } from '../lib/auth.js
 // Auth middleware: requireAuth validates JWT, requireAdmin checks admin role, requireSuperAdmin checks super_admin role, AuthRequest type extends Request with user
 import { requireAdmin, requireAuth, requireSuperAdmin, AuthRequest } from '../middleware/auth.js';
 
+// Import AppError for consistent error handling via the centralized error handler
+import { AppError } from '../middleware/errorHandler.js';
+
 // Permission middleware: requireModule checks panel-specific access rights for the administration module
 import { requireModule } from '../middleware/perms.js';
 
@@ -88,7 +91,7 @@ import { requireModule } from '../middleware/perms.js';
 import { softDelete, restoreFromLog, listAuditLogs, resolveActor, loadCurrentRecord, restoreMany, HttpError } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
 
-// Backup utility: backupDatabase creates SQLite database snapshots
+// Backup utility: backupDatabase creates PostgreSQL database dumps
 import { backupDatabase } from '../lib/backup.js';
 
 // Export/Import utilities: exportAllData bundles all parish data, importAllData restores from bundle, ExportBundle type for data structure
@@ -203,12 +206,12 @@ router.post('/users', async (req: AuthRequest, res, next) => {
 
     // Security check: only super_admin can grant super_admin role
     if (data.role === 'super_admin' && req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only the super admin can grant super admin access' });
+      return next(new AppError('Only the super admin can grant super admin access', 403, 'FORBIDDEN'));
     }
 
     // Check unfiltered table so soft-deleted users keep their email reserved (prevents re-registration)
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) return res.status(409).json({ error: 'Email already registered' });
+    if (existing) return next(new AppError('Email already registered', 409, 'CONFLICT'));
 
     // Hash password securely before storage (bcrypt or argon2)
     const passwordHash = await hashPassword(data.password);
@@ -248,24 +251,24 @@ router.put('/users/:id', async (req: AuthRequest, res, next) => {
 
     // Fetch target user from database to verify existence and check permissions
     const target = await appPrisma.user.findUnique({ where: { id: req.params.id } });
-    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!target) return next(new AppError('User not found', 404, 'NOT_FOUND'));
 
     // The primary account cannot be deactivated, deleted or demoted by anyone (including itself).
     // Security: only super_admin can modify another super_admin account
     if (target.role === 'super_admin' && req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only the super admin can modify a super admin account' });
+      return next(new AppError('Only the super admin can modify a super admin account', 403, 'FORBIDDEN'));
     }
     // Prevent users from deactivating their own account (self-protection)
     if (target.id === req.user?.id && data.isActive === false) {
-      return res.status(400).json({ error: 'You cannot deactivate your own account' });
+      return next(new AppError('You cannot deactivate your own account', 400, 'BAD_REQUEST'));
     }
     // Prevent users from demoting their own account (self-protection)
     if (target.id === req.user?.id && data.role && data.role !== 'super_admin') {
-      return res.status(400).json({ error: 'You cannot demote your own account' });
+      return next(new AppError('You cannot demote your own account', 400, 'BAD_REQUEST'));
     }
     // Prevent non-super_admin from granting super_admin role
     if (data.role === 'super_admin' && req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only the super admin can grant super admin access' });
+      return next(new AppError('Only the super admin can grant super admin access', 403, 'FORBIDDEN'));
     }
 
     // Build update object, copying validated data
@@ -294,21 +297,21 @@ router.delete('/users/:id', async (req: AuthRequest, res, next) => {
   try {
     // Fetch target user to verify existence and check deletion guards
     const target = await appPrisma.user.findUnique({ where: { id: req.params.id } });
-    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!target) return next(new AppError('User not found', 404, 'NOT_FOUND'));
 
     // Prevent users from deleting their own account (self-protection)
     if (target.id === req.user?.id) {
-      return res.status(400).json({ error: 'You cannot remove your own account' });
+      return next(new AppError('You cannot remove your own account', 400, 'BAD_REQUEST'));
     }
     // Security: only super_admin can delete another super_admin account
     if (target.role === 'super_admin' && req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only the super admin can remove a super admin account' });
+      return next(new AppError('Only the super admin can remove a super admin account', 403, 'FORBIDDEN'));
     }
 
     // Count remaining super_admin accounts to prevent removing the last one
     const superAdminCount = await appPrisma.user.count({ where: { role: 'super_admin' } });
     if (target.role === 'super_admin' && superAdminCount <= 1) {
-      return res.status(400).json({ error: 'Cannot remove the last super admin account' });
+      return next(new AppError('Cannot remove the last super admin account', 400, 'BAD_REQUEST'));
     }
 
     // Resolve actor information for audit log (user who performed the deletion)
@@ -330,15 +333,15 @@ router.post('/users/:id/reset-password', async (req: AuthRequest, res, next) => 
   try {
     // Fetch target user to verify existence and check reset guards
     const target = await appPrisma.user.findUnique({ where: { id: req.params.id } });
-    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!target) return next(new AppError('User not found', 404, 'NOT_FOUND'));
 
     // Prevent users from resetting their own password (should use Change Password flow)
     if (target.id === req.user?.id) {
-      return res.status(400).json({ error: 'You cannot reset your own password. Use Change Password instead.' });
+      return next(new AppError('You cannot reset your own password. Use Change Password instead.', 400, 'BAD_REQUEST'));
     }
     // Security: only super_admin can reset another super_admin's password
     if (target.role === 'super_admin' && req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only the super admin can reset a super admin account' });
+      return next(new AppError('Only the super admin can reset a super admin account', 403, 'FORBIDDEN'));
     }
 
     // Generate cryptographically secure one-time reset token
@@ -372,7 +375,7 @@ router.get('/users/:id/permissions', async (req, res, next) => {
   try {
     // Fetch user to verify existence and retrieve permission data
     const user = await appPrisma.user.findUnique({ where: { id: req.params.id } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return next(new AppError('User not found', 404, 'NOT_FOUND'));
     // Return parsed permissions with defaults applied
     res.json(getUserPermissions(user));
   } catch (e) { next(e); } // Pass errors to error handler
