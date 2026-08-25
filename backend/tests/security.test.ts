@@ -95,7 +95,7 @@ describe('Security', () => {
         role: 'staff',
       });
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty('error');
+    expect(res.body).toHaveProperty('message');
   });
 
   /**
@@ -120,7 +120,7 @@ describe('Security', () => {
       .post('/api/auth/login')
       .send({ email: 'admin@test.com', password: 'TestPass123!' });
     expect(lockedRes.status).toBe(423);
-    expect(lockedRes.body.error).toMatch(/locked/i);
+    expect(lockedRes.body.message).toMatch(/locked/i);
   });
 
   /**
