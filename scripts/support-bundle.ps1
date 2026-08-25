@@ -43,9 +43,9 @@ foreach ($l in $logFiles | Select-Object -Unique) { Copy-Item $l.FullName $stage
 Write-Host 'Collecting backup info...'
 $bkDir = Join-Path $root 'backend\backups'
 if (Test-Path $bkDir) {
-  Get-ChildItem $bkDir -Filter '*.db' | Select-Object Name, Length, LastWriteTime | Out-File (Join-Path $stage 'backups.txt')
-  $latest = Get-ChildItem $bkDir -Filter '*.db' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-  if ($latest) { Copy-Item $latest.FullName (Join-Path $stage 'latest-backup.db') }
+  Get-ChildItem $bkDir -Filter '*.sql' | Select-Object Name, Length, LastWriteTime | Out-File (Join-Path $stage 'backups.txt')
+  $latest = Get-ChildItem $bkDir -Filter '*.sql' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if ($latest) { Copy-Item $latest.FullName (Join-Path $stage 'latest-backup.sql') }
 }
 
 Write-Host 'Optional: paste an admin JWT to include a diagnostics snapshot (blank to skip):'

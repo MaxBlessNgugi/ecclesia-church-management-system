@@ -1,7 +1,7 @@
 {
   "name": "ecclesia-backend",
   "version": "1.0.0",
-  "description": "Ecclesia Church Management System — fully local backend (SQLite)",
+  "description": "Ecclesia Church Management System — PostgreSQL backend (multi-user)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

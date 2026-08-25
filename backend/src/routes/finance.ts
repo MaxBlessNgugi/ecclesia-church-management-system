@@ -48,7 +48,8 @@
 import { Router } from 'express';          // Express Router factory — creates a modular, mountable router instance
 import { z } from 'zod';                   // Zod — TypeScript-first schema validation library used to validate request bodies
 import { appPrisma } from '../lib/prisma.js'; // Singleton Prisma Client instance providing access to the application database
-import { requireAuth } from '../middleware/auth.js';   // Middleware that rejects requests without a valid JWT bearer token
+import { requireAuth } from '../middleware/auth.js';
+import { AppError } from '../middleware/errorHandler.js';   // Middleware that rejects requests without a valid JWT bearer token
 import { requireModule } from '../middleware/perms.js'; // Middleware that checks the user has permission for a specific module
 import { emitChange } from '../lib/events.js';
 
@@ -343,7 +344,7 @@ router.post('/debtors/:id/payments', async (req, res, next) => {
     const debtor = await appPrisma.debtor.findUnique({ where: { id: req.params.id } });
 
     // Return 404 if no debtor exists with the given ID
-    if (!debtor) return res.status(404).json({ error: 'Debtor not found' });
+    if (!debtor) return next(new AppError('Debtor not found', 404, 'NOT_FOUND'));
 
     // Calculate the new outstanding amount, ensuring it never goes below zero
     const newAmount = Math.max(0, debtor.amount - amountPaid);

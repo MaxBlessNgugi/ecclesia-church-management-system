@@ -126,10 +126,22 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
 
   // ── Fallback: 500 ───────────────────────────────────────────────────────
   // Never leak raw internals to the client in production.
+  // Prisma connection/initialization errors indicate the DB is unreachable
+  // and should ALWAYS be masked — even in dev — to avoid leaking SQL hosts,
+  // port numbers, and connection strings in the error message.
   const isDev = process.env.NODE_ENV !== 'production';
-  const message = isDev && err?.message
-    ? err.message
-    : 'Something went wrong. Please try again or send a Support Bundle.';
+  const PRISMA_CONN_CODES = new Set(['P1000', 'P1001', 'P1002', 'P1008', 'P1017']);
+  const isDbConnError = err && typeof err === 'object' && (
+    // PrismaClientKnownRequestError with a connection-specific code
+    (typeof err.code === 'string' && PRISMA_CONN_CODES.has(err.code)) ||
+    // PrismaClientInitializationError (name-only, no code property)
+    err?.name === 'PrismaClientInitializationError'
+  );
+  const message = isDbConnError
+    ? 'Database is temporarily unavailable. Please try again shortly.'
+    : isDev && err?.message
+      ? err.message
+      : 'Something went wrong. Please try again or send a Support Bundle.';
 
   res.status(500).json({
     success: false,

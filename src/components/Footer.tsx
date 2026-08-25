@@ -11,49 +11,55 @@ export const Footer: React.FC = () => {
   const parish = useParishInfo();
 
   return (
-    <footer className="mt-12 border-t border-[#e1e3e3] bg-[#ffffff] py-6 px-6 text-center text-xs text-[#444748]">
+    <footer className="mt-12 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-6 px-6 text-center text-xs text-slate-600 dark:text-slate-400">
       <div className="max-w-7xl mx-auto flex flex-col items-center gap-3">
         {/* Dual brand lockup — centred */}
-        <div className="flex items-center gap-2 flex-wrap justify-center">
+        <div className="flex items-center gap-2.5 flex-wrap justify-center">
           {/* Parish logo (or placeholder) */}
           {parish.logoData ? (
-            <img src={parish.logoData} alt="Parish logo" className="w-5 h-5 rounded object-contain" />
+            <img src={parish.logoData} alt="Parish logo" className="w-6 h-6 rounded object-contain" />
           ) : (
-            <div className="w-5 h-5 rounded border border-dashed border-[#c4c7c7] flex items-center justify-center text-[8px] text-[#c4c7c7] leading-none">
+            <div className="w-6 h-6 rounded border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-[7px] font-bold text-slate-400 dark:text-slate-500 leading-none">
               Logo
             </div>
           )}
 
           {/* Parish name + local church */}
-          {parish.name ? (
-            <span className="font-bold text-[#1a1c1c]">
-              {parish.name}
-              {parish.localChurch && (
-                <span className="font-normal text-[#444748] ml-1 text-[11px]">
-                  — {parish.localChurch}
-                </span>
-              )}
+          <div className="flex flex-col">
+            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs leading-tight">
+              {parish.name || 'Ecclesia'}
             </span>
-          ) : (
-            <span className="font-bold text-[#1a1c1c]">ECCLESIA</span>
-          )}
+            {parish.localChurch && (
+              <span className="text-slate-500 dark:text-slate-400 text-[10px] leading-tight">
+                {parish.localChurch}
+              </span>
+            )}
+          </div>
 
           {/* Vertical divider */}
-          <span className="text-[#c4c7c7]">|</span>
+          <span className="text-slate-300 dark:text-slate-600">|</span>
 
-          {/* ECCLESIA cross icon + app name */}
-          <span className="font-bold text-[#1a1c1c]">† Ecclesia CMS</span>
+          {/* ECCLESIA cross icon + app name + subtitle */}
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-5 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-bold text-xs leading-none">
+              †
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-xs leading-tight">ECCLESIA</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">Parish ERP</span>
+            </div>
+          </div>
         </div>
 
         {/* Parish motto (when configured) */}
         {parish.motto && (
-          <p className="italic text-[#444748] text-[11px]">
+          <p className="italic text-slate-500 dark:text-slate-400 text-[11px]">
             &ldquo;{parish.motto}&rdquo;
           </p>
         )}
 
         {/* Quick links */}
-        <div className="flex items-center gap-4 text-[11px]">
+        <div className="flex items-center gap-4 text-[11px] text-slate-400 dark:text-slate-500">
           <span className="hover:underline cursor-pointer">Privacy Policy</span>
           <span>•</span>
           <span className="hover:underline cursor-pointer">Terms of Service</span>

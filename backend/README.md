@@ -1,7 +1,6 @@
-# Ecclesia Backend — 100% Local
+# Ecclesia Backend — PostgreSQL Multi-User Server
 
-No PostgreSQL. No cloud. No Docker.  
-Uses a **SQLite file** on your machine.
+Requires **PostgreSQL** for concurrent multi-user access.
 
 ---
 
@@ -18,6 +17,7 @@ Or step by step:
 ```bash
 npm install
 cp .env.example .env
+npx prisma generate
 npx prisma db push
 npm run db:seed
 npm run dev
@@ -33,7 +33,6 @@ Health: `curl http://localhost:5000/api/health`
 ```bash
 cd ECCLESIA-ChMS
 npm install
-echo 'VITE_API_BASE_URL=http://localhost:5000/api' > .env
 npm run dev
 ```
 
@@ -55,10 +54,13 @@ Only **you** can add other users. Change the password after first login.
 
 ## Requirements
 
-- **Node.js 18+** only  
-- Nothing else
+- **Node.js 18+**
+- **PostgreSQL 14+** (or use Docker for easy setup)
 
-Database file is created automatically at `prisma/dev.db` (gitignored).
+Configure the database connection in `backend/.env`:
+```
+DATABASE_URL="postgresql://postgres:ecclesia@localhost:5432/ecclesia?schema=public"
+```
 
 ---
 
@@ -68,9 +70,9 @@ Database file is created automatically at `prisma/dev.db` (gitignored).
 |---------|----------------|
 | `./start-local.sh` | Install + DB + seed + start |
 | `npm run dev` | API with hot reload |
-| `npm run db:push` | Create/update SQLite schema |
+| `npm run db:push` | Sync schema to PostgreSQL |
 | `npm run db:seed` | Create Super Admin |
-| `npm run db:studio` | Local database GUI |
+| `npm run db:studio` | Database GUI |
 
 ---
 

@@ -58,6 +58,9 @@
 // Import Express types for the middleware signature (Response, NextFunction).
 import { Response, NextFunction } from 'express';
 
+// Import AppError for consistent error handling via the centralized error handler
+import { AppError } from './errorHandler.js';
+
 // Import the Prisma client instance for database queries. appPrisma includes
 // middleware that filters soft-deleted records and provides tenant isolation.
 import { appPrisma } from '../lib/prisma.js';
@@ -272,7 +275,7 @@ export function requireModule(panel: PanelKey) {
       // Defensive check: req.user must be populated by requireAuth before this
       // middleware runs. If not, return 401 to indicate missing authentication.
       if (!req.user) {
-        return res.status(401).json({ error: 'Authentication required' });
+        return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
       }
 
       // Load the user's effective permissions by merging global defaults with
@@ -283,7 +286,7 @@ export function requireModule(panel: PanelKey) {
       // Check panel access: Does the user have permission to access this module?
       // panels[panel] being false means the panel was explicitly disabled for this user.
       if (panels[panel] === false) {
-        return res.status(403).json({ error: 'You do not have access to this module' });
+        return next(new AppError('You do not have access to this module', 403, 'FORBIDDEN'));
       }
 
       // Map the HTTP method to the action it implies (view/edit/delete).
@@ -292,7 +295,7 @@ export function requireModule(panel: PanelKey) {
       // Check action permission: Does the user have permission for this action?
       // actions[action] being false means this action level was explicitly disabled.
       if (actions[action] === false) {
-        return res.status(403).json({ error: `You do not have permission to ${action} records in this module` });
+        return next(new AppError(`You do not have permission to ${action} records in this module`, 403, 'FORBIDDEN'));
       }
 
       // Both panel and action checks passed — proceed to the route handler.

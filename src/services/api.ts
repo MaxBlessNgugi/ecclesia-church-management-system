@@ -388,12 +388,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     let message = `Request failed (${res.status})`;
     let details: unknown;
     try {
-      // Try to parse the response body as JSON — the backend always
-      // returns `{ error: "..." }` or `{ error: "...", details: {...} }`.
+      // Try to parse the response body as JSON — the centralized error handler
+      // returns `{ success, message, code }`; hand-rolled routes may still use
+      // `{ error: "..." }`. Prefer `message`, fall back to `error`.
       const body = await res.json();
       details = body;
-      // Prefer the structured `error` string when present.
-      if (body && typeof body.error === 'string') message = body.error;
+      if (body && typeof body.message === 'string') {
+        message = body.message;
+      } else if (body && typeof body.error === 'string') {
+        message = body.error;
+      }
     } catch {
       // Non-JSON error body (e.g. HTML 502 gateway page) — keep the
       // generic message and leave details undefined.
@@ -1550,7 +1554,7 @@ export const adminApi = {
      *
      * **POST** `/admin/backup`
      *
-     * The backend creates a `.sql` or `.sqlite` file and returns its
+     * The backend creates a `.sql` file and returns its
      * metadata (filename, size, timestamp).
      *
      * @returns Backup metadata: filename, size in bytes, and ISO timestamp.

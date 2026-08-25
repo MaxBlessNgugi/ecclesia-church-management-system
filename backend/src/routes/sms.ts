@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { AppError } from '../middleware/errorHandler.js';
 import { sendSms, maskApiKey } from '../lib/sms.js';
 
 const router = Router();
@@ -81,7 +82,7 @@ router.post('/send', async (req, res, next) => {
     res.json(result);
   } catch (e: any) {
     if (e?.message?.includes('not configured')) {
-      res.status(400).json({ success: false, error: e.message });
+      return next(new AppError(e.message, 400, 'BAD_REQUEST'));
     } else {
       next(e);
     }

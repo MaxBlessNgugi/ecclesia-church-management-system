@@ -6,8 +6,7 @@
 //   2. push_payment_settings (id 'default') — empty settings row
 //
 // This is the "no-admin" half of prisma/seed.ts: it is used when generating
-// backend/template.db (the empty-schema database shipped with the packaged
-// app) and by nothing else at runtime — the first-run bootstrap endpoint
+// a fresh PostgreSQL database) and by nothing else at runtime — the first-run bootstrap endpoint
 // (POST /api/auth/bootstrap) also ensures these rows exist. The admin account
 // itself is created interactively by the parish on first launch, so no random
 // password is ever printed to an invisible console.

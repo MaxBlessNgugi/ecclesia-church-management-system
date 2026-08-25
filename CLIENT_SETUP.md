@@ -4,8 +4,6 @@ This guide explains how to connect client devices (desktops, laptops, tablets) t
 
 ## Quick Start
 
-### Option A: Web Browser (Recommended)
-
 1. Open any modern web browser (Chrome, Firefox, Edge, Safari)
 2. Enter the server address in the address bar:
    ```
@@ -20,22 +18,13 @@ This guide explains how to connect client devices (desktops, laptops, tablets) t
 5. Click **Connect to Server**
 6. Log in with your credentials
 
-### Option B: Desktop App (Electron)
-
-1. Download the ECCLESIA desktop app from your administrator
-2. Install and launch the app
-3. On first launch, you'll see the **Connect to Parish Server** screen
-4. The address should already be filled in as `ecclesia.local`
-5. Click **Connect to Server**
-6. Log in with your credentials
-
 ---
 
 ## First Launch
 
 ### Step 1: Connect to Server
 
-When you first open ECCLESIA (in browser or desktop app), you'll see:
+When you first open ECCLESIA, you'll see:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -136,23 +125,11 @@ When multiple users are connected, changes are synchronized automatically:
 
 If you need to connect to a different server (or the server address changed):
 
-### Web Browser
-
 1. Open browser Developer Tools (F12)
 2. Go to **Application** → **Local Storage**
 3. Find and delete `ecclesia_server_url`
 4. Refresh the page
 5. You'll see the connection screen again
-
-### Desktop App
-
-1. Go to **Administration** → **Server Settings** (if available)
-2. Or edit the config file:
-   - Windows: `%APPDATA%\ecclesia\server-config.json`
-   - macOS: `~/Library/Application Support/ecclesia/server-config.json`
-   - Linux: `~/.config/ecclesia/server-config.json`
-3. Change or delete the `serverUrl` field
-4. Restart the app
 
 ---
 
@@ -176,16 +153,30 @@ If you need to connect to a different server (or the server address changed):
 
 ---
 
+## Adding to Home Screen (Mobile/Tablet)
+
+ECCLESIA works on tablets and phones through the web browser:
+
+1. Open your mobile browser
+2. Enter `http://ecclesia.local`
+3. Add to home screen for app-like experience:
+   - **iOS Safari**: Tap Share → Add to Home Screen
+   - **Android Chrome**: Tap menu → Add to Home Screen
+
+**Recommended devices:**
+- iPad (any recent model)
+- Android tablets (10" screen or larger)
+- Phones work but smaller screens may be harder to use
+
+---
+
 ## Troubleshooting
 
 ### "ecclesia.local" doesn't work
 
-This is the most common issue. Here's what to try:
-
 1. **Try the IP address:**
    - Ask your administrator for the server's IP address
    - Enter it in the Server Address field (e.g., `192.168.1.100`)
-   - Don't include the port unless it's different from 5000
 
 2. **Add a hosts file entry (temporary fix):**
    - **Windows:** Edit `C:\Windows\System32\drivers\etc\hosts`
@@ -195,44 +186,15 @@ This is the most common issue. Here's what to try:
    ```
    192.168.1.100    ecclesia ecclesia.local
    ```
-   
-   You'll need administrator/root access to edit this file.
 
-3. **Check with your administrator:**
-   - The server may not be configured for mDNS yet
-   - The server may be on a different network segment
-   - The server may be turned off
+3. **Check with your administrator**
 
 ### "Cannot connect to server"
 
-**Check these:**
 1. Server is powered on and running
 2. You're on the same network as the server
 3. Server address is correct
 4. Port 5000 is not blocked
-
-**Test the connection:**
-- Open a terminal/command prompt
-- Type: `ping ecclesia.local` or `ping 192.168.1.100`
-- You should see replies
-
-### "Connection timed out"
-
-1. Server may be off or sleeping
-2. Firewall may be blocking the connection
-3. Try a different network (e.g., switch WiFi networks)
-
-### "Invalid email or password"
-
-1. Check for typos in email and password
-2. Ensure Caps Lock is off
-3. Contact administrator to reset your password
-
-### Page loads but shows "Loading..." forever
-
-1. Check your internet connection (if server is remote)
-2. Refresh the page (Ctrl+R or Cmd+R)
-3. Clear browser cache and try again
 
 ### Real-time updates not working
 
@@ -242,7 +204,7 @@ This is the most common issue. Here's what to try:
 
 ### Certificate warnings (HTTPS)
 
-If using HTTPS with Caddy, you'll see a security warning on first visit:
+If using HTTPS with Caddy:
 1. Click "Advanced" or "Show Details"
 2. Click "Proceed to ecclesia.local (unsafe)" or "Accept the Risk"
 3. The warning won't appear again for that browser
@@ -260,32 +222,6 @@ If using HTTPS with Caddy, you'll see a security warning on first visit:
 | Opera | 76+ | ✅ Fully supported |
 
 **Note:** Internet Explorer is not supported.
-
----
-
-## Mobile Devices
-
-ECCLESIA works on tablets and phones through the web browser:
-
-1. Open your mobile browser
-2. Enter `http://ecclesia.local`
-3. Add to home screen for app-like experience:
-   - **iOS Safari**: Tap Share → Add to Home Screen
-   - **Android Chrome**: Tap menu → Add to Home Screen
-
-**Recommended devices:**
-- iPad (any recent model)
-- Android tablets (10" screen or larger)
-- Phones work but smaller screens may be harder to use
-
----
-
-## Getting Help
-
-- **Server address**: Ask your parish administrator
-- **Login credentials**: Provided by your administrator
-- **Technical issues**: Contact your IT support
-- **Documentation**: See [SERVER_SETUP.md](SERVER_SETUP.md) for server setup
 
 ---
 
@@ -310,17 +246,10 @@ ECCLESIA works on tablets and phones through the web browser:
 | `http://<server-ip>:5000` | If ecclesia.local doesn't work |
 | `https://<server-ip>` | HTTPS with IP address |
 
-### Common Ports
-
-| Port | Service |
-|------|---------|
-| 5000 | ECCLESIA backend |
-| 443 | HTTPS |
-| 80 | HTTP (redirects to HTTPS) |
-
 ### Need Help?
 
-Contact your parish administrator or IT support. They can provide:
-- The correct server address
-- Your login credentials
-- Help with network issues
+Contact your parish administrator or IT support.
+
+---
+
+*Private — Max Bless Ngugi / Ecclesia*

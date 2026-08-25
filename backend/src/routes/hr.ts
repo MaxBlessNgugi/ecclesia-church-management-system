@@ -54,6 +54,7 @@ import { appPrisma } from '../lib/prisma.js';
 // It verifies the presence and validity of a session token (JWT or cookie) and
 // populates `req.user` with the authenticated user's profile.
 import { requireAuth } from '../middleware/auth.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 // ---- Import: Module-level permission middleware ----------------------------------------
 // `requireModule` is a higher-order middleware that checks whether the
@@ -122,7 +123,7 @@ router.get('/employees/:id', async (req, res, next) => {
     // Look up the employee by primary key (UUID).
     const emp = await appPrisma.employee.findUnique({ where: { id: req.params.id } });
     // If no employee matches the given ID, respond with 404.
-    if (!emp) return res.status(404).json({ error: 'Employee not found' });
+    if (!emp) return next(new AppError('Employee not found', 404, 'NOT_FOUND'));
     res.json(emp);
   } catch (e) { next(e); }
 });
@@ -286,7 +287,7 @@ router.get('/payrolls/:id', async (req, res, next) => {
       include: { employee: true },
     });
     // If no payroll record matches the given ID, respond with 404.
-    if (!row) return res.status(404).json({ error: 'Payroll record not found' });
+    if (!row) return next(new AppError('Payroll record not found', 404, 'NOT_FOUND'));
     res.json(row);
   } catch (e) { next(e); }
 });
@@ -350,7 +351,7 @@ router.put('/payrolls/:id', async (req, res, next) => {
     // Fetch the current payroll record to serve as defaults for optional fields.
     const existing = await appPrisma.payroll.findUnique({ where: { id: req.params.id } });
     // If the payroll record doesn't exist, respond with 404.
-    if (!existing) return res.status(404).json({ error: 'Payroll record not found' });
+    if (!existing) return next(new AppError('Payroll record not found', 404, 'NOT_FOUND'));
 
     // Zod schema for payroll update (all fields optional for partial updates):
     const data = z.object({
@@ -492,7 +493,7 @@ router.get('/leaves/:id', async (req, res, next) => {
       include: { employee: true },
     });
     // If no leave record matches the given ID, respond with 404.
-    if (!row) return res.status(404).json({ error: 'Leave record not found' });
+    if (!row) return next(new AppError('Leave record not found', 404, 'NOT_FOUND'));
     res.json(row);
   } catch (e) { next(e); }
 });
@@ -681,7 +682,7 @@ router.get('/recruitments/:id', async (req, res, next) => {
       include: { applicants: true },
     });
     // If no recruitment record matches the given ID, respond with 404.
-    if (!row) return res.status(404).json({ error: 'Recruitment record not found' });
+    if (!row) return next(new AppError('Recruitment record not found', 404, 'NOT_FOUND'));
     res.json(row);
   } catch (e) { next(e); }
 });
