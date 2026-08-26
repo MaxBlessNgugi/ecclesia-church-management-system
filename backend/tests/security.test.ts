@@ -72,22 +72,28 @@ describe('Security', () => {
    * against brute-force login attempts. Invalid credentials are used so that
    * the test does not depend on account lockout logic (which triggers at 5
    * failed attempts with a different status code 423).
+   *
+   * IMPORTANT: beforeEach resets login state but the in-memory rate limiter
+   * counter persists across tests in the same vitest process. The "allows
+   * normal login" test above sends 1 request, so we start at counter=1 and
+   * need LIMIT-1 more requests before hitting the cap.
    */
   it('rate limiter blocks excessive login attempts with 429', async () => {
-    // The loginLimiter is configured with max: 10 per window
+    // The loginLimiter is configured with max: 10 per window.
+    // The "allows normal login" test already consumed 1 slot.
     const LIMIT = 10;
     const invalidCredentials = { email: 'nonexistent@test.com', password: 'wrong' };
 
-    // First LIMIT requests should not be rate-limited (they may return 401)
-    for (let i = 0; i < LIMIT; i++) {
+    // Send LIMIT-1 requests (we already used 1 slot in the prior test).
+    // These should all pass through and return 401 (invalid credentials, not rate-limited).
+    for (let i = 0; i < LIMIT - 1; i++) {
       const res = await request(app)
         .post('/api/auth/login')
         .send(invalidCredentials);
-      // Expect 401 for invalid credentials, not 429 (rate limit not hit yet)
       expect([400, 401]).toContain(res.status);
     }
 
-    // The (LIMIT + 1)th request should be blocked by the rate limiter
+    // The next request (LIMITth total) should now be blocked by the rate limiter.
     const blockedRes = await request(app)
       .post('/api/auth/login')
       .send(invalidCredentials);
