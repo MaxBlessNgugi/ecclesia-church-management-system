@@ -66,6 +66,37 @@ describe('Security', () => {
   });
 
   /**
+   * Rate limiting — POST /api/auth/login exceeding the configured limit (10
+   * requests per 15-minute window per IP) must return 429. This verifies the
+   * express-rate-limit middleware actually blocks excessive requests, protecting
+   * against brute-force login attempts. Invalid credentials are used so that
+   * the test does not depend on account lockout logic (which triggers at 5
+   * failed attempts with a different status code 423).
+   */
+  it('rate limiter blocks excessive login attempts with 429', async () => {
+    // The loginLimiter is configured with max: 10 per window
+    const LIMIT = 10;
+    const invalidCredentials = { email: 'nonexistent@test.com', password: 'wrong' };
+
+    // First LIMIT requests should not be rate-limited (they may return 401)
+    for (let i = 0; i < LIMIT; i++) {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send(invalidCredentials);
+      // Expect 401 for invalid credentials, not 429 (rate limit not hit yet)
+      expect([400, 401]).toContain(res.status);
+    }
+
+    // The (LIMIT + 1)th request should be blocked by the rate limiter
+    const blockedRes = await request(app)
+      .post('/api/auth/login')
+      .send(invalidCredentials);
+    expect(blockedRes.status).toBe(429);
+    expect(blockedRes.body).toHaveProperty('error');
+    expect(blockedRes.body.error).toMatch(/too many sign-in attempts/i);
+  });
+
+  /**
    * Invalid token rejection — GET /api/auth/me with a fabricated Bearer token
    * must return 401. This ensures unsigned or malformed tokens cannot be used
    * to impersonate a user or bypass authentication.

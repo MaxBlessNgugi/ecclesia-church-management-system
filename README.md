@@ -110,11 +110,11 @@ npx vite          # terminal 2 → app at http://localhost:3000
 
 | Field | Value |
 |-------|--------|
-| Email | `SUPER_ADMIN_EMAIL` from `backend/.env` (default `maxblessngugi@ecclesia.local`) |
-| Password | `SUPER_ADMIN_PASSWORD` if set in `backend/.env`, otherwise **random** — printed **once** on first seed |
+| Email | `maxblessngugi@ecclesia.local` (fixed) |
+| Password | If `SUPER_ADMIN_PASSWORD` is set in `backend/.env`, that value is used for the super_admin account. Otherwise, a random temporary password is generated per account and printed **once** to the terminal during `npm run db:seed`. |
 | Role | `super_admin` (full access) |
 
-The seeded account is created with a temporary password and **must be changed at first sign-in**. Only this account can add other users.
+The seeded accounts are created with temporary passwords and **must be changed at first sign-in**. Only the super_admin account can add other users.
 
 ---
 

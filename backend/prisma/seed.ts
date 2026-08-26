@@ -10,22 +10,30 @@
 // =============================================================================
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import 'dotenv/config';
 
 const prisma = new PrismaClient();
 
-// Fixed credential accounts for the parish installation.
-// Default password: ChangeMeImmediately123!
-const DEFAULT_PASSWORD = 'ChangeMeImmediately123!';
 const SEED_USERS = [
   { email: 'maxblessngugi@ecclesia.local', name: 'Max Bless Ngugi', title: 'Primary Developer', role: 'super_admin' },
   { email: 'josephndung\'u@ecclesia.local', name: 'Joseph Ndung\'u', title: 'Administrator', role: 'admin' },
   { email: 'johnmusoma@ecclesia.local', name: 'John Musoma', title: 'Administrator', role: 'admin' },
 ] as const;
 
+function generateRandomPassword(length = 16): string {
+  // Generate a secure random password with alphanumeric + special chars
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  const bytes = crypto.randomBytes(length);
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += charset[bytes[i] % charset.length];
+  }
+  return password;
+}
+
 async function main() {
-  const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 12);
-  let passwordsPrinted = false;
+  const createdAccounts: Array<{ email: string; password: string; role: string }> = [];
 
   for (const acct of SEED_USERS) {
     const existing = await prisma.user.findUnique({ where: { email: acct.email } });
@@ -37,6 +45,15 @@ async function main() {
       });
       console.log(`  ↳ User already exists: ${acct.email} — skipped password creation.`);
     } else {
+      // Use SUPER_ADMIN_PASSWORD for the super_admin if set; otherwise generate random per user.
+      let password: string;
+      if (acct.role === 'super_admin' && process.env.SUPER_ADMIN_PASSWORD) {
+        password = process.env.SUPER_ADMIN_PASSWORD;
+      } else {
+        password = generateRandomPassword();
+      }
+      const passwordHash = await bcrypt.hash(password, 12);
+
       await prisma.user.create({
         data: {
           email: acct.email,
@@ -48,17 +65,23 @@ async function main() {
           mustChangePassword: true,
         },
       });
-      passwordsPrinted = true;
+      createdAccounts.push({ email: acct.email, password, role: acct.role });
       console.log(`  ✔ Created ${acct.role}: ${acct.email}`);
     }
   }
 
-  if (passwordsPrinted) {
+  if (createdAccounts.length > 0) {
     console.log('');
     console.log('═══════════════════════════════════════════════════════════════');
     console.log('  SEED ACCOUNTS CREATED');
     console.log('═══════════════════════════════════════════════════════════════');
-    console.log(`  Default password (all accounts): ${DEFAULT_PASSWORD}`);
+    for (const acct of createdAccounts) {
+      const source = acct.role === 'super_admin' && process.env.SUPER_ADMIN_PASSWORD
+        ? ' (from SUPER_ADMIN_PASSWORD)'
+        : ' (random, shown once)';
+      console.log(`  ${acct.role}: ${acct.email}`);
+      console.log(`  Password${source}: ${acct.password}`);
+    }
     console.log('  → SHOWN ONLY ONCE. All accounts require a password change at first login.');
     console.log('═══════════════════════════════════════════════════════════════');
     console.log('');

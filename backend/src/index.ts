@@ -187,22 +187,47 @@ const servingFrontend = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'));
 // ── Global middleware stack (order matters) ─────────────────────────────────
 
 // Security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, etc.
-// CSP includes connect-src for Socket.IO WebSocket connections.
+// CSP includes connect-src for Socket.IO WebSocket connections, and imgSrc
+// allows data: / blob: so base64-encoded parish logos can be rendered.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      connectSrc: [
-        "'self'",
-        "ws:",
-        "wss:",
-      ],
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "ws:", "wss:"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"],
     },
   },
 }));
 
 // CORS: allow any origin (for LAN parish networks). No credentials needed —
 // auth is Bearer-token-in-header, not cookie-based.
-app.use(cors({ origin: true }));
+// In production, restrict origins via CORS_ORIGINS env var (comma-separated).
+// Requests without an Origin header (e.g. curl, health checks) are always allowed.
+const corsOriginsRaw = (process.env.CORS_ORIGINS || '').trim();
+const corsOrigins = corsOriginsRaw
+  ? corsOriginsRaw.split(',').map((s) => s.trim()).filter(Boolean)
+  : [];
+const corsAllowAll =
+  process.env.NODE_ENV !== 'production' || corsOrigins.length === 0;
+
+app.use(cors({
+  origin: corsAllowAll
+    ? true
+    : (origin: string | undefined) => {
+        // Allow same-origin, curl, health checks (no Origin header).
+        if (!origin) return true;
+        // Allow any listed origin.
+        if (corsOrigins.includes(origin)) return true;
+        // Deny everything else.
+        return false;
+      },
+  credentials: false,
+}));
 
 // Request logging: logs method, URL, status code, and response time in ms.
 // Only in development — production uses the structured logger.
@@ -210,19 +235,23 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-// JSON body parser: limits request body to 2MB to prevent abuse.
-app.use(express.json({ limit: '2mb' }));
+// JSON body parser: allow larger payloads (5MB) for base64 logos (ParishSettings.logoData).
+app.use(express.json({ limit: '5mb' }));
 
 // ── Server configuration endpoint ───────────────────────────────────────
 
 // GET /api/server/config — returns server metadata for client configuration.
 // Allows clients to discover server name and version on first connection.
+// In production, the version is omitted to prevent revealing the exact build number.
 app.get('/api/server/config', (_req, res) => {
-  res.json({
+  const response: { name: string; port: number; version?: string } = {
     name: process.env.SERVER_NAME || 'Ecclesia Parish Server',
-    version: process.env.npm_package_version || '1.0.0',
     port: PORT,
-  });
+  };
+  if (process.env.NODE_ENV !== 'production') {
+    response.version = process.env.npm_package_version || '1.0.0';
+  }
+  res.json(response);
 });
 
 // ── Health check endpoint ──────────────────────────────────────────────────
