@@ -6,6 +6,7 @@
 // =============================================================================
 import React from 'react';
 import { useParishInfo } from '../hooks/useParishInfo';
+import { EcclesiaIcon } from './EcclesiaIcon';
 
 export const Footer: React.FC = () => {
   const parish = useParishInfo();
@@ -39,10 +40,10 @@ export const Footer: React.FC = () => {
           {/* Vertical divider */}
           <span className="text-slate-300 dark:text-slate-600">|</span>
 
-          {/* ECCLESIA cross icon + app name + subtitle */}
+          {/* ECCLESIA arch+E icon + app name + subtitle */}
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-bold text-xs leading-none">
-              †
+            <div className="w-5 h-5 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center">
+              <EcclesiaIcon size={14} className="w-3.5 h-3.5" />
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-slate-800 dark:text-slate-200 text-xs leading-tight">ECCLESIA</span>
