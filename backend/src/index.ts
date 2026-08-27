@@ -241,6 +241,11 @@ if (process.env.NODE_ENV !== 'production') {
 // JSON body parser: allow larger payloads (5MB) for base64 logos (ParishSettings.logoData).
 app.use(express.json({ limit: '5mb' }));
 
+// Decimal JSON middleware: converts Prisma Decimal objects to plain numbers
+// in all JSON responses, so the frontend receives numbers instead of strings.
+import { decimalJson } from './middleware/decimalJson.js';
+app.use(decimalJson());
+
 // ── Server configuration endpoint ───────────────────────────────────────
 
 // GET /api/server/config — returns server metadata for client configuration.

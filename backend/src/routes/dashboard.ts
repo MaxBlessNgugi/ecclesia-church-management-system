@@ -52,6 +52,9 @@ import { appPrisma } from '../lib/prisma.js';
 // Auth middleware: validates JWT token and attaches user to request
 import { requireAuth } from '../middleware/auth.js';
 
+// Decimal helper: converts Prisma Decimal to plain numbers for API responses
+import { toNum } from '../lib/decimal.js';
+
 // Create a new Express Router instance for dashboard endpoints
 const router = Router();
 
@@ -104,8 +107,8 @@ router.get('/summary', async (_req, res, next) => {
     res.json({
       activeMembers,                    // Number of active members
       totalChristians,                  // Total number of Christian members
-      totalDeposits: depositsAgg._sum.amount ?? 0, // Total deposits (0 if no deposits)
-      totalExpenses: expensesAgg._sum.amount ?? 0, // Total expenses (0 if no expenses)
+      totalDeposits: toNum(depositsAgg._sum.amount ?? 0), // Total deposits (0 if no deposits)
+      totalExpenses: toNum(expensesAgg._sum.amount ?? 0), // Total expenses (0 if no expenses)
       pendingCreditors,                 // Number of pending/overdue creditors
       outstandingDebtors,               // Number of outstanding debtors
       lowStockItems,                    // Number of inventory items at or below reorder level

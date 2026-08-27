@@ -69,6 +69,7 @@ import { requireModule } from '../middleware/perms.js';
 // an actor object suitable for audit trail fields.
 import { softDelete, resolveActor } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
+import { toNum } from '../lib/decimal.js';
 
 // =============================================================================
 // ROUTER INITIALIZATION
@@ -150,7 +151,7 @@ router.post('/employees', async (req, res, next) => {
       // designation: Job title or role description (e.g. "Pastor", "Admin"). Required.
       designation: z.string(),
       // hireDate: Date the employee was hired (ISO string). Required.
-      hireDate: z.string(),
+      hireDate: z.coerce.date(),
       // email: Employee's email address. Must be valid email format. Required.
       email: z.string().email(),
       // phone: Employee's phone number. Required.
@@ -208,7 +209,7 @@ router.put('/employees/:id', async (req, res, next) => {
       // email: Contact email (must be valid if provided). Optional.
       email: z.string().email().optional(),
       // hireDate: Employment start date (ISO string). Optional.
-      hireDate: z.string().optional(),
+      hireDate: z.coerce.date().optional(),
     }).parse(req.body);
 
     // Update the employee record by primary key with the provided fields.
@@ -316,7 +317,8 @@ router.post('/payrolls', async (req, res, next) => {
 
     // Compute net pay: basic salary + allowances − deductions.
     // `?? 0` provides a default of 0 when allowances/deductions are undefined.
-    const netPay = data.basicSalary + (data.allowances ?? 0) - (data.deductions ?? 0);
+    // Use toNum() to ensure Prisma Decimal values are converted to numbers.
+    const netPay = toNum(data.basicSalary) + toNum(data.allowances ?? 0) - toNum(data.deductions ?? 0);
 
     // Insert the new payroll record into the database, including the employee relation.
     const created = await appPrisma.payroll.create({
@@ -371,9 +373,10 @@ router.put('/payrolls/:id', async (req, res, next) => {
 
     // Merge new values with existing values for net pay calculation.
     // If a field is not provided in the update, use the existing value.
-    const basic = data.basicSalary ?? existing.basicSalary;
-    const allow = data.allowances ?? existing.allowances;
-    const deduct = data.deductions ?? existing.deductions;
+    // Use toNum() to ensure Prisma Decimal values are converted to numbers.
+    const basic = toNum(data.basicSalary ?? existing.basicSalary);
+    const allow = toNum(data.allowances ?? existing.allowances);
+    const deduct = toNum(data.deductions ?? existing.deductions);
 
     // Recompute net pay from the merged values.
     const netPay = basic + allow - deduct;
@@ -511,9 +514,9 @@ router.post('/leaves', async (req, res, next) => {
       // type: Type of leave (e.g. "Annual", "Sick", "Maternity"). Required.
       type: z.string(),
       // startDate: First day of leave (ISO date string). Required.
-      startDate: z.string(),
+      startDate: z.coerce.date(),
       // endDate: Last day of leave (ISO date string). Required.
-      endDate: z.string(),
+      endDate: z.coerce.date(),
       // days: Number of leave days requested. Must be an integer ≥ 1. Required.
       days: z.number().int().min(1),
       // reason: Explanation for the leave request. Required.
@@ -544,9 +547,9 @@ router.put('/leaves/:id', async (req, res, next) => {
       // type: Type of leave. Optional.
       type: z.string().optional(),
       // startDate: First day of leave. Optional.
-      startDate: z.string().optional(),
+      startDate: z.coerce.date().optional(),
       // endDate: Last day of leave. Optional.
-      endDate: z.string().optional(),
+      endDate: z.coerce.date().optional(),
       // days: Number of leave days. Must be integer ≥ 1. Optional.
       days: z.number().int().min(1).optional(),
       // reason: Explanation for the leave. Optional.
@@ -704,9 +707,9 @@ router.post('/recruitments', async (req, res, next) => {
       // requirements: Qualifications, skills, or experience needed. Optional.
       requirements: z.string().optional(),
       // datePosted: Date the posting was made public (ISO string). Required.
-      datePosted: z.string(),
+      datePosted: z.coerce.date(),
       // closingDate: Deadline for applications (ISO string). Optional.
-      closingDate: z.string().optional(),
+      closingDate: z.coerce.date().optional(),
       // notes: Additional notes about the position. Optional.
       notes: z.string().optional(),
     }).parse(req.body);
@@ -743,7 +746,7 @@ router.put('/recruitments/:id', async (req, res, next) => {
       // status: Recruitment workflow status. Must be one of the enum values. Optional.
       status: z.enum(['Open', 'Closed', 'On Hold', 'Cancelled']).optional(),
       // closingDate: Application deadline. Optional.
-      closingDate: z.string().optional(),
+      closingDate: z.coerce.date().optional(),
       // notes: Additional notes. Optional.
       notes: z.string().optional(),
     }).parse(req.body);

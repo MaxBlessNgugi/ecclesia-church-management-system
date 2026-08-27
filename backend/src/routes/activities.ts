@@ -56,6 +56,7 @@ import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
 import { emitChange } from '../lib/events.js';
+import { toNum } from '../lib/decimal.js';
 
 // Create a new Express router for all activity-related routes.
 const router = Router();
@@ -100,8 +101,8 @@ router.get('/contributions', async (_req, res, next) => {
         categories: parseJson<string[]>(r.categories, []),     // Deserialize category array from JSON TEXT
         otherCategory: r.otherCategory ?? undefined,           // Custom category name (if 'Other' selected)
         monthlyTracker: parseJson<Record<string, boolean>>(r.monthlyTracker, {}), // Deserialize monthly tracker from JSON TEXT
-        amountKES: r.amountKES,                                // Total contribution amount in KES
-        date: r.date,                                          // Date of contribution (ISO string)
+        amountKES: toNum(r.amountKES),                        // Total contribution amount in KES
+        date: r.date?.toISOString() ?? null,                  // Date of contribution (ISO string)
       }))
     );
   } catch (e) {
@@ -133,7 +134,7 @@ router.post('/contributions', async (req, res, next) => {
         // Contribution amount in Kenyan Shillings.
         amountKES: z.number(),
         // Date of the contribution (ISO date string).
-        date: z.string(),
+        date: z.coerce.date(),
       })
       .parse(req.body);
 
@@ -159,9 +160,8 @@ router.post('/contributions', async (req, res, next) => {
       regNo: created.regNo,
       categories: data.categories,             // Return parsed array, not raw JSON
       otherCategory: data.otherCategory,       // Return original optional value
-      monthlyTracker: data.monthlyTracker,     // Return parsed object, not raw JSON
-      amountKES: created.amountKES,
-      date: created.date,
+      monthlyTracker: data.monthlyTracker,     // Return parsed object, not raw JSON        amountKES: toNum(created.amountKES),
+        date: created.date?.toISOString() ?? null,
     };
     res.status(201).json(contributionResponse);
 
@@ -211,7 +211,7 @@ router.post('/transfers', async (req, res, next) => {
         // New Small Christian Community.
         scc: z.string(),
         // Date of the transfer (ISO date string).
-        date: z.string(),
+        date: z.coerce.date(),
       })
       .parse(req.body);
 
@@ -267,10 +267,10 @@ router.get('/billed-items', async (_req, res, next) => {
         isWalkIn: r.isWalkIn,                                  // True if non-member (walk-in customer)
         category: r.category,                                  // Service category (e.g., "Funeral", "Wedding")
         item: r.item,                                          // Specific item/service name
-        unitFee: r.unitFee,                                    // Price per unit in KES
+        unitFee: toNum(r.unitFee),                            // Price per unit in KES
         quantity: r.quantity,                                  // Number of units
-        totalAmount: r.totalAmount,                            // Total: unitFee × quantity
-        date: r.date,                                          // Date of the service (ISO string)
+        totalAmount: toNum(r.totalAmount),                     // Total: unitFee × quantity
+        date: r.date?.toISOString() ?? null,                  // Date of the service (ISO string)
       }))
     );
   } catch (e) {
@@ -303,7 +303,7 @@ router.post('/billed-items', async (req, res, next) => {
         // Total amount: unitFee × quantity (computed by client).
         totalAmount: z.number(),
         // Date of the service (ISO date string).
-        date: z.string(),
+        date: z.coerce.date(),
       })
       .parse(req.body);
 
@@ -330,10 +330,10 @@ router.post('/billed-items', async (req, res, next) => {
       isWalkIn: created.isWalkIn,
       category: created.category,
       item: created.item,
-      unitFee: created.unitFee,
+      unitFee: toNum(created.unitFee),
       quantity: created.quantity,
-      totalAmount: created.totalAmount,
-      date: created.date,
+      totalAmount: toNum(created.totalAmount),
+      date: created.date?.toISOString() ?? null,
     };
     res.status(201).json(billedResponse);
 

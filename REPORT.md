@@ -107,7 +107,7 @@ installing Node.js and PostgreSQL.
   start with a weak secret).
 - Login rate-limiting (10 attempts / 15 min per IP) and account lockout after
   5 failed attempts (15-minute lock).
-- Forced password change on first sign-in for the super admin and all new users.
+- Forced password change on first sign-in for all super_admin accounts and new users.
 - Single-use, hashed, 30-minute admin reset codes for offline password resets.
 - Role-based, per-module permissions (Super Admin, Admin, Staff, Viewer).
 - Optional HTTPS via Caddy for LAN or domain access.

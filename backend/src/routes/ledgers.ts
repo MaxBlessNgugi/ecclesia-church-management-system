@@ -58,6 +58,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { requireModule } from '../middleware/perms.js';
 import { HttpError } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
+import { toNum } from '../lib/decimal.js';
 
 // Create a new Express router for all ledger-related routes.
 const router = Router();
@@ -162,12 +163,12 @@ router.post('/transfer', async (req, res, next) => {
       if (!from || !to) throw new HttpError(404, 'Ledger not found');
 
       // Step 4: Check if the source ledger has sufficient balance.
-      if (from.balance < amount) {
+      if (toNum(from.balance) < amount) {
         throw new HttpError(422, 'Insufficient balance in source ledger');
       }
 
       // Capture the current timestamp for the movement record.
-      const time = new Date().toISOString();
+      const time = new Date();
 
       // Step 5: Decrement the source ledger balance by the transfer amount.
       await tx.ledger.update({

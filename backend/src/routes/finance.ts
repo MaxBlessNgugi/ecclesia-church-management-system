@@ -52,6 +52,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';   // Middleware that rejects requests without a valid JWT bearer token
 import { requireModule } from '../middleware/perms.js'; // Middleware that checks the user has permission for a specific module
 import { emitChange } from '../lib/events.js';
+import { toNum } from '../lib/decimal.js';
 
 // ----- Router Setup -----------------------------------------------------------
 
@@ -122,7 +123,7 @@ router.post('/deposits', async (req, res, next) => {
   try {
     // Validate the request body against the deposit schema; throws ZodError on failure
     const data = z.object({
-      date: z.string(),               // Deposit date as a string
+      date: z.coerce.date(),          // Deposit date (ISO string → Date)
       amount: z.number().positive(),   // Must be a number greater than zero
       bankName: z.string(),           // Name of the financial institution
       accountNo: z.string(),          // Bank account identifier
@@ -188,7 +189,7 @@ router.post('/creditors', async (req, res, next) => {
       description: z.string(),       // What the invoice covers
       invoiceNo: z.string(),         // Vendor's invoice reference number
       amountOwed: z.number().positive(), // Amount owed; must be positive
-      dueDate: z.string(),           // Payment due date as a string
+      dueDate: z.coerce.date(),      // Payment due date (ISO string → Date)
       status: z.enum(['Pending', 'Overdue', 'Scheduled', 'Paid']).optional(),
       // ^ Optional status enum; if not provided, defaults to 'Pending' below
     }).parse(req.body);
@@ -225,7 +226,7 @@ router.put('/creditors/:id', async (req, res, next) => {
       description: z.string().optional(),     // Invoice description (optional for update)
       invoiceNo: z.string().optional(),       // Invoice number (optional for update)
       amountOwed: z.number().optional(),      // Amount owed (optional, no positivity check on update)
-      dueDate: z.string().optional(),         // Due date (optional for update)
+      dueDate: z.coerce.date().optional(),    // Due date (optional for update)
       status: z.enum(['Pending', 'Overdue', 'Scheduled', 'Paid']).optional(),
       // ^ Status enum (optional for update)
     }).parse(req.body);
@@ -347,7 +348,7 @@ router.post('/debtors/:id/payments', async (req, res, next) => {
     if (!debtor) return next(new AppError('Debtor not found', 404, 'NOT_FOUND'));
 
     // Calculate the new outstanding amount, ensuring it never goes below zero
-    const newAmount = Math.max(0, debtor.amount - amountPaid);
+    const newAmount = Math.max(0, toNum(debtor.amount) - amountPaid);
     // ^ Math.max(0, ...) prevents negative balances if overpayment occurs
 
     // Derive the status based on the remaining balance
@@ -426,7 +427,7 @@ router.post('/expenses', async (req, res, next) => {
   try {
     // Validate the request body against the expense creation schema
     const data = z.object({
-      date: z.string(),               // Expense date as a string
+      date: z.coerce.date(),          // Expense date (ISO string → Date)
       category: z.string(),           // Expense classification/category
       description: z.string(),        // Detailed description of the expense
       amount: z.number().positive(),  // Expense amount; must be greater than zero

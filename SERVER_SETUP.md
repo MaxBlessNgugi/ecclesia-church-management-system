@@ -87,7 +87,7 @@ npx prisma db push
 npm run db:seed
 ```
 
-The seed creates the super admin account. **Write down the credentials.**
+The seed creates three super_admin accounts. **Write down the credentials.**
 
 ### Step 6: Build the Frontend
 

@@ -2,7 +2,7 @@
 // Database seeder — `npm run db:seed` (prisma db seed)
 // ---------------------------------------------------------------------------
 // Bootstraps the platform for first-run:
-//   1. Creates three fixed admin accounts (idempotent — never overwrites
+//   1. Creates three fixed super_admin accounts (idempotent — never overwrites
 //      existing passwords).
 //   2. Creates the default panel_permissions singleton (full access).
 //   3. Creates the default push_payment_settings singleton (empty).
@@ -17,8 +17,8 @@ const prisma = new PrismaClient();
 
 const SEED_USERS = [
   { email: 'maxblessngugi@ecclesia.local', name: 'Max Bless Ngugi', title: 'Primary Developer', role: 'super_admin' },
-  { email: 'josephndung\'u@ecclesia.local', name: 'Joseph Ndung\'u', title: 'Administrator', role: 'admin' },
-  { email: 'johnmusoma@ecclesia.local', name: 'John Musoma', title: 'Administrator', role: 'admin' },
+  { email: 'josephndung\'u@ecclesia.local', name: 'Joseph Ndung\'u', title: 'Administrator', role: 'super_admin' },
+  { email: 'anko@ecclesia.local', name: 'Anko', title: 'Administrator', role: 'super_admin' },
 ] as const;
 
 function generateRandomPassword(length = 16): string {

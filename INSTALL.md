@@ -9,7 +9,65 @@ The server hosts the database and API that all client devices connect to over th
 
 ---
 
-## Prerequisites
+## Easiest Way to Install (Recommended)
+
+If you are setting up ECCLESIA for your parish, use the one-command installer.
+It handles everything automatically: checks prerequisites, configures the
+database, installs dependencies, and builds the application.
+
+### Prerequisites
+
+Before running the installer, install these two programs:
+
+1. **Node.js 18+** — download from https://nodejs.org (choose the LTS version)
+2. **PostgreSQL 14+** — download from https://postgresql.org
+   - During installation, set a password for the `postgres` user
+   - The installer uses the default password `ecclesia`
+     (if you chose a different password, edit `backend/.env` after install)
+
+### Run the Installer
+
+**Windows:**
+Double-click `scripts/install-parish.cmd` or run in Command Prompt:
+```
+scripts\install-parish.cmd
+```
+
+**Linux / macOS:**
+```bash
+bash scripts/install-parish.sh
+```
+
+The installer will:
+- Check that Node.js and PostgreSQL are installed
+- Create a secure configuration file (`backend/.env`)
+- Install all dependencies
+- Set up the database schema
+- Create the initial super_admin accounts
+- Build the frontend
+- Optionally configure the `ecclesia.local` hostname
+
+### Start the Server
+
+After installation completes:
+```bash
+cd backend
+npm start
+```
+
+Then open **http://localhost:5000** in any browser on the parish network.
+
+> **First time?** You will be guided through a Parish Setup Wizard to configure
+> your parish name, logo, diocese, and other identity details.
+
+---
+
+## Advanced / Manual Setup
+
+If you prefer to set things up manually (or the installer doesn't work for your
+system), follow the steps below.
+
+### Prerequisites
 
 - **Windows 10/11**, **macOS**, or **Linux** (Ubuntu, Debian, etc.)
 - **Node.js 18+** (download from https://nodejs.org)
@@ -18,9 +76,9 @@ The server hosts the database and API that all client devices connect to over th
 
 ---
 
-## Step 1: Install Node.js and PostgreSQL
+### Step 1: Install Node.js and PostgreSQL
 
-### Node.js
+#### Node.js
 
 1. Download the **LTS version** from https://nodejs.org
 2. Run the installer and follow the prompts
@@ -30,7 +88,7 @@ The server hosts the database and API that all client devices connect to over th
    npm --version
    ```
 
-### PostgreSQL
+#### PostgreSQL
 
 1. Download from https://postgresql.org/download
 2. Run the installer — remember the **postgres** user password
@@ -41,7 +99,7 @@ The server hosts the database and API that all client devices connect to over th
 
 ---
 
-## Step 2: Download ECCLESIA
+### Step 2: Download ECCLESIA
 
 **Option A: Download ZIP**
 1. Go to https://github.com/MaxBlessNgugi/ecclesia-church-management-system
@@ -56,7 +114,7 @@ cd ecclesia-church-management-system
 
 ---
 
-## Step 3: Configure the Server
+### Step 3: Configure the Server
 
 Create or edit `backend/.env`:
 
@@ -81,7 +139,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 ---
 
-## Step 4: Install and Setup
+### Step 4: Install and Setup
 
 ```bash
 npm install
@@ -92,11 +150,11 @@ npx prisma db push
 npm run db:seed
 ```
 
-The seed creates the super admin account.
+The seed creates three super_admin accounts (see README.md for emails).
 
 ---
 
-## Step 5: Build and Start
+### Step 5: Build and Start
 
 ```bash
 cd ..

@@ -17,3 +17,13 @@ backend/node_modules/
 backend/dist/
 backend/.env
 backend/logs/
+
+# Playwright E2E
+test-results/
+playwright-report/
+
+# Runtime artifacts (backups, dev databases)
+backend/backups/*.db
+backend/prisma/dev.db
+backend/prisma/test.db
+backend/prisma/prisma/

@@ -81,9 +81,9 @@ router.post('/', async (req, res, next) => {
       // Location where the death occurred (e.g., hospital name, home).
       placeOfDeath: z.string(),
       // Date of death (ISO date string, e.g., "2026-05-20").
-      dateOfDeath: z.string(),
+      dateOfDeath: z.coerce.date(),
       // Date of burial (ISO date string, e.g., "2026-05-25").
-      dateOfBurial: z.string(),
+      dateOfBurial: z.coerce.date(),
       // Name of the minister/priest who officiated the burial.
       ministerName: z.string(),
       // Additional notes or remarks about the death/burial. Defaults to empty string.

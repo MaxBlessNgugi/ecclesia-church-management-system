@@ -106,15 +106,19 @@ npx vite          # terminal 2 → app at http://localhost:3000
 
 ---
 
-## Super Admin login
+## Super Admin accounts
 
-| Field | Value |
-|-------|--------|
-| Email | `maxblessngugi@ecclesia.local` (fixed) |
-| Password | If `SUPER_ADMIN_PASSWORD` is set in `backend/.env`, that value is used for the super_admin account. Otherwise, a random temporary password is generated per account and printed **once** to the terminal during `npm run db:seed`. |
-| Role | `super_admin` (full access) |
+Three super_admin accounts are seeded on first run. Each gets a random
+temporary password (printed once during `npm run db:seed`). All three have
+full access and can add other users.
 
-The seeded accounts are created with temporary passwords and **must be changed at first sign-in**. Only the super_admin account can add other users.
+| Email | Name | Role |
+|-------|------|------|
+| `maxblessngugi@ecclesia.local` | Max Bless Ngugi | `super_admin` |
+| `josephndung'u@ecclesia.local` | Joseph Ndung'u | `super_admin` |
+| `anko@ecclesia.local` | Anko | `super_admin` |
+
+All seeded accounts require a password change at first sign-in.
 
 ---
 
@@ -147,6 +151,50 @@ npm run db:clear:demo
 That removes every business record and the demo users, returning the system to
 its pristine post-install state. For an iron-clad commercial build you can also
 delete `backend/prisma/seed-demo.ts` and `backend/scripts/clear-demo.ts`.
+
+---
+
+## Visual Tour (E2E Testing)
+
+Watch the entire system being tested live in your browser. The visual tour runs
+Playwright in headed mode with slow-motion delays so you can see every action:
+
+```bash
+# 1. Seed demo data (30 members, finance, inventory, HR, etc.)
+cd backend && npm run db:seed:demo && cd ..
+
+# 2. Start the backend + frontend
+npm run dev
+
+# 3. In a new terminal, run the visual tour
+npm run tour
+```
+
+A Chrome window will open and you'll see:
+- Login screen → authentication flow
+- Dashboard with live parish data
+- Christian Registry (add, search, edit, soft-delete)
+- Activities & Contributions (record payments, view history)
+- Sacraments (baptism, marriage, death records)
+- Finance (deposits, creditors, debtors, expenses)
+- Ledgers (accounts, transfers, movements)
+- Inventory (stock items, sales, deliveries)
+- Reports (sacrament, contribution, sales analytics)
+- HR & Payroll (employees, salary runs, leave, recruitment)
+- Administration (users, permissions, backups, audit)
+- Real-time Socket.IO (multi-tab live sync)
+
+A floating banner at the top shows the current step. Each action is highlighted
+with a red border so you can follow along.
+
+| Command | Description |
+|---------|-------------|
+| `npm run tour` | Visual tour — headed Chrome, slow motion, watch live |
+| `npm run test:e2e` | Fast headless E2E tests (CI-friendly) |
+| `npm run test:report` | Open HTML report after a test run |
+
+> **Requires:** demo data seeded (`npm run db:seed:demo`), backend running on
+> port 5000, frontend on port 3000.
 
 ---
 
@@ -186,6 +234,9 @@ caddy run          # uses the Caddyfile at the repo root
 │   ├── src/routes/      # All REST endpoints
 │   ├── prisma/          # Schema + seed (+ seed-demo.ts, demo only)
 │   └── start-local.sh
+├── e2e/                 # Playwright visual tour + E2E tests
+│   ├── tests/           # visual-tour.spec.ts (the complete tour)
+│   └── utils/           # Tour helpers, test data constants
 ├── API.md               # REST contract
 └── package.json
 ```
@@ -196,9 +247,11 @@ caddy run          # uses the Caddyfile at the repo root
 
 | Command | Description |
 |---------|-------------|
-| `npm run setup` | Install both sides + create DB + seed admin |
+| `npm run setup` | Install both sides + create DB + seed super_admin accounts |
 | `npm run backend` | Start API on port 5000 |
 | `npm run build` | Build frontend for production |
+| `npm run tour` | Visual E2E tour — watch the system being tested live |
+| `npm run test:e2e` | Fast headless E2E tests |
 | `cd backend && npm run db:seed:demo` | Load realistic demo data for pitches |
 | `cd backend && npm run db:clear:demo` | Wipe demo data (commercial handover) |
 

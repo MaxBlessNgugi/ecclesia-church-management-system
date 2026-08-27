@@ -1,19 +1,21 @@
-name: CI
+name: Weekly Full Test Suite
 
+# Run every Sunday at 03:00 UTC against a fresh database.
+# Catches slow regressions, migration drift, and data-seed issues
+# that a single CI run might miss.
 on:
-  push:
-    branches: [master, main]
-  pull_request:
-    branches: [master, main]
+  schedule:
+    - cron: "0 3 * * 0"
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
 
-# Cancel previous runs of the same branch if a new commit arrives
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: weekly-full-test
   cancel-in-progress: true
 
 jobs:
-  test-and-build:
-    name: Test & Build
+  full-test:
+    name: Weekly Full Test
     runs-on: ubuntu-latest
 
     services:
@@ -22,7 +24,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: ecclesia_test
+          POSTGRES_DB: ecclesia_weekly
         ports:
           - 5432:5432
         options: >-
@@ -30,6 +32,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecclesia_weekly
+      NODE_ENV: test
+      JWT_SECRET: ci-test-secret-at-least-32-characters-long
+      JWT_EXPIRES_IN: 1h
+      BACKUP_DISABLED: "true"
 
     steps:
       - name: Checkout repository
@@ -51,8 +60,6 @@ jobs:
         run: npm ci
         working-directory: backend
 
-      # Cache the generated Prisma client so `prisma generate` is a no-op
-      # when the schema hasn't changed. Keyed on schema.prisma content.
       - name: Cache Prisma client
         uses: actions/cache@v4
         with:
@@ -65,40 +72,34 @@ jobs:
         run: npx prisma generate
         working-directory: backend
 
-      # Frontend type-check (root tsconfig covers src/)
-      - name: Type-check frontend (TypeScript)
+      # Start with a clean database — push schema + seed demo data
+      - name: Push schema to fresh database
+        run: npx prisma db push --accept-data-loss
+        working-directory: backend
+
+      - name: Seed database
+        run: npm run db:seed
+        working-directory: backend
+
+      - name: Type-check frontend
         run: npm run lint
 
-      # Backend type-check — `tsc --noEmit` without emitting compiled output
-      - name: Type-check backend (TypeScript)
+      - name: Type-check backend
         run: npx tsc --noEmit
         working-directory: backend
 
       - name: Run backend tests
         run: npm test
         working-directory: backend
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecclesia_test
-          NODE_ENV: test
-          JWT_SECRET: ci-test-secret-at-least-32-characters-long
-          JWT_EXPIRES_IN: 1h
-          BACKUP_DISABLED: "true"
 
       - name: Build frontend + backend
         run: npm run build
 
-      # Smoke test: start the compiled backend, hit /api/health, confirm 200.
-      # This catches runtime crashes (missing imports, bad config) that tsc won't.
       - name: Smoke test — start server and hit health endpoint
         run: |
-          # Start the backend in the background on port 5050
-          PORT=5050 \
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecclesia_test \
-          JWT_SECRET=ci-test-secret-at-least-32-characters-long \
-          node backend/dist/index.js &
+          PORT=5050 node backend/dist/index.js &
           SERVER_PID=$!
 
-          # Wait for the server to become ready (up to 15 seconds)
           for i in $(seq 1 30); do
             if curl -sf http://localhost:5050/api/health > /dev/null 2>&1; then
               echo "✅ Server is healthy"

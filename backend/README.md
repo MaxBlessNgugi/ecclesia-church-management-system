@@ -40,15 +40,18 @@ Open **http://localhost:3000**
 
 ---
 
-## Your Super Admin login
+## Super Admin accounts
 
-| Field    | Value |
-|----------|-------|
-| Email    | `maxblessngugi@ecclesia.local` |
-| Password | `ChangeMeImmediately123!` |
-| Role     | `super_admin` (full access) |
+Three super_admin accounts are seeded on first run, each with full access:
 
-Only **you** can add other users. Change the password after first login.
+| Email | Name | Role |
+|-------|------|------|
+| `maxblessngugi@ecclesia.local` | Max Bless Ngugi | `super_admin` |
+| `josephndung'u@ecclesia.local` | Joseph Ndung'u | `super_admin` |
+| `anko@ecclesia.local` | Anko | `super_admin` |
+
+All seeded accounts require a password change at first login.
+Any super_admin can add other users.
 
 ---
 
@@ -71,7 +74,7 @@ DATABASE_URL="postgresql://postgres:ecclesia@localhost:5432/ecclesia?schema=publ
 | `./start-local.sh` | Install + DB + seed + start |
 | `npm run dev` | API with hot reload |
 | `npm run db:push` | Sync schema to PostgreSQL |
-| `npm run db:seed` | Create Super Admin |
+| `npm run db:seed` | Create super_admin accounts |
 | `npm run db:studio` | Database GUI |
 
 ---

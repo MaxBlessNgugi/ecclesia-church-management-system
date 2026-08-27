@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { signToken } from '../src/lib/auth.js';
 import { errorHandler } from '../src/middleware/errorHandler.js';
+import { decimalJson } from '../src/middleware/decimalJson.js';
 import { prisma as appPrismaSingleton } from '../src/lib/prisma.js';
 
 import authRoutes from '../src/routes/auth.js';
@@ -73,6 +74,7 @@ export function createTestApp(): express.Express {
   app.use(helmet());
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '2mb' }));
+  app.use(decimalJson());
 
   app.get('/api/health', async (_req, res) => {
     try {

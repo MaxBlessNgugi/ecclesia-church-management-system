@@ -82,6 +82,7 @@ import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
 import { softDelete, resolveActor, HttpError } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
+import { toNum, toNumOrNull } from '../lib/decimal.js';
 
 // Create a new Express router for all inventory-related routes.
 const router = Router();
@@ -108,9 +109,10 @@ async function currentActorName(req: AuthRequest): Promise<string> {
 
 // Checks if cost or price values have changed between two snapshots.
 // Used to decide whether to write a price audit log entry.
-function pricingChanged(prev: { cost: number; price: number }, next: { cost: number; price: number }): boolean {
+function pricingChanged(prev: { cost: unknown; price: unknown }, next: { cost: unknown; price: unknown }): boolean {
   // Return true if either cost or price differs between the two objects.
-  return prev.cost !== next.cost || prev.price !== next.price;
+  // Uses toNum() to handle Prisma Decimal comparison.
+  return toNum(prev.cost) !== toNum(next.cost) || toNum(prev.price) !== toNum(next.price);
 }
 
 // Interface defining the minimal Prisma client surface needed for writing
@@ -132,11 +134,12 @@ interface PriceLogWriter {
   };
 }
 
+
 // Writes one append-only price audit row to the InventoryPriceAuditLog table.
 // Can run inside or outside a transaction (accepts PriceLogWriter interface).
 async function logPriceChange(
   tx: PriceLogWriter,           // Transaction client or appPrisma
-  item: { id: string; name: string; sku: string; cost: number; price: number }, // Current item state
+  item: { id: string; name: string; sku: string; cost: unknown; price: unknown }, // Current item state
   oldCost: number | null,       // Previous cost (null on baseline/create)
   oldPrice: number | null,      // Previous price (null on baseline/create)
   actorName: string             // Display name of the acting user
@@ -148,9 +151,9 @@ async function logPriceChange(
       itemName: item.name,      // Denormalized item name for query/display
       sku: item.sku,            // Denormalized SKU for query/display
       oldCost,                  // Previous cost (null = baseline entry)
-      newCost: item.cost,       // New cost after the change
+      newCost: toNum(item.cost), // New cost after the change
       oldPrice,                 // Previous price (null = baseline entry)
-      newPrice: item.price,     // New price after the change
+      newPrice: toNum(item.price), // New price after the change
       actorName,                // User who performed the change
     },
   });
@@ -241,7 +244,7 @@ router.put('/items/:id', async (req, res, next) => {
 
     // If cost or price changed, write a price audit log entry.
     if (pricingChanged(current, updated)) {
-      await logPriceChange(appPrisma, updated, current.cost, current.price, await currentActorName(req));
+      await logPriceChange(appPrisma, updated, toNumOrNull(current.cost), toNumOrNull(current.price), await currentActorName(req));
     }
 
     // Return the updated item.
@@ -337,7 +340,7 @@ router.post('/items/batch-update', async (req, res, next) => {
 
         // If cost or price changed, write a price audit log entry.
         if (pricingChanged(current, next)) {
-          await logPriceChange(tx, next, current.cost, current.price, actorName);
+          await logPriceChange(tx, next, toNumOrNull(current.cost), toNumOrNull(current.price), actorName);
         }
 
         // Collect the updated item for the response.
@@ -380,7 +383,7 @@ router.post('/deliveries', async (req, res, next) => {
       // Invoice or reference number for the delivery.
       inv: z.string(),
       // Date of delivery (ISO date string).
-      date: z.string(),
+      date: z.coerce.date(),
       // Number of units received (must be a positive integer).
       units: z.number().int().positive(),
       // Category of the delivered goods.

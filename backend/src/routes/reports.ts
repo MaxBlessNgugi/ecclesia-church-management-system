@@ -67,6 +67,9 @@ import { requireAuth } from '../middleware/auth.js';
 // Permission middleware: checks panel-specific access rights for the reports module
 import { requireModule } from '../middleware/perms.js';
 
+// Decimal helper: converts Prisma Decimal to plain numbers for API responses
+import { toNum } from '../lib/decimal.js';
+
 // Create a new Express Router instance for reports endpoints
 const router = Router();
 
@@ -145,7 +148,7 @@ router.get('/contributions', async (req, res, next) => {
         memberName: r.memberName, // Contributor's name
         category: categories.join(', '), // Joined categories string
         month: month ?? '', // Requested month filter (empty if not provided)
-        amount: r.amountKES, // Contribution amount in Kenyan Shillings
+        amount: toNum(r.amountKES), // Contribution amount in Kenyan Shillings
         // Payment status: 'Paid' if month specified and tracked as paid, otherwise 'Pending'
         status: month && tracker[month] ? 'Paid' : 'Pending',
       };
@@ -168,16 +171,20 @@ router.get('/sales', async (req, res, next) => {
     const where: any = {};
     // Add item filter if provided (substring match using contains)
     if (item) where.item = { contains: item };
-    // Add date filter if provided (prefix match using startsWith on time field)
-    if (date) where.time = { startsWith: date };
+    // Add date filter if provided (range match using gte/lte on DateTime)
+    if (date) {
+      const dayStart = new Date(`${date}T00:00:00Z`);
+      const dayEnd = new Date(`${date}T23:59:59.999Z`);
+      where.time = { gte: dayStart, lte: dayEnd };
+    }
     // Fetch all sales matching filters, ordered by creation date (newest first)
     const rows = await appPrisma.sale.findMany({ where, orderBy: { createdAt: 'desc' } });
     // Transform each sale into report row (quantity always 1 in current schema)
     res.json(rows.map((r) => ({
       item: r.item, // Item name/description
       quantity: 1, // Quantity (hardcoded to 1 in current implementation)
-      amount: r.amount, // Sale amount
-      date: r.time, // Sale timestamp
+      amount: toNum(r.amount), // Sale amount
+      date: r.time?.toISOString() ?? null, // Sale timestamp (ISO string)
     })));
   } catch (e) { next(e); } // Pass errors to Express error handler
 });
@@ -191,8 +198,8 @@ router.get('/cashiers', async (_req, res, next) => {
     const result = ledgers.map((l) => ({
       cashier: l.cashier, // Cashier name/identifier
       sessions: 1, // Number of sessions (hardcoded to 1 per ledger in current schema)
-      collected: l.balance, // Amount collected (balance treated as collected total)
-      reconciled: l.balance, // Amount reconciled (same as collected in current implementation)
+      collected: toNum(l.balance), // Amount collected (balance treated as collected total)
+      reconciled: toNum(l.balance), // Amount reconciled (same as collected in current implementation)
       status: 'OK', // Reconciliation status (hardcoded placeholder for future logic)
     }));
     // Return cashier report data as JSON

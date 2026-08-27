@@ -74,8 +74,13 @@ const NAMES: [string, string, string][] = [
   ['Florence', 'Muthoni', 'Wairimu'],
 ];
 
-/** Deterministic-ish year spread so the sacraments report has multiple years. */
-function isoDate(year: number, month: number, day: number): string {
+/** Create a Date object for a given year/month/day (UTC midnight). */
+function utcDate(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+}
+
+/** Format a Date as ISO date string for sacrament JSON (kept as string inside JSON). */
+function isoDateStr(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
@@ -183,10 +188,10 @@ async function main() {
         localChurch: church,
         scc,
         status: i % 27 === 0 ? 'Transferred' : i % 29 === 0 ? 'Deceased' : 'Active',
-        baptism: sacrament(isoDate(baptismYear, (i % 12) + 1, (i % 28) + 1)),
-        eucharist: sacrament(isoDate(baptismYear + 9, (i % 12) + 1, (i % 28) + 1)),
-        confirmation: sacrament(isoDate(baptismYear + 15, (i % 12) + 1, (i % 28) + 1)),
-        marriage: i % 2 === 0 ? sacrament(isoDate(baptismYear + 24, (i % 12) + 1, (i % 28) + 1)) : null,
+        baptism: sacrament(isoDateStr(baptismYear, (i % 12) + 1, (i % 28) + 1)),
+        eucharist: sacrament(isoDateStr(baptismYear + 9, (i % 12) + 1, (i % 28) + 1)),
+        confirmation: sacrament(isoDateStr(baptismYear + 15, (i % 12) + 1, (i % 28) + 1)),
+        marriage: i % 2 === 0 ? sacrament(isoDateStr(baptismYear + 24, (i % 12) + 1, (i % 28) + 1)) : null,
       },
     });
     christians.push({ id: created.id, regNo });
@@ -216,7 +221,7 @@ async function main() {
         otherCategory: null,
         monthlyTracker: JSON.stringify(tracker),
         amountKES,
-        date: isoDate(new Date().getFullYear(), new Date().getMonth() + 1, (i % 27) + 1),
+        date: utcDate(new Date().getFullYear(), new Date().getMonth() + 1, (i % 27) + 1),
       },
     });
   }
@@ -230,7 +235,7 @@ async function main() {
       parish: 'St. John the Baptist',
       localChurch: 'St. Teresa Chapel',
       scc: 'St. Joseph SCC',
-      date: isoDate(2025, 11, 14),
+      date: utcDate(2025, 11, 14),
     },
   });
 
@@ -252,7 +257,7 @@ async function main() {
         unitFee: b.unitFee,
         quantity: b.qty,
         totalAmount: b.unitFee * b.qty,
-        date: isoDate(2026, 6, 10 + i),
+        date: utcDate(2026, 6, 10 + i),
       },
     });
   }
@@ -262,8 +267,8 @@ async function main() {
       christianId: christians[29].id,
       memberName: `${NAMES[29][0]} ${NAMES[29][2]}`,
       placeOfDeath: 'Nairobi, Kenya',
-      dateOfDeath: isoDate(2025, 9, 2),
-      dateOfBurial: isoDate(2025, 9, 12),
+      dateOfDeath: utcDate(2025, 9, 2),
+      dateOfBurial: utcDate(2025, 9, 12),
       ministerName: 'Fr. Joseph Mwangi',
       remarks: 'Rest in peace. Funeral service held at the Cathedral.',
     },
@@ -274,7 +279,7 @@ async function main() {
   for (let i = 0; i < 6; i++) {
     await prisma.deposit.create({
       data: {
-        date: isoDate(2026, 6, 1 + i),
+        date: utcDate(2026, 6, 1 + i),
         amount: 15000 + i * 7500,
         bankName: banks[i % banks.length],
         accountNo: `0110${String(2200 + i * 113)}`,
@@ -291,7 +296,7 @@ async function main() {
       description: 'Altar candles and liturgical vestments',
       invoiceNo: 'INV-8841',
       amountOwed: 48000,
-      dueDate: isoDate(2026, 9, 15),
+      dueDate: utcDate(2026, 9, 15),
       status: 'Pending',
     },
   });
@@ -301,7 +306,7 @@ async function main() {
       description: 'Parish bulletin printing (July)',
       invoiceNo: 'INV-8892',
       amountOwed: 12000,
-      dueDate: isoDate(2026, 8, 30),
+      dueDate: utcDate(2026, 8, 30),
       status: 'Scheduled',
     },
   });
@@ -313,12 +318,12 @@ async function main() {
     data: { memberName: 'Grace Achieng', contributionType: 'Jumuiya Contribution', amount: 2000, status: 'Partially Paid' },
   });
 
-  const expenseDefs: [string, string, number, string][] = [
-    ['2026-06-05', 'Utilities', 'Electricity bill — June', 8500, 'MPESA'],
-    ['2026-06-12', 'Maintenance', 'Roof repair over the sacristy', 22500, 'Cash'],
-    ['2026-06-20', 'Transport', 'Outstation pastoral visits', 4200, 'Cash'],
-    ['2026-07-01', 'Office Supplies', 'Printer toner and stationery', 6800, 'MPESA'],
-    ['2026-07-08', 'Programmes', 'Seminarian training support', 15000, 'Bank Transfer'],
+  const expenseDefs: [Date, string, string, number, string][] = [
+    [utcDate(2026, 6, 5), 'Utilities', 'Electricity bill — June', 8500, 'MPESA'],
+    [utcDate(2026, 6, 12), 'Maintenance', 'Roof repair over the sacristy', 22500, 'Cash'],
+    [utcDate(2026, 6, 20), 'Transport', 'Outstation pastoral visits', 4200, 'Cash'],
+    [utcDate(2026, 7, 1), 'Office Supplies', 'Printer toner and stationery', 6800, 'MPESA'],
+    [utcDate(2026, 7, 8), 'Programmes', 'Seminarian training support', 15000, 'Bank Transfer'],
   ];
   for (let i = 0; i < expenseDefs.length; i++) {
     const [date, category, description, amount, method] = expenseDefs[i];
@@ -348,7 +353,7 @@ async function main() {
   await prisma.ledgerMovement.create({
     data: {
       amount: 12000,
-      time: new Date().toLocaleString(),
+      time: new Date(),
       from: ledgerDefs[0][0],
       to: ledgerDefs[1][0],
       notes: 'Transfer to Construction Fund — July remittance',
@@ -369,10 +374,10 @@ async function main() {
   }
 
   await prisma.delivery.create({
-    data: { supplier: 'Catholic Supply House Ltd', inv: 'DEL-2026-041', date: '2026-06-18', units: 120, cat: 'Liturgical', total: 48500 },
+    data: { supplier: 'Catholic Supply House Ltd', inv: 'DEL-2026-041', date: utcDate(2026, 6, 18), units: 120, cat: 'Liturgical', total: 48500 },
   });
   await prisma.delivery.create({
-    data: { supplier: 'Premium Printers', inv: 'DEL-2026-052', date: '2026-07-02', units: 500, cat: 'Printing', total: 20000 },
+    data: { supplier: 'Premium Printers', inv: 'DEL-2026-052', date: utcDate(2026, 7, 2), units: 500, cat: 'Printing', total: 20000 },
   });
 
   const saleDefs: [string, number][] = [
@@ -387,7 +392,7 @@ async function main() {
     const [item, qty] = saleDefs[i];
     const price = itemDefs.find((d) => d[0] === item)![4];
     await prisma.sale.create({
-      data: { item, time: `7/${5 + i}/2026, ${10 + i}:30:00 ${i % 2 === 0 ? 'AM' : 'PM'}`, amount: qty * price },
+      data: { item, time: new Date(Date.UTC(2026, 6, 5 + i, 10 + i, 30, 0)), amount: qty * price },
     });
   }
 
@@ -409,7 +414,7 @@ async function main() {
   const empIds: string[] = [];
   for (const [code, name, role, phone, email] of employeeDefs) {
     const e = await prisma.employee.create({
-      data: { code, name, role, phone, email, hireDate: isoDate(2019, 1, 10) },
+      data: { code, name, role, phone, email, hireDate: utcDate(2019, 1, 10) },
     });
     empIds.push(e.id);
   }
@@ -440,8 +445,8 @@ async function main() {
     data: {
       employeeId: empIds[1],
       type: 'Annual Leave',
-      startDate: '2026-08-10',
-      endDate: '2026-08-21',
+      startDate: utcDate(2026, 8, 10),
+      endDate: utcDate(2026, 8, 21),
       days: 10,
       reason: 'Family vacation',
       status: 'Approved',
@@ -452,8 +457,8 @@ async function main() {
     data: {
       employeeId: empIds[3],
       type: 'Sick Leave',
-      startDate: '2026-07-06',
-      endDate: '2026-07-07',
+      startDate: utcDate(2026, 7, 6),
+      endDate: utcDate(2026, 7, 7),
       days: 2,
       reason: 'Medical appointment',
       status: 'Pending',
@@ -467,8 +472,8 @@ async function main() {
       description: 'Teach the faith to young parishioners and prepare them for the sacraments.',
       requirements: 'Certificate in Catechesis; at least 2 years experience',
       status: 'Open',
-      datePosted: isoDate(2026, 7, 1),
-      closingDate: isoDate(2026, 8, 30),
+      datePosted: utcDate(2026, 7, 1),
+      closingDate: utcDate(2026, 8, 30),
     },
   });
   await prisma.recruitmentApplicant.create({

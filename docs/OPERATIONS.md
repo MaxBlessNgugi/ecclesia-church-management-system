@@ -32,10 +32,10 @@ npm run restore -- --file=../backups/ecclesia-backup-xxx.sql --yes   # server MU
   `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
   and put it in `backend/.env`. In development a random secret is generated and
   persisted automatically on first start.
-- **Super admin:** the seeder generates a random password (or uses
-  `SUPER_ADMIN_PASSWORD` if set), prints it **once**, and flags the account to
-  force a password change at first sign-in. New users created by an admin are
-  also forced to change their temporary password on first login.
+- **Super admin accounts:** the seeder creates three super_admin accounts, each
+  with a random password (or `SUPER_ADMIN_PASSWORD` if set for the primary).
+  Passwords are printed **once** and all accounts force a password change at
+  first sign-in. Any super_admin can create new users.
 - **Login protection:** `POST /auth/login` is rate-limited (10/15min per IP) and
   each account locks for 15 minutes after 5 failed attempts.
 - **Password resets:** the offline admin-reset flow (Admin > Users > Reset Pwd)
@@ -77,14 +77,14 @@ request, any time.
 ## 5. First-run checklist for a new parish
 
 1. Install Node.js 18+ and PostgreSQL 14+ on the server.
-2. `npm run setup` (root) — installs, creates DB, seeds super admin.
-3. Copy the printed super admin password; set `SUPER_ADMIN_PASSWORD` env if a
-   known value is preferred.
+2. `npm run setup` (root) — installs, creates DB, seeds three super_admin accounts.
+3. Copy the printed passwords; set `SUPER_ADMIN_PASSWORD` env if a
+   known value is preferred for the primary account.
 4. Set a real `JWT_SECRET` in `backend/.env` and `NODE_ENV=production` when
    deploying beyond localhost.
 5. Configure `BACKUP_DEST_DIR` to an off-site folder.
 6. Put Caddy (or another TLS proxy) in front of the API if needed.
-7. Sign in as super admin, change the forced password, create staff accounts.
+7. Sign in as any super_admin account, change the forced password, create staff accounts.
 8. Complete the first-run parish setup wizard.
 9. Verify: Admin > Users > **Backup Now** and **Export Data** both work.
 

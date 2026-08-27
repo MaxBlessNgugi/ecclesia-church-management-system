@@ -15,6 +15,7 @@
 // else, and it must write to AuditLog itself.
 // =============================================================================
 import { prisma } from './prisma.js';
+import { AuditAction } from '@prisma/client';
 
 /**
  * Custom HTTP error class for typed error responses.
@@ -161,7 +162,7 @@ function snapshot(record: any): string {
 async function writeAuditLog(input: {
   entityName: string;
   entityId: string;
-  action: string;
+  action: AuditAction;
   actor?: AuditActor;
   snapshotData: string;
   createdAt: Date;
