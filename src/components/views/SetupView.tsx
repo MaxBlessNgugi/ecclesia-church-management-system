@@ -23,6 +23,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { parishApi } from '../../services/api';
 import { PARISH_CHANGED_EVENT } from '../../hooks/useParishInfo';
 import { resizeImage } from '../../lib/image';
+import { EcclesiaIcon } from '../EcclesiaIcon';
 
 /** Props accepted by the setup wizard. */
 interface SetupViewProps {
@@ -113,8 +114,8 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
       <div className="w-full max-w-2xl">
         {/* Welcome header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#1e1e1e] text-white text-3xl font-bold mb-4">
-            †
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#1e1e1e] text-white mb-4">
+            <EcclesiaIcon size={40} className="w-10 h-10" />
           </div>
           <h1 className="text-3xl font-serif font-bold text-[#1a1c1c]">
             Welcome to ECCLESIA

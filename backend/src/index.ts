@@ -200,6 +200,9 @@ app.use(helmet({
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       frameSrc: ["'none'"],
+      // Remove Helmet defaults that break a plain-HTTP server.
+      upgradeInsecureRequests: null,
+      scriptSrcAttr: ["'unsafe-inline'"],
     },
   },
 }));

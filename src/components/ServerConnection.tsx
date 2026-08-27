@@ -14,6 +14,7 @@
 
 import React, { useState } from 'react';
 import { setServerUrl } from '../services/api';
+import { EcclesiaIcon } from './EcclesiaIcon';
 
 interface ServerConnectionProps {
   /** Called after successfully connecting and saving the server URL. */
@@ -53,10 +54,8 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
       url = `http://${url}`;
     }
 
-    // Add default port if missing
-    if (!url.match(/:\d+$/)) {
-      url = `${url}:5000`;
-    }
+    // Port is optional — if the user supplies one (e.g. :5000) it is kept,
+    // otherwise the browser uses the protocol default (80 for HTTP, 443 for HTTPS).
 
     setIsTesting(true);
 
@@ -104,8 +103,8 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
       <div className="w-full max-w-md">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#1e1e1e] rounded-2xl mb-4">
-            <span className="text-white text-3xl font-serif">†</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#1e1e1e] rounded-2xl mb-4 text-white">
+            <EcclesiaIcon size={42} className="w-10 h-10" />
           </div>
           <h1 className="text-2xl font-bold text-[#1a1c1c] font-serif">Ecclesia CMS</h1>
           <p className="text-sm text-[#444748] mt-2">Church Management System</p>
@@ -136,7 +135,7 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
             />
             <p className="mt-2 text-xs text-[#6b7280]">
               Default: <strong>ecclesia.local</strong> (if your server is configured). 
-              Or use the server's IP address (e.g. 192.168.1.100:5000)
+              Or use the server's IP address (e.g. 192.168.1.100)
             </p>
           </div>
 

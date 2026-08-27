@@ -13,13 +13,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1a1c1c" />
     <meta name="description" content="Ecclesia Church Management System — Parish management for members, sacraments, finances, and administration" />
-    <!-- Content Security Policy: self-hosted fonts/scripts, no remote origins.
-         Blocks XSS via inline/eval. 'unsafe-inline' script-src is required
-         by Vite's dev react-refresh preamble; ws/http localhost entries serve
-         dev HMR + the dev backend. -->
-    <!-- frame-ancestors is delivered via the HTTP header (vite dev + helmet in
-         prod) — it is ignored inside a <meta> element and only adds console noise. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'self'" />
+    <!-- Content Security Policy is set via HTTP header in production (Helmet)
+         and via Vite config in development. A <meta> CSP tag conflicts with
+         the HTTP header CSP (browsers enforce both), so it is intentionally
+         omitted here. -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
