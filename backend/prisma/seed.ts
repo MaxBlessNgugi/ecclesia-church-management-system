@@ -38,10 +38,11 @@ async function main() {
   for (const acct of SEED_USERS) {
     const existing = await prisma.user.findUnique({ where: { email: acct.email } });
     if (existing) {
-      // Never overwrite an existing user's password or role — just update name/title.
+      // Never overwrite an existing user's password — but sync name, title, and role
+      // so seed changes (e.g. promoting to super_admin) take effect on existing installs.
       await prisma.user.update({
         where: { id: existing.id },
-        data: { name: acct.name, title: acct.title },
+        data: { name: acct.name, title: acct.title, role: acct.role },
       });
       console.log(`  ↳ User already exists: ${acct.email} — skipped password creation.`);
     } else {
