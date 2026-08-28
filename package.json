@@ -16,7 +16,11 @@
     "lint": "tsc --noEmit",
     "test:e2e": "cd e2e && npx playwright test --project=fast",
     "tour": "cd e2e && npx playwright test --project=tour",
-    "test:report": "npx playwright show-report playwright-report"
+    "test:report": "npx playwright show-report playwright-report",
+    "electron:dev": "concurrently -k -n \"VITE,BACKEND,ELECTRON\" -c \"green,blue,magenta\" \"vite --port=3000 --strictPort --host=127.0.0.1\" \"npm run dev --prefix backend\" \"node_modules/.bin/electron .\"",
+    "dist:win": "vite build && electron-builder --win nsis",
+    "dist:mac": "vite build && electron-builder --mac",
+    "dist:linux": "vite build && electron-builder --linux"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -34,6 +38,9 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
@@ -43,5 +50,28 @@
   "allowScripts": {
     "esbuild@0.25.12": true,
     "esbuild@0.28.1": true
+  },
+  "build": {
+    "appId": "com.ecclesia.chms",
+    "productName": "ECCLESIA Church Management System",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "electron/assets/icon-256.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "electron/assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "electron/assets/icon-512.png"
+    }
   }
 }

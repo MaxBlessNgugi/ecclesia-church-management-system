@@ -9,6 +9,7 @@
 import React from 'react';
 import { NavigationTab } from '../types';
 import { useParishInfo } from '../hooks/useParishInfo';
+import { EcclesiaIcon } from './EcclesiaIcon';
 
 interface TitleBarProps {
   onSelectTab: (tab: NavigationTab) => void;
@@ -54,9 +55,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onSelectTab }) => {
         {/* Vertical divider between parish and ECCLESIA brand */}
         <span className="text-slate-300 dark:text-slate-600 text-xs">|</span>
 
-        {/* ECCLESIA brand tile: dark rounded square with cross glyph */}
-        <div className="w-6 h-6 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-bold text-sm leading-none group-hover:bg-slate-700 dark:group-hover:bg-slate-300 transition-colors">
-          †
+        {/* ECCLESIA brand tile: dark rounded square with canonical arch+E glyph */}
+        <div className="w-6 h-6 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center group-hover:bg-slate-700 dark:group-hover:bg-slate-300 transition-colors">
+          <EcclesiaIcon size={18} className="w-[18px] h-[18px]" />
         </div>
 
         {/* ECCLESIA app title + subtitle */}

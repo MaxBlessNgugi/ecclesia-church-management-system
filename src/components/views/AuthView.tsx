@@ -21,6 +21,7 @@ import { authApi, storeToken } from '../../services/api';
 // storeToken: helper that persists a JWT in localStorage (or sessionStorage)
 //   so the session survives page reloads.
 import { useConnectivity } from '../../context/OfflineContext';
+import { EcclesiaIcon } from '../EcclesiaIcon';
 
 /**
  * Props accepted by AuthView.
@@ -323,9 +324,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
         {/* Header Logo */}
         {/* Centred block containing the cross icon and application title */}
         <div className="text-center space-y-2">
-          {/* Cross icon inside a rounded dark square — the app's visual brand mark */}
-          <div className="w-12 h-12 mx-auto rounded-xl bg-[#1e1e1e] text-white flex items-center justify-center font-bold text-2xl shadow-xs">
-            †
+          {/* Ecclesia arch+E icon inside a rounded dark square — the app's visual brand mark */}
+          <div className="w-12 h-12 mx-auto rounded-xl bg-[#1e1e1e] text-white flex items-center justify-center shadow-xs">
+            <EcclesiaIcon size={32} className="w-8 h-8" />
           </div>
           {/* Application name in a serif font */}
           <h2 className="text-2xl font-serif font-bold text-[#1a1c1c]">
