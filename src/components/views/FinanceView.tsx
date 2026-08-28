@@ -24,6 +24,7 @@ import {
   ExpenseRecord
 } from '../../types';
 import { usePermissions } from '../../permissions';
+import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 
 /**
  * Props for the FinanceView panel.
@@ -49,6 +50,14 @@ interface FinanceViewProps {
   onRecordDebtorPayment: (debtorId: string, amount: number) => void;
   /** Callback lifting a newly logged expense voucher to the parent */
   onAddExpense: (expense: ExpenseRecord) => void;
+  /** Soft-delete a deposit record */
+  onDeleteDeposit: (id: string) => void;
+  /** Soft-delete a creditor record */
+  onDeleteCreditor: (id: string) => void;
+  /** Soft-delete a debtor record */
+  onDeleteDebtor: (id: string) => void;
+  /** Soft-delete an expense record */
+  onDeleteExpense: (id: string) => void;
 }
 
 /**
@@ -67,7 +76,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   onAddCreditor,
   onMarkCreditorPaid,
   onRecordDebtorPayment,
-  onAddExpense
+  onAddExpense,
+  onDeleteDeposit,
+  onDeleteCreditor,
+  onDeleteDebtor,
+  onDeleteExpense
 }) => {
   // Access the permissions hook to determine if the current user can edit finance data
   const perms = usePermissions();
@@ -111,6 +124,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   const [activeDebtor, setActiveDebtor] = useState<DebtorRecord | null>(null);
   // Amount the user wants to pay toward the debtor's pledge, defaults to full amount
   const [debtorPayAmount, setDebtorPayAmount] = useState<number>(100);
+
+  // Delete confirmation modal state
+  const [deleteTarget, setDeleteTarget] = useState<{ type: string; id: string; label: string; details: string[] } | null>(null);
 
   // 4. Expense Form State
   // Date of the expense, defaults to today in ISO format (YYYY-MM-DD)
@@ -319,7 +335,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
           The date defaults to today (ISO slice), and the ref/slip number is
           optional (left blank it just renders as-is on the row). */}
       {/* Conditional rendering: only shown when subTab is 'make_deposit' */}
-      {subTab === 'make_deposit' && (
+      {subTab === 'make_deposit' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
           {/* Header section with title and audit integrity badge */}
           <div className="flex justify-between items-center pb-4 border-b border-[#e1e3e3]">
@@ -385,73 +401,49 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 />
               </div>
 
-              {/* Bank name dropdown */}
+              {/* Bank name text input */}
               <div>
-                {/* Label for bank selection */}
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Bank Name
                 </label>
-                {/* Dropdown with pre-configured bank options, required */}
-                <select
+                <input
+                  type="text"
+                  placeholder="e.g. KCB Bank, Equity Bank, Co-operative Bank"
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
-                >
-                  {/* Placeholder option */}
-                  <option value="">Select Bank...</option>
-                  {/* National Catholic Bank option */}
-                  <option value="National Catholic Bank">National Catholic Bank</option>
-                  {/* Ecclesia Trust Bank option */}
-                  <option value="Ecclesia Trust Bank">Ecclesia Trust Bank</option>
-                </select>
+                />
+                <p className="text-[10px] text-[#888] mt-0.5">Full name of the bank where the deposit was made</p>
               </div>
 
-              {/* Account number dropdown */}
+              {/* Account number text input */}
               <div>
-                {/* Label for account selection */}
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Bank Account No
                 </label>
-                {/* Dropdown with pre-configured account options, required */}
-                <select
+                <input
+                  type="text"
+                  placeholder="e.g. 1234567890, KCB-0123456789"
                   value={accountNo}
                   onChange={(e) => setAccountNo(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
-                >
-                  {/* Placeholder option */}
-                  <option value="">Select Account...</option>
-                  {/* General Parish Operating account */}
-                  <option value="General Parish Operating">General Parish Operating</option>
-                  {/* Building & Restoration fund account */}
-                  <option value="Building & Restoration">Building & Restoration</option>
-                  {/* Diocesan Development account */}
-                  <option value="Diocesan Development">Diocesan Development</option>
-                </select>
+                />
+                <p className="text-[10px] text-[#888] mt-0.5">Account number or name (e.g. General Parish Operating, Building Fund)</p>
               </div>
 
-              {/* Source of cash dropdown */}
+              {/* Source of cash text input */}
               <div>
-                {/* Label for source selection */}
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Source of Cash
                 </label>
-                {/* Dropdown with pre-configured source options, required */}
-                <select
+                <input
+                  type="text"
+                  placeholder="e.g. Sunday Mass collections, Building fund drive, Wedding fees"
                   value={sourceOfCash}
                   onChange={(e) => setSourceOfCash(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
-                >
-                  {/* Placeholder option */}
-                  <option value="">Select Source...</option>
-                  {/* Weekly Mass Offerings source */}
-                  <option value="Weekly Mass Offerings">Weekly Mass Offerings</option>
-                  {/* Direct tithe contributions */}
-                  <option value="Tithe Direct">Tithe Direct</option>
-                  {/* Building fund pledges */}
-                  <option value="Building Fund Pledges">Building Fund Pledges</option>
-                  {/* Sacramental fees (baptisms, weddings, etc.) */}
-                  <option value="Event Sacramental Fees">Event Sacramental Fees</option>
-                </select>
+                />
+                <p className="text-[10px] text-[#888] mt-0.5">Where the cash came from (e.g. Weekly tithes, Easter offering, Funeral contributions)</p>
               </div>
 
               {/* Reference/slip number input field */}
@@ -537,12 +529,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                     <th className="p-3">Amount</th>
                     {/* Depositor column header */}
                     <th className="p-3">Depositor</th>
+                    {/* Actions column header */}
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 {/* Table body: rows for each deposit record */}
                 <tbody className="divide-y divide-[#e1e3e3]">
                   {/* Map over deposits array to render each row */}
-                  {deposits.map((d) => (
+                  {deposits.map((d) => (
                     <tr key={d.id} className="hover:bg-[#f9f9f9]">
                       {/* Reference/slip number in monospace font */}
                       <td className="p-3 font-mono font-bold text-[#1e1e1e]">{d.refNo}</td>
@@ -560,6 +554,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                       </td>
                       {/* Name of person who made the deposit */}
                       <td className="p-3 text-[#444748]">{d.depositedBy}</td>
+                      {/* Delete button */}
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => setDeleteTarget({ type: 'deposit', id: d.id, label: `${d.bankName} deposit of $${d.amount.toLocaleString()}`, details: [`Ref: ${d.refNo}`, `Date: ${d.date}`, `Source: ${d.sourceOfCash}`, `Deposited by: ${d.depositedBy}`] })}
+                          className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                          title="Delete deposit"
+                          aria-label="Delete deposit"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -572,7 +577,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
       {/* 2. CREDITORS — accounts payable: header shows total outstanding and an
           overdue-count badge; rows are lifted from the creditors array. */}
       {/* Conditional rendering: only shown when subTab is 'creditors' */}
-      {subTab === 'creditors' && (
+      {subTab === 'creditors' && (
         <div className="space-y-6">
           {/* Header card with title, overdue badge, and total outstanding */}
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -643,7 +648,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 {/* Table body: rows for each creditor record */}
                 <tbody className="divide-y divide-[#e1e3e3]">
                   {/* Map over creditors array to render each row */}
-                  {creditors.map((cred) => (
+                  {creditors.map((cred) => (
                     <tr key={cred.id} className="hover:bg-[#f9f9f9]">
                       {/* Vendor name in bold */}
                       <td className="p-3 font-bold text-[#1a1c1c]">{cred.vendor}</td>
@@ -671,11 +676,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                         >
                           {cred.status}
                         </span>
-                      </td>
-                      {/* Action column: Mark Paid button (only for unpaid creditors) */}
+                      </td>                      {/* Action column: Mark Paid + Delete buttons */}
                       <td className="p-3 text-right">
-                        {/* Only show Mark Paid button if creditor is not yet paid */}
-                        {cred.status !== 'Paid' && (
+                        {cred.status !== 'Paid' && (
                           <button
                             onClick={() => onMarkCreditorPaid(cred.id)}
                             disabled={!perms.canEdit('finance')}
@@ -684,6 +687,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                             Mark Paid
                           </button>
                         )}
+                        <button
+                          onClick={() => setDeleteTarget({ type: 'creditor', id: cred.id, label: `${cred.vendor} invoice (${cred.invoiceNo})`, details: [`Amount: $${cred.amountOwed.toLocaleString()}`, `Due: ${cred.dueDate}`, `Status: ${cred.status}`] })}
+                          className="ml-1 text-[#ba1a1a] hover:text-red-700 text-xs"
+                          title="Delete creditor"
+                          aria-label="Delete creditor"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -697,7 +708,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
       {/* 3. DEBTORS — pledge receivables: header shows outstanding total plus a
           collection-rate progress bar driven by the derived metric. */}
       {/* Conditional rendering: only shown when subTab is 'debtors' */}
-      {subTab === 'debtors' && (
+      {subTab === 'debtors' && (
         <div className="space-y-6">
           {/* Header card with title, outstanding total, and collection rate */}
           <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -753,7 +764,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 {/* Table body: rows for each debtor record */}
                 <tbody className="divide-y divide-[#e1e3e3]">
                   {/* Map over debtors array to render each row */}
-                  {debtors.map((debt) => (
+                  {debtors.map((debt) => (
                     <tr key={debt.id} className="hover:bg-[#f9f9f9]">
                       {/* Member name in bold */}
                       <td className="p-3 font-bold text-[#1a1c1c]">{debt.memberName}</td>
@@ -777,18 +788,13 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                         >
                           {debt.status}
                         </span>
-                      </td>
-                      {/* Action column: Record Payment button (only for unpaid debtors) */}
+                      </td>                      {/* Action column: Record Payment + Delete buttons */}
                       <td className="p-3 text-right">
-                        {/* Only show Record Payment button if debtor is not yet fully paid */}
-                        {debt.status !== 'Paid' && (
+                        {debt.status !== 'Paid' && (
                           <button
                             onClick={() => {
-                              // Set the debtor being paid
                               setActiveDebtor(debt);
-                              // Pre-fill payment amount with full outstanding balance
                               setDebtorPayAmount(debt.amount);
-                              // Open the payment modal
                               setShowDebtorModal(true);
                             }}
                             className="px-2.5 py-1 text-[11px] font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] rounded cursor-pointer"
@@ -796,6 +802,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                             Record Payment
                           </button>
                         )}
+                        <button
+                          onClick={() => setDeleteTarget({ type: 'debtor', id: debt.id, label: `${debt.memberName} — ${debt.contributionType}`, details: [`Amount: $${debt.amount.toLocaleString()}`, `Status: ${debt.status}`] })}
+                          className="ml-1 text-[#ba1a1a] hover:text-red-700 text-xs"
+                          title="Delete debtor"
+                          aria-label="Delete debtor"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -809,7 +823,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
       {/* 4. EXPENSES — operating expense log: form plus recent voucher table.
           The voucher number is optional (trimmed on save). */}
       {/* Conditional rendering: only shown when subTab is 'expenses' */}
-      {subTab === 'expenses' && (
+      {subTab === 'expenses' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6">
           {/* Header section with title */}
           <div className="flex justify-between items-center pb-4 border-b border-[#e1e3e3]">
@@ -843,29 +857,18 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 />
               </div>
 
-              {/* Expense category dropdown */}
               <div>
-                {/* Label for category selection */}
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Expense Category
                 </label>
-                {/* Dropdown with pre-configured expense categories */}
-                <select
+                <input
+                  type="text"
+                  placeholder="e.g. Utilities, Sanctuary Maintenance, Liturgical Supplies"
                   value={expenseCategory}
                   onChange={(e) => setExpenseCategory(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
-                >
-                  {/* Utilities category */}
-                  <option value="Utilities">Utilities</option>
-                  {/* Sanctuary Maintenance category */}
-                  <option value="Sanctuary Maintenance">Sanctuary Maintenance</option>
-                  {/* Liturgical Supplies category */}
-                  <option value="Liturgical Supplies">Liturgical Supplies</option>
-                  {/* Personnel Stipend category */}
-                  <option value="Personnel Stipend">Personnel Stipend</option>
-                  {/* Youth Ministry category */}
-                  <option value="Youth Ministry">Youth Ministry</option>
-                </select>
+                />
+                <p className="text-[10px] text-[#888] mt-0.5">Type of expense (e.g. Electricity bill, Roof repair, Candles & incense)</p>
               </div>
 
               {/* Description/payee input field */}
@@ -899,25 +902,18 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 />
               </div>
 
-              {/* Payment method dropdown */}
               <div>
-                {/* Label for payment method */}
                 <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
                   Payment Method
                 </label>
-                {/* Dropdown with pre-configured payment methods */}
-                <select
+                <input
+                  type="text"
+                  placeholder="e.g. Cash, Check/Voucher, M-Pesa, Bank Transfer"
                   value={expenseMethod}
                   onChange={(e) => setExpenseMethod(e.target.value)}
                   className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
-                >
-                  {/* Check or Voucher method */}
-                  <option value="Check / Voucher">Check / Voucher</option>
-                  {/* Cash from petty fund */}
-                  <option value="Cash Petty Fund">Cash Petty Fund</option>
-                  {/* M-Pesa mobile payment */}
-                  <option value="M-Pesa Direct">M-Pesa Direct</option>
-                </select>
+                />
+                <p className="text-[10px] text-[#888] mt-0.5">How the expense was paid (e.g. Cash from petty fund, M-Pesa, cheque)</p>
               </div>
 
               {/* Voucher number input field */}
@@ -980,12 +976,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                     <th className="p-3">Amount</th>
                     {/* Payment method column */}
                     <th className="p-3">Payment Method</th>
+                    {/* Actions column */}
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 {/* Table body: rows for each expense record */}
                 <tbody className="divide-y divide-[#e1e3e3]">
                   {/* Map over expenses array to render each row */}
-                  {expenses.map((exp) => (
+                  {expenses.map((exp) => (
                     <tr key={exp.id} className="hover:bg-[#f9f9f9]">
                       {/* Voucher number in monospace font */}
                       <td className="p-3 font-mono font-bold text-[#1e1e1e]">{exp.voucherNo}</td>
@@ -1001,6 +999,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                       </td>
                       {/* Payment method used */}
                       <td className="p-3 text-[#444748]">{exp.paymentMethod}</td>
+                      {/* Delete button */}
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => setDeleteTarget({ type: 'expense', id: exp.id, label: `${exp.category} expense ($${exp.amount.toLocaleString()})`, details: [`Voucher: ${exp.voucherNo}`, `Date: ${exp.date}`, `Payee: ${exp.description}`, `Method: ${exp.paymentMethod}`] })}
+                          className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                          title="Delete expense"
+                          aria-label="Delete expense"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1013,7 +1022,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
       {/* LOG NEW CREDITOR MODAL — controlled form for a new vendor invoice;
           description and due date are optional and fall back to defaults. */}
       {/* Modal: only rendered when showCreditorModal is true */}
-      {showCreditorModal && (
+      {showCreditorModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           {/* Modal content card */}
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-md w-full shadow-xl space-y-4">
@@ -1118,7 +1127,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
           row whose 'Record Payment' was clicked); amount starts at the remaining
           balance. Confirm lifts the payment via onRecordDebtorPayment. */}
       {/* Modal: only rendered when showDebtorModal is true and activeDebtor is set */}
-      {showDebtorModal && activeDebtor && (
+      {showDebtorModal && activeDebtor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs">
           {/* Modal content card */}
           <div className="bg-white border border-[#e1e3e3] rounded-xl p-6 max-w-sm w-full shadow-xl space-y-4">
@@ -1177,6 +1186,27 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmationModal
+        open={deleteTarget !== null}
+        title={`Delete ${deleteTarget?.type ? deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1) : ''}`}
+        recordLabel={deleteTarget?.label ?? ''}
+        recordDetails={deleteTarget?.details}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            if (deleteTarget.type === 'deposit') await onDeleteDeposit(deleteTarget.id);
+            else if (deleteTarget.type === 'creditor') await onDeleteCreditor(deleteTarget.id);
+            else if (deleteTarget.type === 'debtor') await onDeleteDebtor(deleteTarget.id);
+            else if (deleteTarget.type === 'expense') await onDeleteExpense(deleteTarget.id);
+            setDeleteTarget(null);
+          } catch {
+            alert('Failed to delete record. Please try again.');
+          }
+        }}
+      />
     </div>
   );
 };

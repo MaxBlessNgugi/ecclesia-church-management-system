@@ -613,7 +613,9 @@ export const contributionsApi = {
    * @returns The created `ContributionRecord`.
    */
   create: (body: Omit<ContributionRecord, 'id'>) =>
-    request<ContributionRecord>('/contributions', { method: 'POST', body: JSON.stringify(body) })
+    request<ContributionRecord>('/contributions', { method: 'POST', body: JSON.stringify(body) }),
+  /** Soft-delete a contribution (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/contributions/${id}`, { method: 'DELETE' }),
 };
 
 /**
@@ -649,7 +651,9 @@ export const billedItemsApi = {
    * @returns The created `BilledItemReceipt`.
    */
   create: (body: Omit<BilledItemReceipt, 'id'>) =>
-    request<BilledItemReceipt>('/billed-items', { method: 'POST', body: JSON.stringify(body) })
+    request<BilledItemReceipt>('/billed-items', { method: 'POST', body: JSON.stringify(body) }),
+  /** Soft-delete a billed item (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/billed-items/${id}`, { method: 'DELETE' }),
 };
 
 // ---------- Sacraments / deaths ------------------------------------------------
@@ -678,7 +682,9 @@ export const deathsApi = {
    * @returns The created `DeathRecord`.
    */
   create: (body: Omit<DeathRecord, 'id'>) =>
-    request<DeathRecord>('/deaths', { method: 'POST', body: JSON.stringify(body) })
+    request<DeathRecord>('/deaths', { method: 'POST', body: JSON.stringify(body) }),
+  /** Soft-delete a death record (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/deaths/${id}`, { method: 'DELETE' }),
 };
 
 // ---------- Finance -------------------------------------------------------------
@@ -707,7 +713,9 @@ export const depositsApi = {
    * @returns The created `DepositRecord`.
    */
   create: (body: Omit<DepositRecord, 'id'>) =>
-    request<DepositRecord>('/deposits', { method: 'POST', body: JSON.stringify(body) })
+    request<DepositRecord>('/deposits', { method: 'POST', body: JSON.stringify(body) }),
+  /** Soft-delete a deposit (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/deposits/${id}`, { method: 'DELETE' }),
 };
 
 /**
@@ -745,7 +753,9 @@ export const creditorsApi = {
    * @returns The updated `CreditorRecord` with `paid=true`.
    */
   markPaid: (id: string) =>
-    request<CreditorRecord>(`/creditors/${id}/paid`, { method: 'PATCH' })
+    request<CreditorRecord>(`/creditors/${id}/paid`, { method: 'PATCH' }),
+  /** Soft-delete a creditor (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/creditors/${id}`, { method: 'DELETE' }),
 };
 
 /**
@@ -789,7 +799,9 @@ export const debtorsApi = {
     request<DebtorRecord>(`/debtors/${id}/payments`, {
       method: 'POST',
       body: JSON.stringify({ amountPaid })
-    })
+    }),
+  /** Soft-delete a debtor (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/debtors/${id}`, { method: 'DELETE' }),
 };
 
 /**
@@ -816,7 +828,9 @@ export const expensesApi = {
    * @returns The created `ExpenseRecord`.
    */
   create: (body: Omit<ExpenseRecord, 'id'>) =>
-    request<ExpenseRecord>('/expenses', { method: 'POST', body: JSON.stringify(body) })
+    request<ExpenseRecord>('/expenses', { method: 'POST', body: JSON.stringify(body) }),
+  /** Soft-delete an expense (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/expenses/${id}`, { method: 'DELETE' }),
 };
 
 // ---------- Ledgers -------------------------------------------------------------
@@ -868,7 +882,9 @@ export const ledgersApi = {
    *
    * @returns An array of `LedgerMovement` objects.
    */
-  movements: () => request<LedgerMovement[]>('/ledgers/movements')
+  movements: () => request<LedgerMovement[]>('/ledgers/movements'),
+  /** Soft-delete a ledger (restorable from Trash & Audit). */
+  remove: (id: string) => request<void>(`/ledgers/${id}`, { method: 'DELETE' }),
 };
 
 // ---------- Inventory -----------------------------------------------------------
@@ -934,7 +950,8 @@ export const inventoryApi = {
       request<InventoryItem[]>('/inventory/items/batch-update', {
         method: 'POST',
         body: JSON.stringify({ updates })
-      })
+      }),
+    remove: (id: string) => request<void>(`/inventory/items/${id}`, { method: 'DELETE' }),
   },
 
   /** Sub-API for recording incoming stock deliveries. */
@@ -960,7 +977,8 @@ export const inventoryApi = {
       request<DeliveryRecord>('/inventory/deliveries', {
         method: 'POST',
         body: JSON.stringify(body)
-      })
+      }),
+    remove: (id: string) => request<void>(`/inventory/deliveries/${id}`, { method: 'DELETE' }),
   },
 
   /** Sub-API for recording outgoing stock sales. */
@@ -983,7 +1001,8 @@ export const inventoryApi = {
      * @returns The created `SaleRecord`.
      */
     create: (body: Omit<SaleRecord, 'id'>) =>
-      request<SaleRecord>('/inventory/sales', { method: 'POST', body: JSON.stringify(body) })
+      request<SaleRecord>('/inventory/sales', { method: 'POST', body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/inventory/sales/${id}`, { method: 'DELETE' }),
   },
 
   /** Sub-API for physical stock-take reconciliation. */
@@ -1027,7 +1046,8 @@ export const inventoryApi = {
       request<StockTakeRecord>(`/inventory/stock-takes/${id}/physical`, {
         method: 'PATCH',
         body: JSON.stringify({ physical })
-      })
+      }),
+    remove: (id: string) => request<void>(`/inventory/stock-takes/${id}`, { method: 'DELETE' }),
   },
 
   /** Sub-API for recording internal stock issues (consumption / write-offs). */
@@ -1050,7 +1070,8 @@ export const inventoryApi = {
      * @returns The created `StockIssueRecord`.
      */
     create: (body: Omit<StockIssueRecord, 'id'>) =>
-      request<StockIssueRecord>('/inventory/issues', { method: 'POST', body: JSON.stringify(body) })
+      request<StockIssueRecord>('/inventory/issues', { method: 'POST', body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/inventory/issues/${id}`, { method: 'DELETE' }),
   }
 };
 

@@ -1,5 +1,7 @@
 import { Page, Locator, expect } from '@playwright/test';
-import { USERS } from './test-data';
+const USERS = {
+  admin: { email: 'admin@ecclesia.local', password: 'Admin123!', name: 'Administrator', role: 'admin' },
+} as const;
 
 // ─── On-Screen Annotations ──────────────────────────────────────────────────
 
@@ -102,7 +104,7 @@ export async function waitForAppReady(page: Page) {
 // ─── Auth Helpers ───────────────────────────────────────────────────────────
 
 /** Log in via the UI and wait for the main app to appear. */
-export async function loginViaUI(page: Page, user: typeof USERS[keyof typeof USERS] = USERS.admin) {
+export async function loginViaUI(page: Page, user: { email: string; password: string; name: string; role: string } = USERS.admin) {
   await page.goto('/');
   await waitForAppReady(page);
 

@@ -555,5 +555,45 @@ router.post('/issues', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// DELETE /api/inventory/deliveries/:id — Soft-delete a delivery record
+router.delete('/deliveries/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Delivery', req.params.id, actor);
+    res.status(204).send();
+    emitChange('deliveries', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/inventory/sales/:id — Soft-delete a sale record
+router.delete('/sales/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Sale', req.params.id, actor);
+    res.status(204).send();
+    emitChange('sales', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/inventory/stock-takes/:id — Soft-delete a stock take record
+router.delete('/stock-takes/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('StockTake', req.params.id, actor);
+    res.status(204).send();
+    emitChange('stock-takes', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/inventory/issues/:id — Soft-delete a stock issue record
+router.delete('/issues/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('StockIssue', req.params.id, actor);
+    res.status(204).send();
+    emitChange('stock-issues', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
 // Export the router for mounting in index.ts at /api/inventory.
 export default router;

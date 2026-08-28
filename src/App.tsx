@@ -20,23 +20,23 @@
 //   src/context/*.tsx             → All context providers
 //   src/components/views/*.tsx    → Panel implementations
 // =============================================================================
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { Footer, GlobalSearchModal, Header, Sidebar, TitleBar } from './components';
 import { ServerConnection } from './components/ServerConnection';
-import {
-  ActivitiesView,
-  AdminView,
-  AuthView,
-  ChristianView,
-  DashboardView,
-  FinanceView,
-  HRView,
-  InventoryView,
-  LedgersView,
-  ReportsView,
-  SacramentsView,
-  SetupView,
-} from './components/views';
+
+// Lazy-load view components to split the bundle — each view is only loaded when its tab is active
+const DashboardView = React.lazy(() => import('./components/views/DashboardView').then(m => ({ default: m.DashboardView })));
+const ChristianView = React.lazy(() => import('./components/views/ChristianView').then(m => ({ default: m.ChristianView })));
+const ActivitiesView = React.lazy(() => import('./components/views/ActivitiesView').then(m => ({ default: m.ActivitiesView })));
+const SacramentsView = React.lazy(() => import('./components/views/SacramentsView').then(m => ({ default: m.SacramentsView })));
+const FinanceView = React.lazy(() => import('./components/views/FinanceView').then(m => ({ default: m.FinanceView })));
+const LedgersView = React.lazy(() => import('./components/views/LedgersView').then(m => ({ default: m.LedgersView })));
+const InventoryView = React.lazy(() => import('./components/views/InventoryView').then(m => ({ default: m.InventoryView })));
+const ReportsView = React.lazy(() => import('./components/views/ReportsView').then(m => ({ default: m.ReportsView })));
+const HRView = React.lazy(() => import('./components/views/HRView').then(m => ({ default: m.HRView })));
+const AdminView = React.lazy(() => import('./components/views/AdminView').then(m => ({ default: m.AdminView })));
+const AuthView = React.lazy(() => import('./components/views/AuthView').then(m => ({ default: m.AuthView })));
+const SetupView = React.lazy(() => import('./components/views/SetupView').then(m => ({ default: m.SetupView })));
 import { getServerUrl } from './services/api';
 import { parseHashRoute } from './utils/url';
 import { ChristianRecord, NavigationTab } from './types';
@@ -62,6 +62,7 @@ const AppShell: React.FC = () => {
     handleRecordPayment,
     handleAddDeposit, handleAddCreditor, handleMarkCreditorPaid,
     handleRecordDebtorPayment, handleAddExpense,
+    handleDeleteDeposit, handleDeleteCreditor, handleDeleteDebtor, handleDeleteExpense,
   } = useData();
   const {
     currentTab, christianSubTab, activitiesSubTab, sacramentsSubTab, financeSubTab,
@@ -150,6 +151,7 @@ const AppShell: React.FC = () => {
             allowedPanels={allowedPanels}
           />
           <main className="flex-1 overflow-y-auto">
+            <Suspense fallback={<div className="flex items-center justify-center h-64 text-xs text-[#444748]">Loading...</div>}>
             {currentTab === 'dashboard' && (
               <DashboardView
                 onNavigate={handleNavigate}
@@ -198,6 +200,10 @@ const AppShell: React.FC = () => {
                 onMarkCreditorPaid={handleMarkCreditorPaid}
                 onRecordDebtorPayment={handleRecordDebtorPayment}
                 onAddExpense={handleAddExpense}
+                onDeleteDeposit={handleDeleteDeposit}
+                onDeleteCreditor={handleDeleteCreditor}
+                onDeleteDebtor={handleDeleteDebtor}
+                onDeleteExpense={handleDeleteExpense}
               />
             )}
             {currentTab === 'ledgers' && <LedgersView />}
@@ -205,6 +211,7 @@ const AppShell: React.FC = () => {
             {currentTab === 'reports' && <ReportsView />}
             {currentTab === 'hr' && <HRView />}
             {currentTab === 'administration' && <AdminView currentUserId={currentUser?.id ?? null} />}
+            </Suspense>
             <Footer />
           </main>
         </div>

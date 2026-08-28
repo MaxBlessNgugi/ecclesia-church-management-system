@@ -24,6 +24,7 @@ import { InventorySubTab, InventoryItem, DeliveryRecord, SaleRecord, StockTakeRe
 import { inventoryApi } from '../../services/api';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
+import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 
 /**
  * Inventory Management panel: track sacred vessels, liturgical supplies and
@@ -36,6 +37,9 @@ export const InventoryView: React.FC = () => {
   const perms = usePermissions();
   // Active sub-tab routing state — drives which of the five panels renders below.
   const [activeSubTab, setActiveSubTab] = useState<InventorySubTab>('inward');
+
+  // Delete confirmation modal state — supports any inventory entity type
+  const [deleteTarget, setDeleteTarget] = useState<{ type: string; id: string; label: string; details: string[] } | null>(null);
 
   // Stock inventory list — the source of truth for every item dropdown in the
   // view (Item Name, Sale item, Issue item, Edit form) and for Stock Insights.
@@ -626,24 +630,31 @@ export const InventoryView: React.FC = () => {
             </h4>
 
             <div className="space-y-2 text-xs">
-              {/* One card per delivery record */}
               {deliveries.map((d) => (
                 <div key={d.id} className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3] flex justify-between items-center">
                   <div>
-                    {/* Supplier name */}
                     <div className="font-bold text-[#1a1c1c]">{d.supplier}</div>
-                    {/* Invoice ref and date */}
                     <div className="text-[11px] text-[#444748]">
                       Inv: {d.inv} • {d.date}
                     </div>
                   </div>
-                  <div className="text-right">
-                    {/* Total cost */}
-                    <div className="font-bold text-[#1e1e1e]">${d.total.toFixed(2)}</div>
-                    {/* Units and category */}
-                    <div className="text-[11px] text-[#444748]">
-                      {d.units} Units {d.cat}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-bold text-[#1e1e1e]">${d.total.toFixed(2)}</div>
+                      <div className="text-[11px] text-[#444748]">
+                        {d.units} Units {d.cat}
+                      </div>
                     </div>
+                    {perms.canDelete('inventory') && (
+                      <button
+                        onClick={() => setDeleteTarget({ type: 'delivery', id: d.id, label: `${d.supplier} delivery (${d.inv})`, details: [`Date: ${d.date}`, `Units: ${d.units}`, `Total: $${d.total.toFixed(2)}`] })}
+                        className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                        title="Delete delivery"
+                        aria-label="Delete delivery"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -654,7 +665,7 @@ export const InventoryView: React.FC = () => {
 
       {/* 2. SALE — point-of-sale form (8-col) + Stewardship banner and Today's
           Transactions feed with a live daily total (4-col). */}
-      {activeSubTab === 'sale' && (
+      {activeSubTab === 'sale' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Sale Form (8 Cols) */}
           <div className="lg:col-span-8 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
@@ -793,17 +804,25 @@ export const InventoryView: React.FC = () => {
               </h4>
 
               <div className="space-y-2 text-xs">
-                {/* One card per sale record */}
                 {salesHistory.map((s) => (
                   <div key={s.id} className="p-2.5 bg-[#f4f3f3] rounded border border-[#e1e3e3] flex justify-between items-center">
                     <div>
-                      {/* Item name */}
                       <div className="font-bold text-[#1a1c1c]">{s.item}</div>
-                      {/* Sale timestamp */}
                       <div className="text-[10px] text-[#444748]">{s.time}</div>
                     </div>
-                    {/* Sale amount */}
-                    <div className="font-bold text-[#1e1e1e]">${s.amount.toFixed(2)}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold text-[#1e1e1e]">${s.amount.toFixed(2)}</div>
+                      {perms.canDelete('inventory') && (
+                        <button
+                          onClick={() => setDeleteTarget({ type: 'sale', id: s.id, label: `${s.item} sale ($${s.amount.toFixed(2)})`, details: [`Time: ${s.time}`] })}
+                          className="text-[#ba1a1a] hover:text-red-700"
+                          title="Delete sale"
+                          aria-label="Delete sale"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -872,6 +891,7 @@ export const InventoryView: React.FC = () => {
                   <th className="p-3 text-center">Physical Count</th>
                   <th className="p-3 text-center">Variance</th>
                   <th className="p-3">Adjustment Notes</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e1e3e3]">
@@ -911,6 +931,18 @@ export const InventoryView: React.FC = () => {
                           defaultValue={st.notes}
                           className="w-full px-2 py-1 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c]"
                         />
+                      </td>
+                      <td className="p-3 text-right">
+                        {perms.canDelete('inventory') && (
+                          <button
+                            onClick={() => setDeleteTarget({ type: 'stockTake', id: st.id, label: `${st.name} stock take`, details: [`System: ${st.system}`, `Physical: ${st.physical}`, `Variance: ${st.physical - st.system}`] })}
+                            className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                            title="Delete stock take"
+                            aria-label="Delete stock take"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1060,10 +1092,20 @@ export const InventoryView: React.FC = () => {
               {/* One card per stock issue record */}
               {issueTrail.map((tr) => (
                 <div key={tr.id} className="p-3 bg-[#f4f3f3] rounded border border-[#e1e3e3] flex justify-between items-center">
-                  {/* Item and quantity */}
-                  <div className="font-bold text-[#1a1c1c]">{tr.item}</div>
-                  {/* Destination and reason */}
-                  <div className="text-[11px] text-[#444748]">{tr.dest}</div>
+                  <div>
+                    <div className="font-bold text-[#1a1c1c]">{tr.item}</div>
+                    <div className="text-[11px] text-[#444748]">{tr.dest}</div>
+                  </div>
+                  {perms.canDelete('inventory') && (
+                    <button
+                      onClick={() => setDeleteTarget({ type: 'issue', id: tr.id, label: `${tr.item} issued to ${tr.dest}`, details: [] })}
+                      className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                      title="Delete issue"
+                      aria-label="Delete issue"
+                    >
+                      <span className="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -1310,7 +1352,7 @@ export const InventoryView: React.FC = () => {
                 <p className="p-4 text-xs text-[#444748]">
                   No items match "{inventorySearch}". Try a different term.
                 </p>
-              ) : (
+              ) : (
                 filteredItems.map((it) => (
                   <label key={it.id} className="flex items-center gap-3 px-3 py-2 text-xs hover:bg-[#f9f9f9] cursor-pointer">
                     <input
@@ -1325,6 +1367,21 @@ export const InventoryView: React.FC = () => {
                     <span className="ml-auto text-[#444748]">
                       Stock {it.stock} • Price ${it.price.toFixed(2)}
                     </span>
+                    {perms.canDelete('inventory') && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeleteTarget({ type: 'item', id: it.id, label: `${it.name} (${it.sku})`, details: [`Category: ${it.category}`, `Stock: ${it.stock} units`, `Price: $${it.price.toFixed(2)}`] });
+                        }}
+                        className="text-[#ba1a1a] hover:text-red-700"
+                        title="Delete item"
+                        aria-label="Delete item"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
+                    )}
                   </label>
                 ))
               )}
@@ -1375,8 +1432,8 @@ export const InventoryView: React.FC = () => {
 
       {/* Price History Modal — append-only audit trail for the selected item's
           cost/retail price changes, with the actor who made each change. */}
-      {showPriceHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPriceHistory(false)}>
+      {showPriceHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPriceHistory(false)} onKeyDown={(e) => e.key === 'Escape' && setShowPriceHistory(false)} role="dialog" aria-modal="true" tabIndex={-1}>
           {/* Modal card — stopPropagation prevents backdrop click from closing */}
           <div
             className="bg-[#ffffff] rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in fade-in"
@@ -1446,6 +1503,36 @@ export const InventoryView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <DeleteConfirmationModal
+        open={deleteTarget !== null}
+        title={`Delete ${deleteTarget?.type ? deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1) : ''}`}
+        recordLabel={deleteTarget?.label ?? ''}
+        recordDetails={deleteTarget?.details}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            const apiMap: Record<string, () => Promise<void>> = {
+              item: () => inventoryApi.items.remove(deleteTarget.id),
+              delivery: () => inventoryApi.deliveries.remove(deleteTarget.id),
+              sale: () => inventoryApi.sales.remove(deleteTarget.id),
+              stockTake: () => inventoryApi.stockTakes.remove(deleteTarget.id),
+              issue: () => inventoryApi.issues.remove(deleteTarget.id),
+            };
+            await apiMap[deleteTarget.type]();
+            // Optimistically remove from local state
+            if (deleteTarget.type === 'item') setItems(prev => prev.filter(i => i.id !== deleteTarget.id));
+            else if (deleteTarget.type === 'delivery') setDeliveries(prev => prev.filter(d => d.id !== deleteTarget.id));
+            else if (deleteTarget.type === 'sale') setSalesHistory(prev => prev.filter(s => s.id !== deleteTarget.id));
+            else if (deleteTarget.type === 'stockTake') setStockTake(prev => prev.filter(s => s.id !== deleteTarget.id));
+            else if (deleteTarget.type === 'issue') setIssueTrail(prev => prev.filter(i => i.id !== deleteTarget.id));
+            setDeleteTarget(null);
+          } catch {
+            alert('Failed to delete record. Please try again.');
+          }
+        }}
+      />
     </div>
   );
 };
