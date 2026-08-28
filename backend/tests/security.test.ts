@@ -86,8 +86,8 @@ describe('Security', () => {
     const LIMIT = 10;
     const invalidCredentials = { email: 'nonexistent@test.com', password: 'wrong' };
 
-    // Send LIMIT requests with the distinct IP.
-    for (let i = 0; i < LIMIT - 1; i++) {
+    // Send LIMIT requests with the distinct IP (requests 1..10).
+    for (let i = 0; i < LIMIT; i++) {
       const res = await request(app)
         .post('/api/auth/login')
         .set('X-Forwarded-For', TEST_IP)
@@ -95,7 +95,7 @@ describe('Security', () => {
       expect([400, 401]).toContain(res.status);
     }
 
-    // The next request (LIMITth total for this IP) should now be blocked by the rate limiter.
+    // The next request (11th total for this IP) should now be blocked by the rate limiter.
     const blockedRes = await request(app)
       .post('/api/auth/login')
       .set('X-Forwarded-For', TEST_IP)
