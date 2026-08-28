@@ -29,7 +29,7 @@ interface ServerConnectionProps {
  */
 export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected }) => {
   // Default to ecclesia.local - the friendly local network name
-  const [serverAddress, setServerAddress] = useState('ecclesia.local');
+  const [serverAddress, setServerAddress] = useState('localhost');
   const [isTesting, setIsTesting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
