@@ -316,7 +316,8 @@ router.post('/payrolls', async (req, res, next) => {
 
     // Compute net pay: basic salary + allowances − deductions.
     // `?? 0` provides a default of 0 when allowances/deductions are undefined.
-    const netPay = data.basicSalary + (data.allowances ?? 0) - (data.deductions ?? 0);
+    // Rounded to 2 decimal places to avoid floating point precision issues.
+    const netPay = Math.round((data.basicSalary + (data.allowances ?? 0) - (data.deductions ?? 0)) * 100) / 100;
 
     // Insert the new payroll record into the database, including the employee relation.
     const created = await appPrisma.payroll.create({
