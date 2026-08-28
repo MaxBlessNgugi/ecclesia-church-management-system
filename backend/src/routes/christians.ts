@@ -48,6 +48,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { appPrisma, prisma } from '../lib/prisma.js';
+import { ChristianStatus } from '@prisma/client';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { requireModule } from '../middleware/perms.js';
@@ -165,14 +166,18 @@ async function nextRegNo(): Promise<string> {
 // ── Route handlers ─────────────────────────────────────────────────────────
 
 // GET /api/christians — List all Christian records
-// Query params: ?status= (filter by status) and ?q= (search across name/regNo fields)
+// Query params: ?status= (filter by status), ?q= (search), ?page=, ?limit= (pagination)
 // Response: 200 with array of mapped Christian objects, newest first.
+// Default limit: 500 records per page to prevent unbounded payloads.
 router.get('/', async (req, res, next) => {
   try {
     const status = req.query.status as string | undefined;
     const q = (req.query.q as string | undefined)?.trim();
-    const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const page = req.query.page ? Math.max(1, parseInt(req.query.page as string, 10)) : 1;
+    // Default 500; client can request fewer but never more (capped at 1000).
+    const limit = req.query.limit
+      ? Math.min(1000, Math.max(1, parseInt(req.query.limit as string, 10)))
+      : 500;
 
     const where: any = {};
     if (status) where.status = status;
@@ -188,19 +193,14 @@ router.get('/', async (req, res, next) => {
       ];
     }
 
-    const queryOptions: any = {
+    const skip = (page - 1) * limit;
+    const rows = await appPrisma.christian.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-    };
+      skip,
+      take: limit,
+    });
 
-    if (page && limit) {
-      queryOptions.skip = (page - 1) * limit;
-      queryOptions.take = limit;
-    } else if (limit) {
-      queryOptions.take = limit;
-    }
-
-    const rows = await appPrisma.christian.findMany(queryOptions);
     res.json(rows.map(mapChristian));
   } catch (e) {
     next(e);
@@ -340,9 +340,18 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
   }
 });
 
+// REG_NO_PATTERN — validates the canonical "REG-YYYY-NNNNNN" format.
+const REG_NO_PATTERN = /^REG-\d{4}-\d{6}$/;
+
 // POST /api/christians/import — Bulk import members from CSV / XLSX
 // Body: { rows: object[] } — each object should match ChristianRecord fields.
 // Response: { imported, skipped, errors[] }
+//
+// SAFETY GUARANTEES
+//   1. Each row's regNo is validated against the canonical REG-YYYY-NNNNNN format.
+//   2. Duplicate regNos (within the batch OR against existing DB records) are skipped.
+//   3. All valid rows are inserted inside a SINGLE $transaction — a crash or DB
+//      error rolls back the entire batch so no partial imports are left behind.
 router.post('/import', async (req, res, next) => {
   try {
     const { rows } = z.object({ rows: z.array(z.record(z.any())).min(1) }).parse(req.body);
@@ -351,30 +360,71 @@ router.post('/import', async (req, res, next) => {
     let skipped = 0;
     const errors: string[] = [];
 
+    // Pre-validate every row and build a de-duped list before touching the DB.
+    const seen = new Set<string>();
+    const validRows: Array<{
+      regNo: string; nationalId: string; baptismalName: string;
+      secondName: string; sirName: string; phone: string;
+      diocese: string; parish: string; localChurch: string;
+      scc: string; status: ChristianStatus;
+    }> = [];
+
     for (const row of rows) {
-      try {
-        await appPrisma.christian.create({
-          data: {
-            regNo: String(row.regNo || '').trim(),
-            nationalId: String(row.nationalId || '').trim(),
-            baptismalName: String(row.baptismalName || '').trim(),
-            secondName: String(row.secondName || '').trim(),
-            sirName: String(row.sirName || '').trim(),
-            phone: String(row.phone || '').trim(),
-            diocese: String(row.diocese || '').trim(),
-            parish: String(row.parish || '').trim(),
-            localChurch: String(row.localChurch || '').trim(),
-            scc: String(row.scc || '').trim(),
-            status: row.status || 'Active',
-          },
-        });
-        imported++;
-      } catch (e: any) {
-        if (e.code === 'P2002') {
+      const regNo = String(row.regNo || '').trim();
+
+      // 1. Validate format.
+      if (!REG_NO_PATTERN.test(regNo)) {
+        errors.push(`${regNo || 'unknown'}: invalid regNo format (expected REG-YYYY-NNNNNN)`);
+        skipped++;
+        continue;
+      }
+
+      // 2. Deduplicate within batch.
+      if (seen.has(regNo)) {
+        errors.push(`${regNo}: duplicate regNo in import batch — skipped`);
+        skipped++;
+        continue;
+      }
+      seen.add(regNo);
+
+      validRows.push({
+        regNo,
+        nationalId:    String(row.nationalId    || '').trim(),
+        baptismalName: String(row.baptismalName || '').trim(),
+        secondName:    String(row.secondName    || '').trim(),
+        sirName:       String(row.sirName       || '').trim(),
+        phone:         String(row.phone         || '').trim(),
+        diocese:       String(row.diocese       || '').trim(),
+        parish:        String(row.parish        || '').trim(),
+        localChurch:   String(row.localChurch   || '').trim(),
+        scc:           String(row.scc           || '').trim(),
+        status:        String(row.status        || 'Active').trim() as ChristianStatus,
+      });
+    }
+
+    if (validRows.length > 0) {
+      // 3. Check uniqueness against existing DB records (use raw client so soft-deleted
+      //    records also keep their regNos reserved).
+      const existingRegNos = await prisma.christian.findMany({
+        where: { regNo: { in: validRows.map((r) => r.regNo) } },
+        select: { regNo: true },
+      });
+      const existingSet = new Set(existingRegNos.map((r) => r.regNo));
+
+      const toInsert = validRows.filter((row) => {
+        if (existingSet.has(row.regNo)) {
           skipped++;
-        } else {
-          errors.push(`${row.regNo || 'unknown'}: ${e.message}`);
+          return false;
         }
+        return true;
+      });
+
+      // 4. Insert all valid, non-duplicate rows in a single atomic transaction.
+      if (toInsert.length > 0) {
+        await prisma.$transaction(
+          toInsert.map((row) => prisma.christian.create({ data: row })),
+        );
+        imported = toInsert.length;
       }
     }
 

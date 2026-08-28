@@ -38,6 +38,7 @@ import {
   SetupView,
 } from './components/views';
 import { getServerUrl } from './services/api';
+import { parseHashRoute } from './utils/url';
 import { ChristianRecord, NavigationTab } from './types';
 import { PermissionsProvider } from './permissions';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -71,14 +72,13 @@ const AppShell: React.FC = () => {
   // ── Deep-link support: #tab or #tab/subtab ──────────────────────────────
   useEffect(() => {
     const applyHash = () => {
-      const parts = window.location.hash.replace(/^#/, '').split('/');
-      const tab = parts[0] as NavigationTab;
-      const tabs = [
+      const { tab, subTab } = parseHashRoute(window.location.hash);
+      const tabs: NavigationTab[] = [
         'dashboard', 'christian', 'activities', 'sacraments', 'finance',
         'ledgers', 'inventory', 'reports', 'hr', 'administration', 'auth',
       ];
-      if (tabs.includes(tab)) {
-        handleNavigate(tab, parts[1]);
+      if (tabs.includes(tab as NavigationTab)) {
+        handleNavigate(tab as NavigationTab, subTab);
       }
     };
     applyHash();

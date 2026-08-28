@@ -14,6 +14,7 @@
 
 import React, { useState } from 'react';
 import { setServerUrl } from '../services/api';
+import { normalizeServerUrl } from '../utils/url';
 import { EcclesiaIcon } from './EcclesiaIcon';
 
 interface ServerConnectionProps {
@@ -42,20 +43,12 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
     setError('');
     setSuccess(false);
     
-    // Normalize the address
-    let url = serverAddress.trim();
+    // Normalize the address and strip any redundant /api or trailing slashes
+    const url = normalizeServerUrl(serverAddress);
     if (!url) {
-      setError('Please enter a server address.');
+      setError('Please enter a valid server address.');
       return;
     }
-
-    // Add protocol if missing
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `http://${url}`;
-    }
-
-    // Port is optional — if the user supplies one (e.g. :5000) it is kept,
-    // otherwise the browser uses the protocol default (80 for HTTP, 443 for HTTPS).
 
     setIsTesting(true);
 

@@ -219,16 +219,7 @@ const corsAllowAll =
   process.env.NODE_ENV !== 'production' || corsOrigins.length === 0;
 
 app.use(cors({
-  origin: corsAllowAll
-    ? true
-    : (origin: string | undefined) => {
-        // Allow same-origin, curl, health checks (no Origin header).
-        if (!origin) return true;
-        // Allow any listed origin.
-        if (corsOrigins.includes(origin)) return true;
-        // Deny everything else.
-        return false;
-      },
+  origin: corsAllowAll ? true : corsOrigins,
   credentials: false,
 }));
 

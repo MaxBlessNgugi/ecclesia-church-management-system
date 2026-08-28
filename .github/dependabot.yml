@@ -1,0 +1,108 @@
+# =============================================================================
+# Dependabot — Automated dependency update configuration
+# =============================================================================
+#
+# PURPOSE
+#   Keeps all dependencies up to date automatically by opening PRs when new
+#   versions are published. Grouped updates reduce PR noise by batching
+#   related packages into a single PR rather than one per package.
+#
+# SCHEDULES
+#   npm (root)    — weekly on Monday (frontend + Electron + Playwright)
+#   npm (backend) — weekly on Monday (Express, Prisma, JWT, bcrypt)
+#   github-actions — monthly (CI workflows)
+#
+# GROUPING STRATEGY
+#   - "frontend-deps"  → React, Vite, Tailwind, PWA (core UI stack)
+#   - "backend-deps"   → Express, Prisma, JWT, security libs
+#   - "dev-tools"      → TypeScript, tsx, testing frameworks
+# =============================================================================
+
+version: 2
+
+updates:
+  # ── Frontend (root package.json) ────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Africa/Nairobi"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    groups:
+      frontend-core:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+          - "vite"
+          - "@vitejs/*"
+          - "vite-plugin-pwa"
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      electron:
+        patterns:
+          - "electron"
+          - "electron-builder"
+      dev-tools:
+        patterns:
+          - "typescript"
+          - "tsx"
+          - "concurrently"
+          - "@playwright/*"
+          - "esbuild"
+
+  # ── Backend (backend/package.json) ──────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Africa/Nairobi"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "backend"
+    groups:
+      security-libs:
+        # Security-sensitive packages get their own group for fast review
+        patterns:
+          - "bcryptjs"
+          - "jsonwebtoken"
+          - "helmet"
+          - "express-rate-limit"
+          - "cors"
+      prisma:
+        patterns:
+          - "prisma"
+          - "@prisma/*"
+      backend-runtime:
+        patterns:
+          - "express"
+          - "socket.io"
+          - "zod"
+          - "dotenv"
+          - "morgan"
+          - "africastalking"
+          - "archiver"
+      backend-dev:
+        patterns:
+          - "typescript"
+          - "tsx"
+          - "vitest"
+          - "supertest"
+          - "@types/*"
+
+  # ── GitHub Actions ───────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "ci"

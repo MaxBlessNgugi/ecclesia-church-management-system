@@ -46,6 +46,8 @@ const SocketContext = createContext<SocketContextType>({
  * - Disconnects when the token is removed (logout)
  * - Cleans up on unmount
  */
+import { resolveSocketUrl } from '../utils/url';
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -55,14 +57,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const token = getStoredToken();
     if (!token) return;
 
-    // Resolve the Socket.IO server URL:
-    // 1. Configured server URL from localStorage (set on first launch)
-    // 2. VITE_API_BASE_URL env var
-    // 3. Same-origin fallback
-    const savedUrl = getServerUrl();
-    const apiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
-    const serverUrl = savedUrl 
-      || (apiBase ? apiBase.replace(/\/api\/?$/, '').replace(/\/$/, '') : window.location.origin);
+    // Resolve the Socket.IO root server URL (strips /api and trailing slashes)
+    const serverUrl = resolveSocketUrl(
+      getServerUrl(),
+      import.meta.env.VITE_API_BASE_URL as string | undefined,
+      window.location.origin
+    );
 
     const newSocket = io(serverUrl, {
       auth: { token },

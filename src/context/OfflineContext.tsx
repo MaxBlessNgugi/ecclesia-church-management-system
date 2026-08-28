@@ -27,9 +27,9 @@ export const ConnectivityContext = createContext<ConnectivityContextValue>({
   checkConnectivity: async () => {},
 });
 
+import { getBaseUrl } from '../services/api';
+
 const HEALTH_INTERVAL_MS = 20_000; // 20 seconds
-const BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
 
 export const ConnectivityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [status, setStatus] = useState<ConnectivityStatus>(
@@ -37,12 +37,12 @@ export const ConnectivityProvider: React.FC<{ children: React.ReactNode }> = ({ 
   );
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /** Check backend health by hitting /api/health. */
+  /** Check backend health by hitting /health on the configured server. */
   const checkConnectivity = useCallback(async () => {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${BASE_URL}/health`, {
+      const res = await fetch(`${getBaseUrl()}/health`, {
         method: 'GET',
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },

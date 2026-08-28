@@ -40,6 +40,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { ConnectivityProvider } from './context/OfflineContext';
 import { SocketProvider } from './context/SocketContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './assets/fonts.css';
 import './index.css';
 
@@ -48,13 +49,17 @@ const rootElement = document.getElementById('root')!;
 
 // Create a React 19 root using createRoot for concurrent rendering features.
 // StrictMode wraps the app to enable development-only warnings.
+// ErrorBoundary wraps the entire tree to catch uncaught render errors and
+// display a graceful fallback instead of an invisible blank screen.
 createRoot(rootElement).render(
   <StrictMode>
-    <ConnectivityProvider>
-      <SocketProvider>
-        <App />
-      </SocketProvider>
-    </ConnectivityProvider>
+    <ErrorBoundary>
+      <ConnectivityProvider>
+        <SocketProvider>
+          <App />
+        </SocketProvider>
+      </ConnectivityProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
 

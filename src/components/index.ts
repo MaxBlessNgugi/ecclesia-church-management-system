@@ -35,3 +35,11 @@ export { Footer } from './Footer'; // Named re-export from Footer module
  * @see GlobalSearchModal.tsx
  */
 export { GlobalSearchModal } from './GlobalSearchModal'; // Named re-export from GlobalSearchModal module
+
+/**
+ * Re-exports the ErrorBoundary component — catches uncaught React render errors
+ * across the entire component tree and displays a graceful fallback UI instead
+ * of a blank screen.
+ * @see ErrorBoundary.tsx
+ */
+export { ErrorBoundary } from './ErrorBoundary'; // Named re-export from ErrorBoundary module

@@ -211,6 +211,8 @@ import { ExportBundle } from '../types';
  * never physically destroyed; they land in the Admin > Trash & Audit view.
  */
 
+import { normalizeServerUrl, resolveApiBaseUrl } from '../utils/url';
+
 /** localStorage key for the configured server URL. */
 const SERVER_URL_KEY = 'ecclesia_server_url';
 
@@ -223,12 +225,16 @@ export function getServerUrl(): string | null {
 }
 
 /**
- * Save the server URL to localStorage.
- * @param url - The full server URL (e.g. http://192.168.1.100:5000)
+ * Save the server URL to localStorage with proper normalization.
+ * @param url - The full server URL or host (e.g. "http://192.168.1.100:5000" or "ecclesia.local")
  */
 export function setServerUrl(url: string): void {
-  // Normalize: strip trailing slash
-  localStorage.setItem(SERVER_URL_KEY, url.replace(/\/$/, ''));
+  const normalized = normalizeServerUrl(url);
+  if (normalized) {
+    localStorage.setItem(SERVER_URL_KEY, normalized);
+  } else {
+    localStorage.removeItem(SERVER_URL_KEY);
+  }
 }
 
 /**
@@ -239,23 +245,15 @@ export function clearServerUrl(): void {
 }
 
 /**
- * Base URL for all API requests.
- * Resolution order:
- *   1. Server URL from localStorage (configured by user on first launch)
- *   2. VITE_API_BASE_URL env var (for dev/testing)
- *   3. `/api` (same-origin fallback)
+ * Dynamically resolves the base URL for all API requests.
+ * Evaluated on each request to prevent stale hostnames after user reconfigurations.
  */
-function resolveBaseUrl(): string {
-  // Check localStorage first (configured by user)
-  const savedUrl = getServerUrl();
-  if (savedUrl) {
-    return `${savedUrl}/api`;
-  }
-  // Fall back to env var or same-origin
-  return (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
+export function getBaseUrl(): string {
+  return resolveApiBaseUrl(
+    getServerUrl(),
+    import.meta.env.VITE_API_BASE_URL as string | undefined
+  );
 }
-
-const BASE_URL: string = resolveBaseUrl();
 
 // -----------------------------------------------------------------------------
 // Session token storage
@@ -379,8 +377,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // endpoints (e.g. login) skip this header entirely.
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  // Execute the fetch against the fully-qualified URL.
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  // Execute the fetch against the fully-qualified URL dynamically resolved.
+  const res = await fetch(`${getBaseUrl()}${path}`, { ...options, headers });
 
   // Handle non-2xx responses: attempt to parse a JSON error body, fall
   // back to a generic status-based message if the body isn't JSON.
