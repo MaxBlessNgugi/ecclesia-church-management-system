@@ -51,6 +51,7 @@ import {
   signToken,          // Signs JWT tokens with user payload
   generateResetToken, // Generates cryptographically random reset token
   hashResetToken,     // Hashes reset token with SHA-256 for storage
+  passwordSchema,     // Shared password complexity validation schema
 } from '../lib/auth.js';
 
 // Import auth middleware and typed request interface for protected routes
@@ -123,12 +124,7 @@ const loginSchema = z.object({
 // Validation schema for user registration request body
 const registerSchema = z.object({
   email: z.string().email(),          // Must be valid email format
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')                      // Minimum 8 characters
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter') // At least one uppercase
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter') // At least one lowercase
-    .regex(/[0-9]/, 'Password must contain at least one number')           // At least one digit
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'), // At least one special char
+  password: passwordSchema,
   name: z.string().min(1),         // Must not be empty
   title: z.string().max(100).optional(), // Optional, max 100 characters
   role: z.enum(['admin', 'staff', 'viewer']).default('staff'), // Role with default
@@ -174,12 +170,7 @@ function session(user: any) {
 // Validation schema for change-password request body
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1), // Current password must not be empty
-  newPassword: z.string()
-    .min(8, 'Password must be at least 8 characters')                      // Minimum 8 characters
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter') // At least one uppercase
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter') // At least one lowercase
-    .regex(/[0-9]/, 'Password must contain at least one number')           // At least one digit
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'), // At least one special char
+  newPassword: passwordSchema,
 });
 
 /**
@@ -313,13 +304,7 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
 const bootstrapSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Enter a valid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+  password: passwordSchema,
 });
 
 /**
@@ -518,13 +503,7 @@ router.post('/reset-password', resetPasswordLimiter, async (req, res, next) => {
   try {
     // Validate and parse request body with token and new password
     const { token, newPassword } = z
-      .object({ token: z.string().min(1).max(64), newPassword: z.string()
-        .min(8, 'Password must be at least 8 characters')                      // Minimum 8 characters
-        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter') // At least one uppercase
-        .regex(/[a-z]/, 'Password must contain at least one lowercase letter') // At least one lowercase
-        .regex(/[0-9]/, 'Password must contain at least one number')           // At least one digit
-        .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character') // At least one special char
-      })
+      .object({ token: z.string().min(1).max(64), newPassword: passwordSchema })
       .parse(req.body);
 
     // Hash the provided reset token to compare against stored hash
