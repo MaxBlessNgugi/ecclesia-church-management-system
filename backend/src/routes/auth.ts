@@ -80,6 +80,7 @@ const loginLimiter = rateLimit({
   max: 10,                    // Max 10 requests per window
   standardHeaders: true,      // Return rate limit info in headers (RateLimit-*)
   legacyHeaders: false,       // Disable X-RateLimit-* headers (deprecated)
+  validate: { trustProxy: false },
   message: { error: 'Too many sign-in attempts. Please try again later.' }, // Error response
 });
 
@@ -89,6 +90,7 @@ const forgotPasswordLimiter = rateLimit({
   max: 5,                     // Max 5 requests per window
   standardHeaders: true,      // Return rate limit info in headers
   legacyHeaders: false,       // Disable legacy headers
+  validate: { trustProxy: false },
   message: { error: 'Too many password reset requests. Please try again later.' }, // Error response
 });
 
@@ -98,6 +100,7 @@ const resetPasswordLimiter = rateLimit({
   max: 5,                     // Max 5 requests per window
   standardHeaders: true,      // Return rate limit info in headers
   legacyHeaders: false,       // Disable legacy headers
+  validate: { trustProxy: false },
   message: { error: 'Too many reset attempts. Please try again later.' }, // Error response
 });
 

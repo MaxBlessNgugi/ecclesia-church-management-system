@@ -346,8 +346,8 @@ router.post('/debtors/:id/payments', async (req, res, next) => {
     // Return 404 if no debtor exists with the given ID
     if (!debtor) return next(new AppError('Debtor not found', 404, 'NOT_FOUND'));
 
-    // Calculate the new outstanding amount, ensuring it never goes below zero
-    const newAmount = Math.max(0, debtor.amount - amountPaid);
+    // Calculate the new outstanding amount (rounded to 2 decimal places), ensuring it never goes below zero
+    const newAmount = Math.round(Math.max(0, debtor.amount - amountPaid) * 100) / 100;
     // ^ Math.max(0, ...) prevents negative balances if overpayment occurs
 
     // Derive the status based on the remaining balance

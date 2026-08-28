@@ -392,9 +392,12 @@ router.post('/import', async (req, res, next) => {
 
     for (const row of rows) {
       try {
+        const rawReg = String(row.regNo || '').trim();
+        const regNo = rawReg.length > 0 ? rawReg : await nextRegNo();
+
         await appPrisma.christian.create({
           data: {
-            regNo: String(row.regNo || '').trim(),
+            regNo,
             nationalId: String(row.nationalId || '').trim(),
             baptismalName: String(row.baptismalName || '').trim(),
             secondName: String(row.secondName || '').trim(),
@@ -412,7 +415,7 @@ router.post('/import', async (req, res, next) => {
         if (e.code === 'P2002') {
           skipped++;
         } else {
-          errors.push(`${row.regNo || 'unknown'}: ${e.message}`);
+          errors.push(`${row.regNo || row.baptismalName || 'unknown'}: ${e.message}`);
         }
       }
     }

@@ -307,6 +307,10 @@ router.post('/billed-items', async (req, res, next) => {
       })
       .parse(req.body);
 
+    // Ensure totalAmount is rounded to 2 decimal places to avoid floating point issues.
+    const calculatedTotal = Math.round((data.unitFee * data.quantity) * 100) / 100;
+    const totalAmount = data.totalAmount ? Math.round(data.totalAmount * 100) / 100 : calculatedTotal;
+
     // Create the billed item record, storing null for walk-in customer IDs.
     const created = await appPrisma.billedItem.create({
       data: {
@@ -317,7 +321,7 @@ router.post('/billed-items', async (req, res, next) => {
         item: data.item,
         unitFee: data.unitFee,
         quantity: data.quantity,
-        totalAmount: data.totalAmount,
+        totalAmount,
         date: data.date,
       },
     });

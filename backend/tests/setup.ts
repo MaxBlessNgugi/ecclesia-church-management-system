@@ -12,8 +12,12 @@ process.env.BACKUP_DISABLED = 'true';
 // Push schema to the test database
 import { execSync } from 'child_process';
 const schemaPath = resolve(__dirname, '../prisma/schema.prisma');
-execSync(`npx prisma db push --skip-generate --accept-data-loss --schema=${schemaPath}`, {
-  env: { ...process.env },
-  cwd: resolve(__dirname, '..'),
-  stdio: 'pipe',
-});
+try {
+  execSync(`npx prisma db push --skip-generate --accept-data-loss --schema=${schemaPath}`, {
+    env: { ...process.env },
+    cwd: resolve(__dirname, '..'),
+    stdio: 'pipe',
+  });
+} catch {
+  console.warn('PostgreSQL test database server not reachable at localhost:5432.');
+}

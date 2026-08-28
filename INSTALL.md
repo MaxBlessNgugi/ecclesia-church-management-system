@@ -1,4 +1,10 @@
-# ECCLESIA — Server Setup Guide
+# ECCLESIA — Server Setup & Installation Guide
+
+> **FOR NON-TECHNICAL USERS (Church Secretaries, Treasurers, Pastors):**
+> Please see **[EASY_INSTALL_GUIDE.md](EASY_INSTALL_GUIDE.md)** for an ultra-detailed, step-by-step 1-click guide with zero assumed technical knowledge.
+> For the system audit & module review report, see **[SYSTEM_REVIEW_REPORT.md](SYSTEM_REVIEW_REPORT.md)**.
+
+---
 
 This guide explains how to set up the ECCLESIA server on a dedicated parish computer.
 The server hosts the database and API that all client devices connect to over the local network.

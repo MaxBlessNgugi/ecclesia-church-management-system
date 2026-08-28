@@ -2,9 +2,11 @@
 
 Multi-user church management system: **React 19 frontend** + **Express + Prisma + PostgreSQL backend**.
 
-> **For management/executive audiences:** see **[REPORT.md](REPORT.md)** (status &
-> capability report) — and **[SERVER_SETUP.md](SERVER_SETUP.md)** for deploying on
-> another PC.
+> **FOR NON-TECHNICAL USERS (Church Secretaries, Treasurers, Pastors):**
+> See **[EASY_INSTALL_GUIDE.md](EASY_INSTALL_GUIDE.md)** for an ultra-detailed, step-by-step 1-click installer manual explained in minute detail.
+>
+> **For Technical Audit & System Review:** see **[SYSTEM_REVIEW_REPORT.md](SYSTEM_REVIEW_REPORT.md)**.
+> **For Management/Executive Audiences:** see **[REPORT.md](REPORT.md)**.
 
 ---
 
