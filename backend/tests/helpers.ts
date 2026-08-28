@@ -70,6 +70,7 @@ export async function cleanupTestData() {
 
 export function createTestApp(): express.Express {
   const app = express();
+  app.set('trust proxy', true);
   app.use(helmet());
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '2mb' }));

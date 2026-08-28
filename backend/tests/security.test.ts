@@ -80,22 +80,25 @@ describe('Security', () => {
    */
   it('rate limiter blocks excessive login attempts with 429', async () => {
     // The loginLimiter is configured with max: 10 per window.
-    // The "allows normal login" test already consumed 1 slot.
+    // Use a distinct IP header so exhausting the rate limiter in this test
+    // does not block subsequent login tests in the same suite.
+    const TEST_IP = '192.168.99.99';
     const LIMIT = 10;
     const invalidCredentials = { email: 'nonexistent@test.com', password: 'wrong' };
 
-    // Send LIMIT-1 requests (we already used 1 slot in the prior test).
-    // These should all pass through and return 401 (invalid credentials, not rate-limited).
+    // Send LIMIT requests with the distinct IP.
     for (let i = 0; i < LIMIT - 1; i++) {
       const res = await request(app)
         .post('/api/auth/login')
+        .set('X-Forwarded-For', TEST_IP)
         .send(invalidCredentials);
       expect([400, 401]).toContain(res.status);
     }
 
-    // The next request (LIMITth total) should now be blocked by the rate limiter.
+    // The next request (LIMITth total for this IP) should now be blocked by the rate limiter.
     const blockedRes = await request(app)
       .post('/api/auth/login')
+      .set('X-Forwarded-For', TEST_IP)
       .send(invalidCredentials);
     expect(blockedRes.status).toBe(429);
     expect(blockedRes.body).toHaveProperty('error');
