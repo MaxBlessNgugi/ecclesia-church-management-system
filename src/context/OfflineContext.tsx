@@ -1,75 +1,43 @@
 // =============================================================================
-// Ecclesia CMS — OfflineContext
+// Ecclesia CMS — ConnectivityContext
 // =============================================================================
 //
 // PURPOSE
-//   Provides global online/offline/syncing state to the entire React tree.
-//   Polls the backend health endpoint every 20 seconds to detect connectivity.
-//   Exposes the pending queue count so the UI can show sync badges and warnings.
-//
-// STATE MACHINE
-//   ┌─────────┐   backend reachable   ┌────────┐   queue empty   ┌────────┐
-//   │ offline │ ──────────────────────▶│ online │ ──────────────▶│ online │
-//   └─────────┘                        └────────┘                └────────┘
-//        ▲                                  │                         │
-//        │          backend unreachable     │   queue has items       │
-//        └──────────────────────────────────┘─────────────────────────┘
+//   Provides global online/offline status to the React tree so UI components
+//   can display a connection indicator. Polls the backend health endpoint
+//   periodically to confirm the server is reachable.
 //
 // RELATED FILES
-//   - src/lib/db.ts              → Dexie queue helpers
-//   - src/services/sync.ts       → Background sync processor
-//   - src/components/Header.tsx  → Renders the status indicator badge
+//   - src/components/Header.tsx  → Renders the status badge
+//   - src/components/Sidebar.tsx → Renders status in footer
 // =============================================================================
 import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
-import { getPendingCount } from '../lib/db';
-import { processQueue } from '../services/sync';
 
-export type ConnectivityStatus = 'online' | 'offline' | 'syncing';
+export type ConnectivityStatus = 'online' | 'offline';
 
-export interface OfflineContextValue {
+export interface ConnectivityContextValue {
   /** Current connectivity status */
   status: ConnectivityStatus;
-  /** Number of items in the offline write queue */
-  pendingCount: number;
-  /** Last successful sync timestamp (ISO string) */
-  lastSyncedAt: string | null;
   /** Force a connectivity check right now */
   checkConnectivity: () => Promise<void>;
-  /** Called by the sync service when it starts processing */
-  setSyncing: (syncing: boolean) => void;
-  /** Refresh the pending count display */
-  refreshPendingCount: () => Promise<void>;
 }
 
-export const OfflineContext = createContext<OfflineContextValue>({
-  status: 'online',
-  pendingCount: 0,
-  lastSyncedAt: null,
+export const ConnectivityContext = createContext<ConnectivityContextValue>({
+  status: navigator.onLine ? 'online' : 'offline',
   checkConnectivity: async () => {},
-  setSyncing: () => {},
-  refreshPendingCount: async () => {},
 });
 
 const HEALTH_INTERVAL_MS = 20_000; // 20 seconds
 const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
 
-export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ConnectivityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [status, setStatus] = useState<ConnectivityStatus>(
     navigator.onLine ? 'online' : 'offline'
   );
-  const [pendingCount, setPendingCount] = useState(0);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const isSyncingRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /** Refresh the pending count from IndexedDB. */
-  const refreshPendingCount = useCallback(async () => {
-    const count = await getPendingCount();
-    setPendingCount(count);
-  }, []);
-
-  /** Check backend health by hitting /api/health (or /health). */
+  /** Check backend health by hitting /api/health. */
   const checkConnectivity = useCallback(async () => {
     try {
       const controller = new AbortController();
@@ -80,44 +48,11 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
         headers: { 'Content-Type': 'application/json' },
       });
       clearTimeout(timeout);
-      if (res.ok) {
-        // Backend reachable — drain any offline mutations queued while away.
-        const count = await getPendingCount();
-        if (count > 0) {
-          isSyncingRef.current = true;
-          setStatus('syncing');
-          await processQueue(
-            () => setStatus('syncing'),
-            (synced, failed) => {
-              isSyncingRef.current = false;
-              setStatus('online');
-              setLastSyncedAt(new Date().toISOString());
-              void refreshPendingCount();
-              if (failed > 0) {
-                console.warn(`[Offline] Sync finished: ${synced} synced, ${failed} failed.`);
-              }
-            }
-          );
-        } else {
-          setStatus(isSyncingRef.current ? 'syncing' : 'online');
-          setLastSyncedAt(new Date().toISOString());
-        }
-      } else {
-        setStatus(isSyncingRef.current ? 'syncing' : 'offline');
-      }
+      setStatus(res.ok ? 'online' : 'offline');
     } catch {
-      setStatus(isSyncingRef.current ? 'syncing' : 'offline');
+      setStatus('offline');
     }
-  }, [refreshPendingCount]);
-
-  /** Toggle syncing state (called by sync service). */
-  const setSyncing = useCallback(
-    (syncing: boolean) => {
-      isSyncingRef.current = syncing;
-      setStatus(syncing ? 'syncing' : navigator.onLine ? 'online' : 'offline');
-    },
-    []
-  );
+  }, []);
 
   // Poll health endpoint periodically
   useEffect(() => {
@@ -142,19 +77,12 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [checkConnectivity]);
 
-  // Refresh pending count on mount and whenever connectivity changes
-  useEffect(() => {
-    void refreshPendingCount();
-  }, [status, refreshPendingCount]);
-
   return (
-    <OfflineContext.Provider
-      value={{ status, pendingCount, lastSyncedAt, checkConnectivity, setSyncing, refreshPendingCount }}
-    >
+    <ConnectivityContext.Provider value={{ status, checkConnectivity }}>
       {children}
-    </OfflineContext.Provider>
+    </ConnectivityContext.Provider>
   );
 };
 
 /** Convenience hook for consuming components. */
-export const useOffline = () => React.useContext(OfflineContext);
+export const useConnectivity = () => React.useContext(ConnectivityContext);

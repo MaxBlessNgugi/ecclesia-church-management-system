@@ -75,7 +75,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCK_MS = 15 * 60 * 1000;
 
 // Rate limiter for login endpoint: max 10 requests per 15-minute window per IP
-const loginLimiter = rateLimit({
+export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15-minute sliding window
   max: 10,                    // Max 10 requests per window
   standardHeaders: true,      // Return rate limit info in headers (RateLimit-*)
@@ -84,7 +84,7 @@ const loginLimiter = rateLimit({
 });
 
 // Rate limiter for forgot-password endpoint: max 5 requests per 15-minute window per IP
-const forgotPasswordLimiter = rateLimit({
+export const forgotPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15-minute sliding window
   max: 5,                     // Max 5 requests per window
   standardHeaders: true,      // Return rate limit info in headers
@@ -93,13 +93,26 @@ const forgotPasswordLimiter = rateLimit({
 });
 
 // Rate limiter for reset-password endpoint: max 5 requests per 15-minute window per IP
-const resetPasswordLimiter = rateLimit({
+export const resetPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15-minute sliding window
   max: 5,                     // Max 5 requests per window
   standardHeaders: true,      // Return rate limit info in headers
   legacyHeaders: false,       // Disable legacy headers
   message: { error: 'Too many reset attempts. Please try again later.' }, // Error response
 });
+
+/**
+ * Resets rate limiter counters for test isolation.
+ */
+export function resetAuthRateLimiters() {
+  loginLimiter.resetKey('::ffff:127.0.0.1');
+  loginLimiter.resetKey('127.0.0.1');
+  loginLimiter.resetKey('::1');
+  forgotPasswordLimiter.resetKey('::ffff:127.0.0.1');
+  forgotPasswordLimiter.resetKey('127.0.0.1');
+  resetPasswordLimiter.resetKey('::ffff:127.0.0.1');
+  resetPasswordLimiter.resetKey('127.0.0.1');
+}
 
 // Validation schema for login request body
 const loginSchema = z.object({
@@ -138,32 +151,10 @@ const defaultPanels = {
 const defaultActions = { view: true, edit: true, delete: true };
 
 /**
- * Safe JSON parse for the `panels`/`actions` columns. PostgreSQL stores these as
- * TEXT; any malformed legacy value degrades gracefully to the default object
- * instead of crashing the login response.
- *
- * @template T - The expected type of the parsed JSON
- * @param {string | null | undefined} value - The raw string value from database
- * @param {T} fallback - Default value to return if parsing fails
- * @returns {T} The parsed JSON value or the fallback
- */
-function parseJson<T>(value: string | null | undefined, fallback: T): T {
-  // Return fallback if value is null, undefined, or empty string
-  if (!value) return fallback;
-  try {
-    // Parse string to JSON, or return as-is if already an object
-    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
-  } catch {
-    // If JSON parsing fails (malformed data), return safe fallback
-    return fallback;
-  }
-}
-
-/**
  * Builds the client-facing session object (never exposes passwordHash).
  *
- * @param {any} user - Raw user object from database
- * @returns {object} Safe session object with user info and parsed permissions
+ * @param {any} user - Raw user object from database (panels/actions are native Json)
+ * @returns {object} Safe session object with user info and permissions
  */
 function session(user: any) {
   return {
@@ -174,8 +165,8 @@ function session(user: any) {
     role: user.role,                                      // User's role (super_admin, admin, staff, viewer)
     mustChangePassword: user.mustChangePassword ?? false, // Whether user must change password on next login
     permissions: {
-      panels: parseJson(user.panels, defaultPanels),      // Parse JSON panels string to object
-      actions: parseJson(user.actions, defaultActions),    // Parse JSON actions string to object
+      panels: (user.panels as Record<string, boolean>) ?? defaultPanels,  // Native Json → object
+      actions: (user.actions as Record<string, boolean>) ?? defaultActions, // Native Json → object
     },
   };
 }
@@ -384,8 +375,8 @@ router.post('/bootstrap', async (req, res, next) => {
       where: { id: 'default' },
       create: {
         id: 'default',
-        panels: JSON.stringify(defaultPanels),
-        actions: JSON.stringify(defaultActions),
+        panels: defaultPanels,
+        actions: defaultActions,
       },
       update: {},
     });

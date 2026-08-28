@@ -83,7 +83,7 @@ cd ..
 ```bash
 cd backend
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run db:seed
 ```
 

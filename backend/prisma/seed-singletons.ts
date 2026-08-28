@@ -22,7 +22,7 @@ async function main() {
     where: { id: 'default' },
     create: {
       id: 'default',
-      panels: JSON.stringify({
+      panels: {
         christian: true,
         activities: true,
         sacraments: true,
@@ -32,8 +32,8 @@ async function main() {
         reports: true,
         hr: true,
         administration: true,
-      }),
-      actions: JSON.stringify({ view: true, edit: true, delete: true }),
+      },
+      actions: { view: true, edit: true, delete: true },
     },
     update: {},
   });

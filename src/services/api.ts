@@ -1671,82 +1671,24 @@ export const settingsApi = {
     })
 };
 
-// ---------- Offline Queue Integration ------------------------------------------
-
-import { enqueue, setCache, getCache, getCacheTimestamp } from '../lib/db';
+// ---------- Mutation Helper ----------------------------------------------------
 
 /**
- * Check if the browser is currently online.
- * Returns true if the network is reachable, false otherwise.
- */
-export function isOnline(): boolean {
-  return navigator.onLine;
-}
-
-/**
- * Attempt a mutation request. If the network is unavailable or the request
- * fails due to a network error, queue the mutation for later sync instead
- * of showing an error to the user.
- *
- * @param entity    - The entity type being mutated (e.g. "christian", "deposit").
- * @param operation - The operation type ("create", "update", "delete").
- * @param endpoint  - The API endpoint path (e.g. "/christians").
- * @param method    - The HTTP method.
- * @param payload   - The request body.
- * @param optimisticUpdate - Optional local state updater to apply immediately.
- * @returns The created/updated record if online, or a queued placeholder if offline.
+ * Send a mutation request to the backend API.
+ * Applies an optional optimistic update on success.
  */
 export async function requestWithQueue<T>(
-  entity: string,
-  operation: 'create' | 'update' | 'delete',
+  _entity: string,
+  _operation: 'create' | 'update' | 'delete',
   endpoint: string,
   method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   payload: Record<string, unknown>,
   optimisticUpdate?: (item: T) => void
-): Promise<T | { queued: true; id: string }> {
-  // If we think we're online, try the real request
-  if (isOnline()) {
-    try {
-      const result = await request<T>(endpoint, {
-        method,
-        body: method !== 'DELETE' ? JSON.stringify(payload) : undefined,
-      });
-      optimisticUpdate?.(result);
-      return result;
-    } catch (err) {
-      // Network error (fetch failed) — queue for later
-      if (err instanceof TypeError || (err instanceof Error && err.message.includes('fetch'))) {
-        const id = await enqueue({ entity, operation, endpoint, method, payload });
-        optimisticUpdate?.(payload as T);
-        return { queued: true, id };
-      }
-      throw err; // Re-throw non-network errors (400, 401, etc.)
-    }
-  }
-
-  // Offline — queue the mutation
-  const id = await enqueue({ entity, operation, endpoint, method, payload });
-  optimisticUpdate?.(payload as T);
-  return { queued: true, id };
-}
-
-/**
- * Cache an API response for offline use.
- */
-export async function cacheApiResponse(key: string, data: unknown): Promise<void> {
-  await setCache(key, data);
-}
-
-/**
- * Get a cached API response. Returns null if not cached.
- */
-export async function getCachedResponse<T = unknown>(key: string): Promise<T | null> {
-  return getCache<T>(key);
-}
-
-/**
- * Get the last-updated timestamp for a cached response.
- */
-export async function getCachedTimestamp(key: string): Promise<string | null> {
-  return getCacheTimestamp(key);
+): Promise<T> {
+  const result = await request<T>(endpoint, {
+    method,
+    body: method !== 'DELETE' ? JSON.stringify(payload) : undefined,
+  });
+  optimisticUpdate?.(result);
+  return result;
 }

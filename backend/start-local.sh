@@ -4,7 +4,7 @@
 #  1. Installs deps if missing            -> npm install
 #  2. Creates backend/.env if missing     -> cp .env.example .env
 #  3. Generates Prisma Client             -> npx prisma generate
-#  4. Pushes schema to PostgreSQL         -> npx prisma db push
+#  4. Applies database migrations             -> npx prisma migrate deploy
 #  5. Seeds the super admin + singletons  -> npm run db:seed
 #  6. Starts the API with tsx watch       -> npm run dev
 # =============================================================================
@@ -28,8 +28,8 @@ fi
 echo "→ Generating Prisma Client..."
 npx prisma generate
 
-echo "→ Pushing schema to PostgreSQL..."
-npx prisma db push
+echo "→ Applying database migrations..."
+npx prisma migrate deploy
 
 echo "→ Seeding Super Admin (Max Bless Ngugi)..."
 npm run db:seed

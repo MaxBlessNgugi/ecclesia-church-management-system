@@ -3,22 +3,22 @@
 // =============================================================================
 //
 // PURPOSE
-//   Owns every shared data array (Christians, deposits, creditors, debtors,
-//   expenses, deaths), the loadDashboardData fetcher, all optimistic mutation
-//   handlers, and the Socket.IO realtime subscriptions that patch local state.
+//   Owns non-Christian shared data arrays (deposits, creditors, debtors,
+//   expenses, deaths), the bulk data loader, all optimistic mutation handlers,
+//   and the Socket.IO realtime subscriptions that patch local state.
 //
-//   App.tsx no longer holds any of this state — it just reads from context and
-//   passes slice references to panel components.
+//   Christian/parishioner registry state lives in ChristiansContext.tsx.
+//   App.tsx reads from context and passes slice references to panel components.
 //
 // RELATED FILES
-//   src/context/AuthContext.tsx    → Registers onDataReady callback to trigger loadData
-//   src/hooks/useRealtime.ts      → Socket.IO resource subscriptions
-//   src/services/api.ts           → Typed API clients
-//   src/App.tsx                   → Consumes DataContext for panels + handlers
+//   src/context/ChristiansContext.tsx → Christian registry state + CRUD handlers
+//   src/context/AuthContext.tsx       → Registers onDataReady callback to trigger loadData
+//   src/hooks/useRealtime.ts         → Socket.IO resource subscriptions
+//   src/services/api.ts              → Typed API clients
+//   src/App.tsx                      → Consumes DataContext for panels + handlers
 // =============================================================================
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
-  ChristianRecord,
   ContributionRecord,
   CreditorRecord,
   DeathRecord,
@@ -27,45 +27,28 @@ import {
   ExpenseRecord,
 } from '../types';
 import {
-  christiansApi,
-  creditorsApi,
   deathsApi,
+  creditorsApi,
   debtorsApi,
   depositsApi,
   expensesApi,
-  cacheApiResponse,
-  getCachedResponse,
   requestWithQueue,
 } from '../services/api';
+
 import { useRealtime } from '../hooks/useRealtime';
-import { getPendingCount } from '../lib/db';
 import { useAuth } from './AuthContext';
 
 interface DataContextValue {
   // ── Data arrays ───────────────────────────────────────────────────────────
-  christians: ChristianRecord[];
   deposits: DepositRecord[];
   creditors: CreditorRecord[];
   debtors: DebtorRecord[];
   expenses: ExpenseRecord[];
   deathRecords: DeathRecord[];
 
-  // ── Setters (used by realtime + mutations) ─────────────────────────────────
-  setChristians: React.Dispatch<React.SetStateAction<ChristianRecord[]>>;
-  setDeposits: React.Dispatch<React.SetStateAction<DepositRecord[]>>;
-  setCreditors: React.Dispatch<React.SetStateAction<CreditorRecord[]>>;
-  setDebtors: React.Dispatch<React.SetStateAction<DebtorRecord[]>>;
-  setExpenses: React.Dispatch<React.SetStateAction<ExpenseRecord[]>>;
-  setDeathRecords: React.Dispatch<React.SetStateAction<DeathRecord[]>>;
-
   // ── Actions ───────────────────────────────────────────────────────────────
   loadData: () => Promise<void>;
-  handleAddChristian: (m: ChristianRecord) => Promise<void>;
-  handleDeleteChristian: (id: string) => Promise<void>;
   handleRecordPayment: (p: ContributionRecord) => Promise<void>;
-  handleTransferChristian: (memberId: string, dest: { localChurch: string; scc: string }) => Promise<void>;
-  handleUpdateSacraments: (memberId: string, data: Partial<ChristianRecord>) => Promise<void>;
-  handleRecordDeath: (death: DeathRecord) => Promise<void>;
   handleAddDeposit: (d: DepositRecord) => Promise<void>;
   handleAddCreditor: (c: CreditorRecord) => Promise<void>;
   handleMarkCreditorPaid: (id: string) => Promise<void>;
@@ -79,7 +62,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { onDataReady, currentUser } = useAuth();
 
   // ── Data arrays ───────────────────────────────────────────────────────────
-  const [christians, setChristians] = useState<ChristianRecord[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
   const [creditors, setCreditors] = useState<CreditorRecord[]>([]);
   const [debtors, setDebtors] = useState<DebtorRecord[]>([]);
@@ -89,53 +71,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ── Load dashboard data ───────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [christiansRes, depositsRes, creditorsRes, debtorsRes, expensesRes, deathsRes] =
+      const [depositsRes, creditorsRes, debtorsRes, expensesRes, deathsRes] =
         await Promise.all([
-          christiansApi.list(),
           depositsApi.list(),
           creditorsApi.list(),
           debtorsApi.list(),
           expensesApi.list(),
           deathsApi.list(),
         ]);
-      setChristians(christiansRes);
       setDeposits(depositsRes);
       setCreditors(creditorsRes);
       setDebtors(debtorsRes);
       setExpenses(expensesRes);
       setDeathRecords(deathsRes);
 
-      // Cache for offline fallback
-      await Promise.all([
-        cacheApiResponse('christians', christiansRes),
-        cacheApiResponse('deposits', depositsRes),
-        cacheApiResponse('creditors', creditorsRes),
-        cacheApiResponse('debtors', debtorsRes),
-        cacheApiResponse('expenses', expensesRes),
-        cacheApiResponse('deaths', deathsRes),
-      ]);
+
     } catch (error) {
       console.error('Failed to load church data from the backend', error);
-      // Fallback to IndexedDB cache
-      try {
-        const [cc, cd, cr, cb, ce, cde] = await Promise.all([
-          getCachedResponse<ChristianRecord[]>('christians'),
-          getCachedResponse<DepositRecord[]>('deposits'),
-          getCachedResponse<CreditorRecord[]>('creditors'),
-          getCachedResponse<DebtorRecord[]>('debtors'),
-          getCachedResponse<ExpenseRecord[]>('expenses'),
-          getCachedResponse<DeathRecord[]>('deaths'),
-        ]);
-        if (cc) setChristians(cc);
-        if (cd) setDeposits(cd);
-        if (cr) setCreditors(cr);
-        if (cb) setDebtors(cb);
-        if (ce) setExpenses(ce);
-        if (cde) setDeathRecords(cde);
-      } catch {
-        // Cache read also failed — user sees empty state
-      }
     }
+    // Note: Christians are loaded by ChristiansContext independently.
   }, []);
 
   // Register loadData with AuthContext so it can trigger data loading after auth
@@ -145,11 +99,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loadData, onDataReady]);
 
   // ── Real-time listeners (Socket.IO) ──────────────────────────────────────
-  useRealtime('christians', ({ action, data }) => {
-    if (action === 'created') setChristians(prev => [data, ...prev]);
-    if (action === 'updated') setChristians(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
-    if (action === 'deleted') setChristians(prev => prev.filter(c => c.id !== data.id));
-  });
   useRealtime('deposits', ({ action, data }) => {
     if (action === 'created') setDeposits(prev => [data, ...prev]);
     if (action === 'updated') setDeposits(prev => prev.map(d => d.id === data.id ? { ...d, ...data } : d));
@@ -180,45 +129,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  // ── Unsynced-changes warning ──────────────────────────────────────────────
-  useEffect(() => {
-    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
-      const count = await getPendingCount();
-      if (count > 0) {
-        e.preventDefault();
-        e.returnValue = `You have ${count} unsynced change${count === 1 ? '' : 's'}. If you close now, these changes will be lost. Are you sure?`;
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
-
   // ── Mutation handlers ─────────────────────────────────────────────────────
-
-  const handleAddChristian = useCallback(async (newMember: ChristianRecord) => {
-    try {
-      await requestWithQueue<ChristianRecord>(
-        'christian', 'create', '/christians', 'POST',
-        newMember as unknown as Record<string, unknown>,
-        (created) => setChristians(prev => [created as ChristianRecord, ...prev])
-      );
-    } catch (error) {
-      console.error('Failed to add christian', error);
-      alert(error instanceof Error ? error.message : 'Failed to add christian record');
-    }
-  }, []);
-
-  const handleDeleteChristian = useCallback(async (id: string) => {
-    try {
-      await requestWithQueue(
-        'christian', 'delete', `/christians/${id}`, 'DELETE', {},
-        () => setChristians(prev => prev.filter(c => c.id !== id))
-      );
-    } catch (error) {
-      console.error('Failed to delete christian', error);
-      alert(error instanceof Error ? error.message : 'Failed to delete christian record');
-    }
-  }, []);
 
   const handleRecordPayment = useCallback(async (payment: ContributionRecord) => {
     try {
@@ -232,71 +143,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const handleTransferChristian = useCallback(async (
-    memberId: string,
-    dest: { localChurch: string; scc: string }
-  ) => {
-    setChristians(prev => {
-      const member = prev.find(c => c.id === memberId);
-      if (!member) return prev;
-      requestWithQueue(
-        'transfer', 'create', '/transfers', 'POST',
-        {
-          christianId: memberId,
-          memberName: `${member.baptismalName} ${member.sirName}`,
-          diocese: member.diocese,
-          parish: member.parish,
-          localChurch: dest.localChurch,
-          scc: dest.scc,
-          date: new Date().toISOString().split('T')[0],
-        },
-        () => {
-          setChristians(p =>
-            p.map(c =>
-              c.id === memberId
-                ? { ...c, status: 'Transferred', localChurch: dest.localChurch, scc: dest.scc }
-                : c
-            )
-          );
-        }
-      ).catch(error => {
-        console.error('Failed to record transfer', error);
-        alert(error instanceof Error ? error.message : 'Failed to record transfer');
-      });
-      return prev;
-    });
-  }, []);
-
-  const handleUpdateSacraments = useCallback(async (memberId: string, data: Partial<ChristianRecord>) => {
-    try {
-      await requestWithQueue(
-        'christian', 'update', `/christians/${memberId}/sacraments`, 'PATCH',
-        data as unknown as Record<string, unknown>,
-        () => setChristians(prev => prev.map(c => c.id === memberId ? { ...c, ...data } : c))
-      );
-    } catch (error) {
-      console.error('Failed to update sacraments', error);
-      alert(error instanceof Error ? error.message : 'Failed to update sacraments');
-    }
-  }, []);
-
-  const handleRecordDeath = useCallback(async (death: DeathRecord) => {
-    try {
-      await requestWithQueue<DeathRecord>(
-        'death', 'create', '/deaths', 'POST',
-        death as unknown as Record<string, unknown>,
-        (created) => {
-          setDeathRecords(prev => [created as DeathRecord, ...prev]);
-          setChristians(prev =>
-            prev.map(c => c.id === death.christianId ? { ...c, status: 'Deceased' } : c)
-          );
-        }
-      );
-    } catch (error) {
-      console.error('Failed to record death', error);
-      alert(error instanceof Error ? error.message : 'Failed to record death');
-    }
-  }, []);
+  // handleRecordDeath lives in ChristiansContext — it posts to /deaths and
+  // sets the christian's status to Deceased. The backend emits a 'deaths'
+  // data:change event, which the realtime listener above picks up.
+  // No separate handler needed here.
 
   const handleAddDeposit = useCallback(async (deposit: DepositRecord) => {
     try {
@@ -379,11 +229,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider
       value={{
-        christians, deposits, creditors, debtors, expenses, deathRecords,
-        setChristians, setDeposits, setCreditors, setDebtors, setExpenses, setDeathRecords,
+        deposits, creditors, debtors, expenses, deathRecords,
         loadData,
-        handleAddChristian, handleDeleteChristian, handleRecordPayment,
-        handleTransferChristian, handleUpdateSacraments, handleRecordDeath,
+        handleRecordPayment,
         handleAddDeposit, handleAddCreditor, handleMarkCreditorPaid,
         handleRecordDebtorPayment, handleAddExpense,
       }}

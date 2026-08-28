@@ -21,7 +21,7 @@
 
 import React from 'react'; // React library - provides JSX support, component lifecycle, and React.FC type for functional components
 import { NavigationTab, PanelKey } from '../../types'; // Type definitions - NavigationTab represents panel identifiers, PanelKey represents allowed panel keys for permission filtering
-import { useOffline } from '../../context/OfflineContext'; // Offline context hook for connectivity status
+import { useConnectivity } from '../../context/OfflineContext';
 
 // Props interface defining the contract for the DashboardView component
 interface DashboardViewProps {
@@ -32,8 +32,8 @@ interface DashboardViewProps {
 
 // DashboardView functional component - renders the main dashboard with module cards
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, memberCount, allowedPanels }) => {
-  // Offline connectivity status
-  const { status: connectivityStatus, lastSyncedAt, pendingCount } = useOffline();
+  // Connectivity status
+  const { status: connectivityStatus } = useConnectivity();
   // Array of all available management module definitions - each object contains the panel's
   // unique identifier, display title, Material icon name, description, and quick-action sub-items
   const panels = [
@@ -214,7 +214,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
                
                 <div className="space-y-1.5">
                  
-                  {panel.items.map((item) => (
+                  {panel.items.map((item) => (
                     <button
                       key={item.label}
                       onClick={() => onNavigate(panel.id, item.subTab)}
@@ -254,27 +254,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
               className={`w-2 h-2 rounded-full ${
                 connectivityStatus === 'online'
                   ? 'bg-emerald-500'
-                  : connectivityStatus === 'syncing'
-                  ? 'bg-blue-500 animate-pulse'
                   : 'bg-amber-500'
               }`}
             />
             <span className="font-medium text-[#1a1c1c]">
               {connectivityStatus === 'online' && 'Database Sync: Active'}
-              {connectivityStatus === 'syncing' && 'Syncing offline changes...'}
-              {connectivityStatus === 'offline' && 'Offline — showing cached data'}
+              {connectivityStatus === 'offline' && 'Backend Unreachable'}
             </span>
           </div>
-          {pendingCount > 0 && (
-            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-bold">
-              {pendingCount} change{pendingCount === 1 ? '' : 's'} pending sync
-            </span>
-          )}
-          {lastSyncedAt && connectivityStatus === 'offline' && (
-            <span className="text-[10px] text-[#444748]">
-              Last synced: {new Date(lastSyncedAt).toLocaleTimeString()}
-            </span>
-          )}
         </div>
 
        

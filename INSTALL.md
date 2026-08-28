@@ -1,77 +1,78 @@
 # ECCLESIA — Server Setup Guide
 
-This guide explains how to set up the ECCLESIA server on a dedicated parish computer.
-The server hosts the database and API that all client devices connect to over the local network.
+ECCLESIA is a **multi-user web application**. One server hosts the database and
+API; staff access it from any browser on the parish network — no installation on
+client devices.
 
-> **Clients do not need any installation.** They simply open a web browser and
-> navigate to the server address. See [CLIENT_SETUP.md](CLIENT_SETUP.md) for
+> **Clients just open a browser.** See [CLIENT_SETUP.md](CLIENT_SETUP.md) for
 > client instructions.
 
 ---
 
 ## Easiest Way to Install (Recommended)
 
-If you are setting up ECCLESIA for your parish, use the one-command installer.
-It handles everything automatically: checks prerequisites, configures the
-database, installs dependencies, and builds the application.
+**Two prerequisites, one command.** Install Node.js and PostgreSQL, then run the
+installer — it does everything else.
 
-### Prerequisites
+### 1. Install prerequisites
 
-Before running the installer, install these two programs:
+| Program | Version | Download |
+|---------|---------|----------|
+| **Node.js** | 18+ (LTS) | https://nodejs.org |
+| **PostgreSQL** | 14+ | https://postgresql.org |
 
-1. **Node.js 18+** — download from https://nodejs.org (choose the LTS version)
-2. **PostgreSQL 14+** — download from https://postgresql.org
-   - During installation, set a password for the `postgres` user
-   - The installer uses the default password `ecclesia`
-     (if you chose a different password, edit `backend/.env` after install)
+During PostgreSQL installation, set a password for the `postgres` user.
+The installer defaults to password `ecclesia` — if you chose differently,
+edit `backend/.env` after install.
 
-### Run the Installer
+### 2. Run the installer
 
-**Windows:**
-Double-click `scripts/install-parish.cmd` or run in Command Prompt:
+**Windows** — double-click `scripts/install-parish.cmd` or run in Command Prompt:
 ```
 scripts\install-parish.cmd
 ```
 
-**Linux / macOS:**
+**Linux / macOS** — run in Terminal:
 ```bash
 bash scripts/install-parish.sh
 ```
 
 The installer will:
-- Check that Node.js and PostgreSQL are installed
-- Create a secure configuration file (`backend/.env`)
-- Install all dependencies
-- Set up the database schema
-- Create the initial super_admin accounts
-- Build the frontend
-- Optionally configure the `ecclesia.local` hostname
 
-### Start the Server
+1. Verify Node.js 18+ and PostgreSQL are installed and running
+2. Create `backend/.env` with a strong auto-generated JWT secret
+3. Install all npm dependencies (root + backend)
+4. Generate the Prisma client and apply database migrations
+5. Seed the initial super_admin accounts
+6. Build the production frontend
+7. Optionally configure the `ecclesia.local` hostname
 
-After installation completes:
+> **Safety:** the installer never overwrites an existing `backend/.env` without
+> asking first, and never drops an existing database.
+
+### 3. Start the server
+
 ```bash
 cd backend
 npm start
 ```
 
-Then open **http://localhost:5000** in any browser on the parish network.
-
-> **First time?** You will be guided through a Parish Setup Wizard to configure
-> your parish name, logo, diocese, and other identity details.
+Open **http://localhost:5000** (or `http://ecclesia.local` if you set up the
+hostname) in any browser on the parish network. On first login you'll be guided
+through a one-time Parish Setup Wizard.
 
 ---
 
 ## Advanced / Manual Setup
 
-If you prefer to set things up manually (or the installer doesn't work for your
-system), follow the steps below.
+Use this path only if the installer doesn't work for your system, or you prefer
+to manage each step yourself.
 
 ### Prerequisites
 
 - **Windows 10/11**, **macOS**, or **Linux** (Ubuntu, Debian, etc.)
-- **Node.js 18+** (download from https://nodejs.org)
-- **PostgreSQL 14+** (download from https://postgresql.org)
+- **Node.js 18+** (https://nodejs.org)
+- **PostgreSQL 14+** (https://postgresql.org)
 - **Git** (optional, for cloning the repository)
 
 ---
@@ -146,7 +147,7 @@ npm install
 cd backend
 npm install
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run db:seed
 ```
 
@@ -247,7 +248,7 @@ sudo systemctl start ecclesia
 ```bash
 git pull
 npm install
-cd backend && npm install && npx prisma generate && npx prisma db push
+cd backend && npm install && npx prisma generate && npx prisma migrate deploy
 cd ..
 npm run build
 cd backend && npm restart

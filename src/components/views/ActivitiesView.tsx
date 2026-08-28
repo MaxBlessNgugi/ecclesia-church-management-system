@@ -36,8 +36,7 @@ import { useReactToPrint } from 'react-to-print';
 import { ContributionReceipt } from '../printables';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
-// Offline context — pending sync count for the metrics sidebar
-import { useOffline } from '../../context/OfflineContext';
+
 // Configured parish identity (real name, not a placeholder)
 import { useParishInfo } from '../../hooks/useParishInfo';
 
@@ -67,8 +66,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
 }) => {
   // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
-  // Pending offline mutations — shown in the registry metrics sidebar
-  const { pendingCount } = useOffline();
+
   // Configured parish identity — used on receipts instead of a hardcoded name
   const parish = useParishInfo();
   // Controls which of the three sub-tab panels is currently rendered
@@ -677,13 +675,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
                     {christians.filter((c) => c.status === 'Active').length}
                   </div>
                 </div>
-                {/* Pending offline sync — real count from the OfflineContext queue */}
-                <div className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3]">
-                  <div className="text-[10px] text-[#444748] uppercase">Pending Sync</div>
-                  <div className={`text-xl font-bold mt-0.5 ${pendingCount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-                    {pendingCount} Pending
-                  </div>
-                </div>
+
               </div>
             </div>
           </div>

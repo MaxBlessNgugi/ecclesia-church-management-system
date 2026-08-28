@@ -84,8 +84,8 @@ function isoDateStr(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-function sacrament(date: string): string {
-  return JSON.stringify({ date, minister: 'Fr. Joseph Mwangi', place: PARISH });
+function sacrament(date: string): { date: string; minister: string; place: string } {
+  return { date, minister: 'Fr. Joseph Mwangi', place: PARISH };
 }
 
 async function main() {
@@ -158,8 +158,8 @@ async function main() {
         title: 'Demo Account',
         role: u.role,
         isActive: true,
-        panels: JSON.stringify(fullPanels),
-        actions: JSON.stringify(fullActions),
+        panels: fullPanels,
+        actions: fullActions,
         mustChangePassword: false,
       },
     });
@@ -217,9 +217,9 @@ async function main() {
         christianId: c.id,
         memberName: `${NAMES[i][0]} ${NAMES[i][2]}`,
         regNo: c.regNo,
-        categories: JSON.stringify(categoriesList.slice(0, (i % 3) + 1)),
+        categories: categoriesList.slice(0, (i % 3) + 1),
         otherCategory: null,
-        monthlyTracker: JSON.stringify(tracker),
+        monthlyTracker: tracker,
         amountKES,
         date: utcDate(new Date().getFullYear(), new Date().getMonth() + 1, (i % 27) + 1),
       },

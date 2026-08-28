@@ -1,27 +1,21 @@
-name: CI
+name: Ecclesia CMS CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [ main, master ]
   pull_request:
-    branches: [master, main]
-
-# Cancel previous runs of the same branch if a new commit arrives
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [ main, master ]
 
 jobs:
   test-and-build:
-    name: Test & Build
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:15-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgrespassword
           POSTGRES_DB: ecclesia_test
         ports:
           - 5432:5432
@@ -32,83 +26,39 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
+          node-version: 20
+          cache: 'npm'
 
-      - name: Install root dependencies
+      - name: Install Root Dependencies
         run: npm ci
 
-      - name: Install backend dependencies
-        run: npm ci
-        working-directory: backend
-
-      # Cache the generated Prisma client so `prisma generate` is a no-op
-      # when the schema hasn't changed. Keyed on schema.prisma content.
-      - name: Cache Prisma client
-        uses: actions/cache@v4
-        with:
-          path: backend/node_modules/.prisma/client
-          key: prisma-${{ runner.os }}-${{ hashFiles('backend/prisma/schema.prisma') }}
-          restore-keys: |
-            prisma-${{ runner.os }}-
+      - name: Install Backend Dependencies
+        run: npm ci --prefix backend
 
       - name: Generate Prisma Client
-        run: npx prisma generate
-        working-directory: backend
+        run: npm run db:generate --prefix backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/ecclesia_test
 
-      # Frontend type-check (root tsconfig covers src/)
-      - name: Type-check frontend (TypeScript)
+      - name: Run Prisma Database Migrations
+        run: npm run db:migrate:deploy --prefix backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/ecclesia_test
+
+      - name: Typecheck Frontend
         run: npm run lint
 
-      # Backend type-check — `tsc --noEmit` without emitting compiled output
-      - name: Type-check backend (TypeScript)
-        run: npx tsc --noEmit
-        working-directory: backend
-
-      - name: Run backend tests
-        run: npm test
-        working-directory: backend
+      - name: Run Backend Vitest Test Suite
+        run: npm test --prefix backend
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecclesia_test
-          NODE_ENV: test
-          JWT_SECRET: ci-test-secret-at-least-32-characters-long
-          JWT_EXPIRES_IN: 1h
-          BACKUP_DISABLED: "true"
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/ecclesia_test
+          JWT_SECRET: ecclesia-ci-secret-key-1234567890
 
-      - name: Build frontend + backend
+      - name: Build Application
         run: npm run build
-
-      # Smoke test: start the compiled backend, hit /api/health, confirm 200.
-      # This catches runtime crashes (missing imports, bad config) that tsc won't.
-      - name: Smoke test — start server and hit health endpoint
-        run: |
-          # Start the backend in the background on port 5050
-          PORT=5050 \
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecclesia_test \
-          JWT_SECRET=ci-test-secret-at-least-32-characters-long \
-          node backend/dist/index.js &
-          SERVER_PID=$!
-
-          # Wait for the server to become ready (up to 15 seconds)
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5050/api/health > /dev/null 2>&1; then
-              echo "✅ Server is healthy"
-              curl -s http://localhost:5050/api/health
-              kill $SERVER_PID 2>/dev/null || true
-              exit 0
-            fi
-            sleep 0.5
-          done
-
-          echo "❌ Server did not start within 15 seconds"
-          kill $SERVER_PID 2>/dev/null || true
-          exit 1

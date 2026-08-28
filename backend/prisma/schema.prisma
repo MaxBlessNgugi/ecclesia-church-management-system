@@ -12,11 +12,11 @@
 //        isDeleted Boolean @default(false)
 //        deletedAt DateTime?
 //      DELETE endpoints set isDeleted=true, write AuditLog, NEVER hard-delete
-//   2. JSON COLUMNS — Complex nested data stored as TEXT (JSON strings):
-//        User.panels, User.actions           → PanelPermissions JSON
-//        Christian.baptism, eucharist, etc.  → SacramentData JSON
-//        Contribution.categories, monthlyTracker → String[] + Record<month,bool>
-//      Parsed by backend route handlers; Prisma treats them as opaque Strings
+//   2. JSON COLUMNS — Complex nested data stored as native Prisma Json:
+//        User.panels, User.actions           → PanelPermissions JSON (Json)
+//        Christian.baptism, eucharist, etc.  → SacramentData JSON (Json)
+//        Contribution.categories, monthlyTracker → String[] + Record<month,bool> (Json)
+//      Prisma returns parsed JS objects; no manual JSON.parse/stringify needed
 //   3. UUID PRIMARY KEYS — All models use @id @default(uuid()) for global uniqueness
 //   4. TIMESTAMPS — createdAt @default(now()), updatedAt @updatedAt on all models
 //   5. SINGLETON SETTINGS — PanelPermissions, PushPaymentSettings use id="default"
@@ -58,8 +58,8 @@
 //   - Export/Import: secrets stripped, M-Pesa credentials masked
 //
 // MIGRATION NOTES
-//   - Run `npx prisma migrate dev --name <description>` for schema changes
-//   - JSON column changes require NO migration (just update Zod schemas + types)
+//   - Development: `npx prisma migrate dev --name <description>`
+//   - Production:  `npx prisma migrate deploy`
 //   - Adding required fields: provide @default or make nullable first
 //
 // RELATED FILES
@@ -153,8 +153,8 @@ model User {
   title        String?
   role                  UserRole  @default(staff)
   isActive              Boolean   @default(true)
-  panels                String?
-  actions               String?
+  panels                Json?
+  actions               Json?
   resetTokenHash        String?
   resetTokenExpires     DateTime?
   resetFailedAttempts   Int       @default(0)
@@ -173,8 +173,8 @@ model User {
 
 model PanelPermissions {
   id      String @id @default("default")
-  panels  String
-  actions String
+  panels  Json
+  actions Json
 
   @@map("panel_permissions")
 }
@@ -205,10 +205,10 @@ model Christian {
   localChurch   String
   scc           String
   status        ChristianStatus @default(Active)
-  baptism       String?
-  eucharist     String?
-  confirmation  String?
-  marriage      String?
+  baptism       Json?
+  eucharist     Json?
+  confirmation  Json?
+  marriage      Json?
   isDeleted     Boolean  @default(false)
   deletedAt     DateTime?
   createdAt     DateTime @default(now())
@@ -218,6 +218,7 @@ model Christian {
   billedItems   BilledItem[]
   deaths        Death[]
 
+  @@index([isDeleted, status, createdAt])
   @@index([status, createdAt])  // list endpoint: WHERE status + ORDER BY createdAt DESC
   @@index([scc])
   @@index([localChurch])
@@ -230,15 +231,17 @@ model Contribution {
   christian      Christian @relation(fields: [christianId], references: [id])
   memberName     String
   regNo          String
-  categories     String
+  categories     Json
   otherCategory  String?
-  monthlyTracker String
+  monthlyTracker Json
   amountKES      Decimal           @db.Decimal(12, 2)
   date           DateTime
   isDeleted      Boolean  @default(false)
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
 
+  @@index([isDeleted, date])
+  @@index([isDeleted, christianId])
   @@index([christianId])
   @@index([date])
   @@map("contributions")

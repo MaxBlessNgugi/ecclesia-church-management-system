@@ -18,7 +18,7 @@ Or step by step:
 npm install
 cp .env.example .env
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run db:seed
 npm run dev
 ```
@@ -73,7 +73,9 @@ DATABASE_URL="postgresql://postgres:ecclesia@localhost:5432/ecclesia?schema=publ
 |---------|----------------|
 | `./start-local.sh` | Install + DB + seed + start |
 | `npm run dev` | API with hot reload |
-| `npm run db:push` | Sync schema to PostgreSQL |
+| `npm run db:migrate` | Create/update migration (dev) |
+| `npm run db:migrate:deploy` | Apply pending migrations |
+| `npm run db:push` | Quick schema sync (escape hatch) |
 | `npm run db:seed` | Create super_admin accounts |
 | `npm run db:studio` | Database GUI |
 

@@ -83,9 +83,8 @@ import { requireAdmin, requireAuth, requireSuperAdmin, AuthRequest } from '../mi
 
 // Import AppError for consistent error handling via the centralized error handler
 import { AppError } from '../middleware/errorHandler.js';
-
-// Permission middleware: requireModule checks panel-specific access rights for the administration module
 import { requireModule } from '../middleware/perms.js';
+import { encryptString, decryptString } from '../lib/crypto.js';
 
 // Audit utilities: softDelete for marking records deleted, restoreFromLog for restoring, listAuditLogs for querying audit trail, resolveActor for user info, loadCurrentRecord for current state, restoreMany for bulk restore, HttpError for custom errors
 import { softDelete, restoreFromLog, listAuditLogs, resolveActor, loadCurrentRecord, restoreMany, HttpError } from '../lib/audit.js';
@@ -150,20 +149,6 @@ function maskCredential(value: string | null | undefined): string {
   return value ? MASKED_PLACEHOLDER : '';
 }
 
-// Serializes a value to JSON string: returns string as-is, otherwise JSON.stringify
-function serializeJson<T>(value: T): string {
-  return typeof value === 'string' ? value : JSON.stringify(value);
-}
-
-// Parses JSON string with fallback: returns fallback if value is null/undefined/empty or parsing fails
-function parseJson<T>(value: string | null | undefined, fallback: T): T {
-  if (!value) return fallback;
-  try {
-    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
-  } catch {
-    return fallback;
-  }
-}
 
 // Transforms a user object to a safe public representation: strips sensitive fields like passwordHash, resetTokenHash, etc.
 function publicUser(u: any) {
@@ -365,8 +350,8 @@ router.post('/users/:id/reset-password', async (req: AuthRequest, res, next) => 
 // Helper function to extract user permissions with defaults for missing values
 function getUserPermissions(user: any) {
   return {
-    panels: parseJson(user.panels, defaultPanels),   // Panel access permissions (JSON string → object)
-    actions: parseJson(user.actions, defaultActions), // Action permissions (JSON string → object)
+    panels: (user.panels as Record<string, boolean>) ?? defaultPanels,   // Native Json → object
+    actions: (user.actions as Record<string, boolean>) ?? defaultActions, // Native Json → object
   };
 }
 
@@ -394,12 +379,12 @@ router.put('/users/:id/permissions', async (req, res, next) => {
       }),
     }).parse(req.body);
 
-    // Update user's permissions in database (store as JSON strings)
+    // Update user's permissions in database (Prisma handles Json serialization)
     const user = await appPrisma.user.update({
       where: { id: req.params.id },
       data: {
-        panels: serializeJson(data.panels),   // Serialize panels object to JSON string
-        actions: serializeJson(data.actions), // Serialize actions object to JSON string
+        panels: data.panels,
+        actions: data.actions,
       },
     });
     // Return updated permissions with defaults applied
@@ -415,11 +400,11 @@ router.get('/rights', async (_req, res, next) => {
     // If no default exists, create it with default values
     if (!row) {
       row = await appPrisma.panelPermissions.create({
-        data: { id: 'default', panels: serializeJson(defaultPanels), actions: serializeJson(defaultActions) },
+        data: { id: 'default', panels: defaultPanels, actions: defaultActions },
       });
     }
-    // Return parsed permissions with defaults applied
-    res.json({ panels: parseJson(row.panels, defaultPanels), actions: parseJson(row.actions, defaultActions) });
+    // Return permissions — Prisma returns native Json objects
+    res.json({ panels: (row.panels as Record<string, boolean>) ?? defaultPanels, actions: (row.actions as Record<string, boolean>) ?? defaultActions });
   } catch (e) { next(e); } // Pass errors to error handler
 });
 
@@ -436,14 +421,14 @@ router.put('/rights', async (req, res, next) => {
       }),
     }).parse(req.body);
 
-    // Upsert default permissions: create if not exists, update if exists
+    // Upsert default permissions: create if not exists, update if exists (Prisma handles Json)
     const row = await appPrisma.panelPermissions.upsert({
       where: { id: 'default' },
-      create: { id: 'default', panels: serializeJson(data.panels), actions: serializeJson(data.actions) },
-      update: { panels: serializeJson(data.panels), actions: serializeJson(data.actions) },
+      create: { id: 'default', panels: data.panels, actions: data.actions },
+      update: { panels: data.panels, actions: data.actions },
     });
-    // Return updated permissions with parsed values
-    res.json({ panels: parseJson(row.panels, data.panels), actions: parseJson(row.actions, data.actions) });
+    // Return updated permissions — Prisma returns native Json objects
+    res.json({ panels: (row.panels as Record<string, boolean>) ?? data.panels, actions: (row.actions as Record<string, boolean>) ?? data.actions });
   } catch (e) { next(e); } // Pass errors to error handler
 });
 
@@ -456,17 +441,19 @@ router.get('/push-payments', async (_req, res, next) => {
     if (!row) {
       row = await appPrisma.pushPaymentSettings.create({ data: { id: 'default' } });
     }
+    const decryptedKey = decryptString(row.consumerKey);
+    const decryptedSecret = decryptString(row.consumerSecret);
     // Return settings with sensitive credentials masked for security
     res.json({
       paybill: row.paybill,           // M-Pesa paybill number
       accountFormat: row.accountFormat, // Account number format template
-      consumerKey: maskCredential(row.consumerKey), // Masked API consumer key
-      consumerSecret: maskCredential(row.consumerSecret), // Masked API consumer secret
+      consumerKey: maskCredential(decryptedKey), // Masked API consumer key
+      consumerSecret: maskCredential(decryptedSecret), // Masked API consumer secret
       mode: row.mode,                 // 'sandbox' or 'live' environment
       testPhone: row.testPhone,       // Test phone number for sandbox
       testAmount: row.testAmount,     // Test amount for sandbox transactions
-      hasConsumerKey: Boolean(row.consumerKey), // Boolean flag: key exists (not empty)
-      hasConsumerSecret: Boolean(row.consumerSecret), // Boolean flag: secret exists (not empty)
+      hasConsumerKey: Boolean(decryptedKey), // Boolean flag: key exists (not empty)
+      hasConsumerSecret: Boolean(decryptedSecret), // Boolean flag: secret exists (not empty)
     });
   } catch (e) { next(e); } // Pass errors to error handler
 });
@@ -485,15 +472,19 @@ router.put('/push-payments', async (req, res, next) => {
       testAmount: z.string(),        // Test amount
     }).parse(req.body);
 
-    // A submitted masked placeholder means the admin left the field untouched:
-    // keep the previously stored credential instead of overwriting it with the
-    // mask. Any other value (including '') is written as-is.
     // Fetch existing settings to preserve credentials if masked placeholder submitted
     const existing = await appPrisma.pushPaymentSettings.findUnique({ where: { id: 'default' } });
-    // If consumer key is masked placeholder, keep existing value; otherwise use submitted value
-    const consumerKey = data.consumerKey === MASKED_PLACEHOLDER ? (existing?.consumerKey ?? '') : data.consumerKey;
-    // Same logic for consumer secret
-    const consumerSecret = data.consumerSecret === MASKED_PLACEHOLDER ? (existing?.consumerSecret ?? '') : data.consumerSecret;
+    
+    // If consumer key is masked placeholder, keep existing value; otherwise encrypt submitted value
+    const rawKey = data.consumerKey === MASKED_PLACEHOLDER
+      ? decryptString(existing?.consumerKey ?? '')
+      : data.consumerKey;
+    const rawSecret = data.consumerSecret === MASKED_PLACEHOLDER
+      ? decryptString(existing?.consumerSecret ?? '')
+      : data.consumerSecret;
+
+    const consumerKey = rawKey ? encryptString(rawKey) : '';
+    const consumerSecret = rawSecret ? encryptString(rawSecret) : '';
 
     // Build update payload with resolved credential values
     const payload = {
@@ -515,13 +506,13 @@ router.put('/push-payments', async (req, res, next) => {
     res.json({
       paybill: row.paybill,
       accountFormat: row.accountFormat,
-      consumerKey: maskCredential(row.consumerKey),
-      consumerSecret: maskCredential(row.consumerSecret),
+      consumerKey: maskCredential(rawKey),
+      consumerSecret: maskCredential(rawSecret),
       mode: row.mode,
       testPhone: row.testPhone,
       testAmount: row.testAmount,
-      hasConsumerKey: Boolean(row.consumerKey),
-      hasConsumerSecret: Boolean(row.consumerSecret),
+      hasConsumerKey: Boolean(rawKey),
+      hasConsumerSecret: Boolean(rawSecret),
     });
   } catch (e) { next(e); } // Pass errors to error handler
 });

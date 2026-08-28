@@ -11,7 +11,7 @@ REM WHAT THIS SCRIPT DOES:
 REM   1. Checks that Node.js 18+ and PostgreSQL are installed
 REM   2. Creates backend\.env from a safe template (never overwrites without asking)
 REM   3. Installs all npm dependencies (root + backend)
-REM   4. Generates the Prisma client and pushes the schema to the database
+REM   4. Generates the Prisma client and applies database migrations
 REM   5. Seeds the database with the initial super_admin accounts
 REM   6. Optionally sets up the ecclesia.local hostname
 REM   7. Prints clear next steps
@@ -210,7 +210,7 @@ echo  [OK] Backend dependencies installed
 echo.
 
 REM =============================================================================
-REM STEP 5: Generate Prisma client + push schema
+REM STEP 5: Generate Prisma client + apply migrations
 REM =============================================================================
 echo  Step 5/7: Setting up database...
 echo.
@@ -225,12 +225,12 @@ if %ERRORLEVEL% neq 0 (
 )
 echo  [OK] Prisma client generated
 
-echo  Pushing schema to database...
-echo  ^(This creates tables if they don't exist, or updates them if they do.^)
+echo  Applying database migrations...
+echo  ^(This creates tables if they don't exist, or applies pending changes.^)
 echo.
-call npx prisma db push --accept-data-loss
+call npx prisma migrate deploy
 if %ERRORLEVEL% neq 0 (
-    echo  [ERROR] Failed to push database schema.
+    echo  [ERROR] Failed to apply database migrations.
     echo.
     echo  Common causes:
     echo  - PostgreSQL is not running
@@ -240,7 +240,7 @@ if %ERRORLEVEL% neq 0 (
     pause
     exit /b 1
 )
-echo  [OK] Database schema is up to date
+echo  [OK] Database migrations applied
 echo.
 
 REM =============================================================================
@@ -248,11 +248,22 @@ REM STEP 6: Seed the database
 REM =============================================================================
 echo  Step 6/7: Seeding initial data...
 echo.
-call npm run db:seed
-if %ERRORLEVEL% neq 0 (
-    echo  [WARN] Seeding encountered an issue. The database may already have data.
-    echo  This is usually fine — you can log in with the existing admin account.
+
+REM Check if the database already has users
+for /f "tokens=*" %%a in ('cd /d "%BACKEND_DIR%" && npx prisma db execute --stdin <<< "SELECT count(*) FROM \"User\";" 2^>nul ^| findstr /r "[0-9]"') do set "USER_COUNT=%%a"
+set "USER_COUNT=%USER_COUNT: =%"
+
+if defined USER_COUNT if not "%USER_COUNT%"=="0" (
+    echo  [WARN] The database already contains %USER_COUNT% user(s^).
+    set /p "RESEED=Re-seed the database? This will NOT delete existing data. (y/N): "
+    if /i "!RESEED!"=="y" (
+        call npm run db:seed
+        echo  [OK] Database seeded
+    ) else (
+        echo  [OK] Skipping seed — using existing data
+    )
 ) else (
+    call npm run db:seed
     echo  [OK] Database seeded with super_admin accounts
 )
 echo.

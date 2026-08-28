@@ -9,7 +9,10 @@ process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES || '1h';
 process.env.NODE_ENV = 'test';
 process.env.BACKUP_DISABLED = 'true';
 
-// Push schema to the test database
+// Push schema to the ephemeral test database.
+// Tests use `db push` (not `migrate deploy`) because the test database is
+// recreated on every run — migration history is unnecessary overhead.
+// Production and install flows use `migrate deploy` with the baseline migration.
 import { execSync } from 'child_process';
 const schemaPath = resolve(__dirname, '../prisma/schema.prisma');
 execSync(`npx prisma db push --skip-generate --accept-data-loss --schema=${schemaPath}`, {

@@ -79,17 +79,6 @@ router.use(requireAuth);
 // Middleware chain: requireModule ensures user has access to reports panel
 router.use(requireModule('reports'));
 
-// Helper function to safely parse optional JSON values with type casting
-function parseOptionalJson<T>(value: string | null | undefined): T | undefined {
-  if (!value) return undefined; // Return undefined for null/undefined/empty values
-  try {
-    // Parse JSON string or return value as-is if already an object
-    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
-  } catch {
-    return undefined; // Return undefined if JSON parsing fails
-  }
-}
-
 // GET /sacraments — Sacramental register report with filtering by type, local church, and SCC
 router.get('/sacraments', async (req, res, next) => {
   try {
@@ -107,16 +96,16 @@ router.get('/sacraments', async (req, res, next) => {
     // Transform each member into sacrament report row
     const result = rows.map((c) => {
       let date = ''; // Default empty date
-      // Parse each sacrament's JSON data (may be null/undefined)
-      const baptism = parseOptionalJson<any>(c.baptism);
-      const eucharist = parseOptionalJson<any>(c.eucharist);
-      const confirmation = parseOptionalJson<any>(c.confirmation);
-      const marriage = parseOptionalJson<any>(c.marriage);
+      // Prisma returns native Json objects — access properties directly
+      const baptism = c.baptism as Record<string, unknown> | null;
+      const eucharist = c.eucharist as Record<string, unknown> | null;
+      const confirmation = c.confirmation as Record<string, unknown> | null;
+      const marriage = c.marriage as Record<string, unknown> | null;
       // Extract date based on requested sacrament type
-      if (sacramentType === 'baptism' && baptism) date = baptism.date ?? '';
-      else if (sacramentType === 'eucharist' && eucharist) date = eucharist.date ?? '';
-      else if (sacramentType === 'confirmation' && confirmation) date = confirmation.date ?? '';
-      else if (sacramentType === 'marriage' && marriage) date = marriage.date ?? '';
+      if (sacramentType === 'baptism' && baptism) date = (baptism.date as string) ?? '';
+      else if (sacramentType === 'eucharist' && eucharist) date = (eucharist.date as string) ?? '';
+      else if (sacramentType === 'confirmation' && confirmation) date = (confirmation.date as string) ?? '';
+      else if (sacramentType === 'marriage' && marriage) date = (marriage.date as string) ?? '';
       // Return formatted report row
       return {
         name: `${c.baptismalName} ${c.secondName} ${c.sirName}`.trim(), // Full name from components
@@ -140,10 +129,9 @@ router.get('/contributions', async (req, res, next) => {
     const rows = await appPrisma.contribution.findMany({ orderBy: { createdAt: 'desc' } });
     // Transform each contribution into report row with parsed JSON
     let result = rows.map((r) => {
-      let categories: string[] = []; // Default empty categories array
-      let tracker: Record<string, boolean> = {}; // Default empty monthly tracker
-      try { categories = JSON.parse(r.categories); } catch { } // Parse categories JSON (may be malformed)
-      try { tracker = JSON.parse(r.monthlyTracker); } catch { } // Parse monthly tracker JSON
+      // Prisma returns native Json objects — access directly with type assertions
+      const categories = (r.categories as string[]) ?? []; // Category list
+      const tracker = (r.monthlyTracker as Record<string, boolean>) ?? {}; // Monthly tracker
       return {
         memberName: r.memberName, // Contributor's name
         category: categories.join(', '), // Joined categories string

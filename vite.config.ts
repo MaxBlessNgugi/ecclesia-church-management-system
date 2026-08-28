@@ -37,7 +37,7 @@ export default defineConfig(() => {
         manifest: {
           name: 'ECCLESIA ChMS',
           short_name: 'Ecclesia',
-          description: 'Parish Church Management System — works offline',
+          description: 'Parish Church Management System',
           theme_color: '#1a1c1c',
           background_color: '#f9f9f9',
           display: 'standalone',
@@ -67,7 +67,7 @@ export default defineConfig(() => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           // public/fonts contains a 3.96 MB variable-font subset; raise the
-          // default 2 MiB precache cap so fonts are guaranteed offline.
+          // default 2 MiB precache cap so fonts are cached.
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           runtimeCaching: [
             {

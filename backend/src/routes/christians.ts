@@ -20,9 +20,8 @@
 //   └──────────────────────┴────────┴────────────────────────────────────────┘
 //
 // SACRAMENT FIELDS
-//   Stored as JSON strings in PostgreSQL (via serializeOptionalJson) and re-parsed
-//   on the way out (parseOptionalJson) so the API contract uses plain JS
-//   objects: { date, minister, place } — not raw JSON strings.
+//   Stored as native Prisma Json columns. Prisma returns parsed JS objects
+//   directly — no manual JSON.parse/stringify needed.
 //
 // REGISTRATION NUMBER (regNo)
 //   Format: REG-<YYYY>-<NNNNNN> (e.g., REG-2026-001043).
@@ -80,30 +79,6 @@ const sacramentSchema = z.object({
   place: z.string().optional(),
 }).optional();
 
-// ── JSON serialization helpers ─────────────────────────────────────────────
-
-// Parses a JSON TEXT column value from PostgreSQL into a typed JS object.
-// Returns undefined for null/empty/malformed values (graceful fallback).
-function parseOptionalJson<T>(value: string | null | undefined): T | undefined {
-  // Guard: null, undefined, or empty string → return undefined.
-  if (!value) return undefined;
-  try {
-    // If already an object, cast directly; otherwise parse the JSON string.
-    return typeof value === 'string' ? JSON.parse(value) as T : value as T;
-  } catch {
-    // Malformed JSON → return undefined instead of crashing.
-    return undefined;
-  }
-}
-
-// Serializes a JS object to JSON TEXT for storage in PostgreSQL columns.
-// Returns undefined for null/undefined values (don't write empty JSON).
-function serializeOptionalJson<T>(value: T | undefined): string | undefined {
-  // Guard: undefined or null → don't serialize, return undefined.
-  if (value === undefined || value === null) return undefined;
-  // If already a string (raw JSON), return as-is; otherwise stringify.
-  return typeof value === 'string' ? value : JSON.stringify(value);
-}
 
 // Main Christian record validation schema.
 // Used for POST (create) and PUT (update) requests.
@@ -160,10 +135,10 @@ function mapChristian(c: any) {
     localChurch: c.localChurch,        // Local church name
     scc: c.scc,                        // Small Christian Community
     status: c.status,                  // Membership status
-    baptism: parseOptionalJson(c.baptism) ?? undefined,        // Parsed baptism JSON
-    eucharist: parseOptionalJson(c.eucharist) ?? undefined,    // Parsed eucharist JSON
-    confirmation: parseOptionalJson(c.confirmation) ?? undefined, // Parsed confirmation JSON
-    marriage: parseOptionalJson(c.marriage) ?? undefined,       // Parsed marriage JSON
+    baptism: (c.baptism as Record<string, unknown>) ?? undefined,        // Native Json → JS object
+    eucharist: (c.eucharist as Record<string, unknown>) ?? undefined,    // Native Json → JS object
+    confirmation: (c.confirmation as Record<string, unknown>) ?? undefined, // Native Json → JS object
+    marriage: (c.marriage as Record<string, unknown>) ?? undefined,       // Native Json → JS object
   };
 }
 
@@ -194,39 +169,40 @@ async function nextRegNo(): Promise<string> {
 // Response: 200 with array of mapped Christian objects, newest first.
 router.get('/', async (req, res, next) => {
   try {
-    // Extract optional status filter from query string.
     const status = req.query.status as string | undefined;
-
-    // Extract optional search query, trim whitespace.
     const q = (req.query.q as string | undefined)?.trim();
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
-    // Build Prisma where clause — only add status filter if provided.
     const where: any = {};
     if (status) where.status = status;
 
-    // Filter in memory for case-insensitive search
-    // Fetch all matching records ordered by createdAt descending (newest first).
-    const rows = await appPrisma.christian.findMany({ where, orderBy: { createdAt: 'desc' } });
-
-    let result = rows;
-
-    // Apply client-side search filter if query string is provided.
     if (q) {
-      // Lowercase the search query for case-insensitive matching.
-      const lower = q.toLowerCase();
-
-      // Filter rows: match against regNo, baptismalName, secondName, sirName,
-      // nationalId, or scc — case-insensitive substring match.
-      result = rows.filter((c) =>
-        [c.regNo, c.baptismalName, c.secondName, c.sirName, c.nationalId, c.scc]
-          .some((v) => v.toLowerCase().includes(lower))
-      );
+      where.OR = [
+        { regNo: { contains: q, mode: 'insensitive' } },
+        { baptismalName: { contains: q, mode: 'insensitive' } },
+        { secondName: { contains: q, mode: 'insensitive' } },
+        { sirName: { contains: q, mode: 'insensitive' } },
+        { nationalId: { contains: q, mode: 'insensitive' } },
+        { scc: { contains: q, mode: 'insensitive' } },
+      ];
     }
 
-    // Map raw Prisma records to API response shape (deserialize JSON fields).
-    res.json(result.map(mapChristian));
+    const queryOptions: any = {
+      where,
+      orderBy: { createdAt: 'desc' },
+    };
+
+    if (page && limit) {
+      queryOptions.skip = (page - 1) * limit;
+      queryOptions.take = limit;
+    } else if (limit) {
+      queryOptions.take = limit;
+    }
+
+    const rows = await appPrisma.christian.findMany(queryOptions);
+    res.json(rows.map(mapChristian));
   } catch (e) {
-    // Pass any error to Express centralized error handler.
     next(e);
   }
 });
@@ -265,10 +241,6 @@ router.post('/', async (req, res, next) => {
         ...rest,                                         // All validated fields
         regNo: await nextRegNo(),                        // Auto-generated registration number
         status: data.status ?? 'Active',                 // Default to 'Active' if not specified
-        baptism: serializeOptionalJson(data.baptism),    // Serialize baptism JSON
-        eucharist: serializeOptionalJson(data.eucharist), // Serialize eucharist JSON
-        confirmation: serializeOptionalJson(data.confirmation), // Serialize confirmation JSON
-        marriage: serializeOptionalJson(data.marriage),  // Serialize marriage JSON
       },
     });
 
@@ -290,16 +262,10 @@ router.put('/:id', async (req, res, next) => {
     // Validate request body — all fields optional (partial update).
     const data = christianSchema.partial().parse(req.body);
 
-    // Update the record by UUID, serializing JSON fields.
+    // Update the record by UUID — Prisma handles Json serialization automatically.
     const updated = await appPrisma.christian.update({
       where: { id: req.params.id },
-      data: {
-        ...data,                                         // Partial validated fields
-        baptism: serializeOptionalJson(data.baptism),    // Serialize baptism if provided
-        eucharist: serializeOptionalJson(data.eucharist), // Serialize eucharist if provided
-        confirmation: serializeOptionalJson(data.confirmation), // Serialize confirmation if provided
-        marriage: serializeOptionalJson(data.marriage),  // Serialize marriage if provided
-      },
+      data,
     });
 
     // Map to API response shape and return.
@@ -325,15 +291,10 @@ router.patch('/:id/sacraments', async (req, res, next) => {
       marriage: sacramentSchema,         // Marriage sacrament data (or null/undefined)
     }).parse(req.body);
 
-    // Update only the sacrament columns on the Christian record.
+    // Update only the sacrament columns — Prisma handles Json serialization automatically.
     const updated = await appPrisma.christian.update({
       where: { id: req.params.id },
-      data: {
-        baptism: serializeOptionalJson(body.baptism),          // Serialize baptism
-        eucharist: serializeOptionalJson(body.eucharist),      // Serialize eucharist
-        confirmation: serializeOptionalJson(body.confirmation), // Serialize confirmation
-        marriage: serializeOptionalJson(body.marriage),        // Serialize marriage
-      },
+      data: body,
     });
 
     // Return full mapped Christian (client needs all fields for UI update).

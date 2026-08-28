@@ -45,8 +45,8 @@ and sales demonstrations.
 
 ## 3. Key Strengths
 
-1. **100% offline and local-first.** All data lives in a PostgreSQL database on the
-   parish server. No cloud, no internet dependency, no third party holding parish data.
+1. **Self-hosted, no cloud dependency.** All data lives in a PostgreSQL database on the
+   parish server. No third party holding parish data, no internet required for LAN access.
 2. **No monthly fees.** One-time setup; the parish owns the software outright.
 3. **Zero client installation.** Staff open a web browser, navigate to the server
    address, and log in — works on any device (PC, tablet, phone) on the network.
@@ -108,7 +108,7 @@ installing Node.js and PostgreSQL.
 - Login rate-limiting (10 attempts / 15 min per IP) and account lockout after
   5 failed attempts (15-minute lock).
 - Forced password change on first sign-in for all super_admin accounts and new users.
-- Single-use, hashed, 30-minute admin reset codes for offline password resets.
+- Single-use, hashed, 30-minute admin-reset codes (admin shares the code offline with the user).
 - Role-based, per-module permissions (Super Admin, Admin, Staff, Viewer).
 - Optional HTTPS via Caddy for LAN or domain access.
 - Full audit trail of deletions and price changes (with the acting user).
@@ -181,7 +181,7 @@ commercial release.
 
 ### Recommended pre-launch checklist (in order)
 
-1. Add a licensing/activation layer (offline key or online activation).
+1. Add a licensing/activation layer (online or offline key).
 2. Build an update notification mechanism for installed parishes.
 3. Stand up CI (GitHub Actions: lint → test → build → publish).
 4. Add crash reporting (Sentry) + a minimal telemetry opt-in.

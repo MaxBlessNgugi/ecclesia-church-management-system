@@ -72,9 +72,9 @@ jobs:
         run: npx prisma generate
         working-directory: backend
 
-      # Start with a clean database — push schema + seed demo data
-      - name: Push schema to fresh database
-        run: npx prisma db push --accept-data-loss
+      # Apply migrations to the fresh database, then seed
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
         working-directory: backend
 
       - name: Seed database

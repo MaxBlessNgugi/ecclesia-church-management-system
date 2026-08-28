@@ -86,27 +86,38 @@ function parseJson<T>(raw: string, fallback: T): T {
 // GET /api/contributions — List all contribution records
 // Response: 200 with array of contribution objects, newest first.
 // categories and monthlyTracker are deserialized from JSON TEXT.
-router.get('/contributions', async (_req, res, next) => {
+router.get('/contributions', async (req, res, next) => {
   try {
-    // Fetch all contribution records ordered by createdAt descending.
-    const rows = await appPrisma.contribution.findMany({ orderBy: { createdAt: 'desc' } });
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
-    // Map raw Prisma records to API response shape.
+    const queryOptions: any = {
+      orderBy: { createdAt: 'desc' },
+    };
+
+    if (page && limit) {
+      queryOptions.skip = (page - 1) * limit;
+      queryOptions.take = limit;
+    } else if (limit) {
+      queryOptions.take = limit;
+    }
+
+    const rows = await appPrisma.contribution.findMany(queryOptions);
+
     res.json(
       rows.map((r) => ({
         id: r.id,                                              // UUID primary key
         christianId: r.christianId,                            // Linked Christian record ID
         memberName: r.memberName,                              // Display name of the member
         regNo: r.regNo,                                        // Member's registration number
-        categories: parseJson<string[]>(r.categories, []),     // Deserialize category array from JSON TEXT
-        otherCategory: r.otherCategory ?? undefined,           // Custom category name (if 'Other' selected)
-        monthlyTracker: parseJson<Record<string, boolean>>(r.monthlyTracker, {}), // Deserialize monthly tracker from JSON TEXT
+        categories: (r.categories as string[]) ?? [],           // Native Json → array
+        otherCategory: r.otherCategory ?? undefined,
+        monthlyTracker: (r.monthlyTracker as Record<string, boolean>) ?? {}, // Native Json → object
         amountKES: toNum(r.amountKES),                        // Total contribution amount in KES
         date: r.date?.toISOString() ?? null,                  // Date of contribution (ISO string)
       }))
     );
   } catch (e) {
-    // Pass errors to centralized error handler.
     next(e);
   }
 });
@@ -138,15 +149,15 @@ router.post('/contributions', async (req, res, next) => {
       })
       .parse(req.body);
 
-    // Create the contribution record, serializing JSON fields for storage.
+    // Create the contribution record — Prisma handles Json serialization automatically.
     const created = await appPrisma.contribution.create({
       data: {
         christianId: data.christianId,
         memberName: data.memberName,
         regNo: data.regNo,
-        categories: JSON.stringify(data.categories),       // Serialize array → JSON TEXT
-        otherCategory: data.otherCategory ?? null,         // Store null if not provided
-        monthlyTracker: JSON.stringify(data.monthlyTracker), // Serialize object → JSON TEXT
+        categories: data.categories,           // Native Json — Prisma serializes
+        otherCategory: data.otherCategory ?? null,
+        monthlyTracker: data.monthlyTracker,   // Native Json — Prisma serializes
         amountKES: data.amountKES,
         date: data.date,
       },
@@ -158,10 +169,11 @@ router.post('/contributions', async (req, res, next) => {
       christianId: created.christianId,
       memberName: created.memberName,
       regNo: created.regNo,
-      categories: data.categories,             // Return parsed array, not raw JSON
-      otherCategory: data.otherCategory,       // Return original optional value
-      monthlyTracker: data.monthlyTracker,     // Return parsed object, not raw JSON        amountKES: toNum(created.amountKES),
-        date: created.date?.toISOString() ?? null,
+      categories: data.categories,             // Return validated array
+      otherCategory: data.otherCategory,
+      monthlyTracker: data.monthlyTracker,     // Return validated object
+      amountKES: toNum(created.amountKES),
+      date: created.date?.toISOString() ?? null,
     };
     res.status(201).json(contributionResponse);
 

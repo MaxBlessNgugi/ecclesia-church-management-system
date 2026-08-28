@@ -34,6 +34,8 @@ import type { Express } from 'express';
 import { appPrisma } from '../src/lib/prisma.js';
 import bcrypt from 'bcryptjs';
 
+import { resetAuthRateLimiters } from '../src/routes/auth.js';
+
 let app: Express;
 let token: string;
 
@@ -44,6 +46,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  resetAuthRateLimiters();
   await cleanupTestData();
   const seeded = await seedTestUser();
   token = seeded.token;
@@ -84,16 +87,16 @@ describe('Security', () => {
     const LIMIT = 10;
     const invalidCredentials = { email: 'nonexistent@test.com', password: 'wrong' };
 
-    // Send LIMIT-1 requests (we already used 1 slot in the prior test).
+    // Send LIMIT (10) requests (fresh rate limiter for this test).
     // These should all pass through and return 401 (invalid credentials, not rate-limited).
-    for (let i = 0; i < LIMIT - 1; i++) {
+    for (let i = 0; i < LIMIT; i++) {
       const res = await request(app)
         .post('/api/auth/login')
         .send(invalidCredentials);
       expect([400, 401]).toContain(res.status);
     }
 
-    // The next request (LIMITth total) should now be blocked by the rate limiter.
+    // The next request (11th total) should now be blocked by the rate limiter.
     const blockedRes = await request(app)
       .post('/api/auth/login')
       .send(invalidCredentials);

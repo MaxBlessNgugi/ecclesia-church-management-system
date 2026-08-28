@@ -206,7 +206,7 @@ ok "Backend dependencies installed"
 echo ""
 
 # =============================================================================
-# STEP 5: Generate Prisma client + push schema
+# STEP 5: Generate Prisma client + apply migrations
 # =============================================================================
 echo -e "${BOLD}Step 5/7: Setting up database...${NC}"
 echo ""
@@ -215,11 +215,11 @@ echo "  Generating Prisma client..."
 (cd "$BACKEND_DIR" && npx prisma generate)
 ok "Prisma client generated"
 
-echo "  Pushing schema to database..."
-echo "  (This creates tables if they don't exist, or updates them if they do.)"
+echo "  Applying database migrations..."
+echo "  (This creates tables if they don't exist, or applies pending changes.)"
 echo ""
-(cd "$BACKEND_DIR" && npx prisma db push --accept-data-loss)
-ok "Database schema is up to date"
+(cd "$BACKEND_DIR" && npx prisma migrate deploy)
+ok "Database migrations applied"
 echo ""
 
 # =============================================================================

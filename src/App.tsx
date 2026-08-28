@@ -4,7 +4,7 @@
 //
 // PURPOSE
 //   Minimal root component that:
-//   1. Composes context providers (OfflineProvider + SocketProvider are in main.tsx)
+//   1. Composes context providers (ConnectivityProvider + SocketProvider are in main.tsx)
 //   2. Handles auth gates (loading → auth → setup → password change → app)
 //   3. Renders the layout chrome (TitleBar, Header, Sidebar, Footer)
 //   4. Delegates panel content to view components
@@ -16,7 +16,7 @@
 //   - src/permissions.tsx               → panel/action permissions
 //
 // RELATED FILES
-//   src/main.tsx                  → Mounts OfflineProvider + SocketProvider
+//   src/main.tsx                  → Mounts ConnectivityProvider + SocketProvider
 //   src/context/*.tsx             → All context providers
 //   src/components/views/*.tsx    → Panel implementations
 // =============================================================================
@@ -41,6 +41,7 @@ import { getServerUrl } from './services/api';
 import { ChristianRecord, NavigationTab } from './types';
 import { PermissionsProvider } from './permissions';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ChristiansProvider, useChristians } from './context/ChristiansContext';
 import { DataProvider, useData } from './context/DataContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 
@@ -51,9 +52,13 @@ const AppShell: React.FC = () => {
     handleAuthSuccess, handlePasswordChangeComplete, handleSetupComplete,
   } = useAuth();
   const {
-    christians, deposits, creditors, debtors, expenses, deathRecords,
-    handleAddChristian, handleDeleteChristian, handleRecordPayment,
+    christians,
+    handleAddChristian, handleDeleteChristian,
     handleTransferChristian, handleUpdateSacraments, handleRecordDeath,
+  } = useChristians();
+  const {
+    deposits, creditors, debtors, expenses, deathRecords,
+    handleRecordPayment,
     handleAddDeposit, handleAddCreditor, handleMarkCreditorPaid,
     handleRecordDebtorPayment, handleAddExpense,
   } = useData();
@@ -234,7 +239,9 @@ export const App: React.FC = () => {
     <AuthProvider>
       <NavigationProvider>
         <DataProvider>
-          <AppShell />
+          <ChristiansProvider>
+            <AppShell />
+          </ChristiansProvider>
         </DataProvider>
       </NavigationProvider>
     </AuthProvider>

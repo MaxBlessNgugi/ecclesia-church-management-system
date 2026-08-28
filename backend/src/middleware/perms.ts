@@ -128,39 +128,6 @@ const fullPanels: Record<PanelKey, boolean> = { ...defaultPanels };
 const fullActions: Record<PanelAction, boolean> = { view: true, edit: true, delete: true };
 
 /**
- * Safe JSON parser that gracefully handles malformed or missing database values.
- *
- * The User.panels and User.actions columns store JSON strings in the database.
- * If a value is corrupted, truncated, or contains invalid JSON, this function
- * returns the provided fallback instead of throwing — preventing a single
- * corrupt record from breaking the entire permission system.
- *
- * @typeParam T - The expected type of the parsed JSON.
- * @param value   - The string value from the database column, or null/undefined.
- * @param fallback - The default value to return if parsing fails or value is empty.
- * @returns The parsed value if successful, otherwise the fallback.
- *
- * @example
- * const panels = parseJson<Record<string, boolean>>(user.panels, defaultPanels);
- * // If user.panels is '{"christian":false}', returns { christian: false }
- * // If user.panels is 'invalid json', returns defaultPanels
- * // If user.panels is null, returns defaultPanels
- */
-function parseJson<T>(value: string | null | undefined, fallback: T): T {
-  // If the value is null, undefined, or empty string, return the fallback immediately.
-  if (!value) return fallback;
-  try {
-    // If the value is already the expected type (e.g., an object), return it directly.
-    // Otherwise, attempt to parse it as JSON.
-    return typeof value === 'string' ? (JSON.parse(value) as T) : (value as T);
-  } catch {
-    // JSON.parse() threw — the value contains malformed JSON. Return the fallback
-    // rather than propagating the error, which would break the permission system.
-    return fallback;
-  }
-}
-
-/**
  * Loads the effective permissions (panels and actions) for a specific user.
  *
  * Permission resolution follows a layered approach:
@@ -184,36 +151,31 @@ function parseJson<T>(value: string | null | undefined, fallback: T): T {
  */
 async function loadPermissions(userId: string) {
   // Fetch the user's role and stored permission overrides from the database.
-  // We only select the three fields needed for permission resolution.
+  // panels/actions are native Prisma Json columns — returned as parsed JS objects.
   const user = await appPrisma.user.findUnique({
     where: { id: userId },
     select: { role: true, panels: true, actions: true },
   });
 
   // If the user doesn't exist (deleted account), fall back to default permissions.
-  // This should not happen in practice (requireAuth runs before this middleware),
-  // but provides a defensive safety net.
   if (!user) return { panels: { ...defaultPanels }, actions: { ...defaultActions } };
 
   // super_admin users always get full access — bypass all permission checks.
-  // This ensures the system administrator can never lock themselves out.
   if (user.role === 'super_admin') return { panels: fullPanels, actions: fullActions };
 
   // Fetch the global default permissions from the PanelPermissions singleton.
-  // This record (id='default') is maintained by the admin in the Rights Centre UI.
   const defaults = await appPrisma.panelPermissions.findUnique({ where: { id: 'default' } });
 
-  // Parse the global defaults from JSON, falling back to our hardcoded defaults
-  // if the database values are missing or malformed.
-  const basePanels = parseJson(defaults?.panels, defaultPanels);
-  const baseActions = parseJson(defaults?.actions, defaultActions);
+  // Prisma returns native Json objects — no manual parsing needed.
+  // Use fallback if null/undefined (missing or corrupt database values).
+  const basePanels = (defaults?.panels as Record<PanelKey, boolean>) ?? defaultPanels;
+  const baseActions = (defaults?.actions as Record<PanelAction, boolean>) ?? defaultActions;
 
   // Merge global defaults with user-specific overrides.
   // User overrides take precedence (spread order matters — user values overwrite base).
-  // Missing keys in user's overrides fall back to the global default (spread merges).
   return {
-    panels: { ...basePanels, ...parseJson(user.panels, {}) },
-    actions: { ...baseActions, ...parseJson(user.actions, {}) },
+    panels: { ...basePanels, ...(user.panels as Record<PanelKey, boolean> ?? {}) },
+    actions: { ...baseActions, ...(user.actions as Record<PanelAction, boolean> ?? {}) },
   };
 }
 

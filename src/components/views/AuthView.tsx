@@ -20,9 +20,7 @@ import { authApi, storeToken } from '../../services/api';
 //   changePassword() methods that wrap HTTP calls to the authentication endpoints.
 // storeToken: helper that persists a JWT in localStorage (or sessionStorage)
 //   so the session survives page reloads.
-import { useOffline } from '../../context/OfflineContext';
-// useOffline: hook returning the global connectivity status (online/offline/syncing)
-//   so the login screen can show whether the backend is reachable before signing in.
+import { useConnectivity } from '../../context/OfflineContext';
 
 /**
  * Props accepted by AuthView.
@@ -44,8 +42,8 @@ interface AuthViewProps {
 type AuthMode = 'setup' | 'login' | 'setPassword' | 'forgot' | 'reset';
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
-  // Connectivity status from the global offline context (online/offline/syncing).
-  const { status: connectivityStatus, pendingCount } = useOffline();
+  // Connectivity status from the global context (online/offline).
+  const { status: connectivityStatus } = useConnectivity();
 
   // -------------------------------------------------------------------------
   // State — login form
@@ -723,8 +721,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
             className={`w-1.5 h-1.5 rounded-full ${
               connectivityStatus === 'online'
                 ? 'bg-emerald-500'
-                : connectivityStatus === 'syncing'
-                ? 'bg-blue-500 animate-pulse'
                 : 'bg-amber-500'
             }`}
           />
@@ -732,25 +728,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
             className={`text-[10px] font-bold tracking-wide ${
               connectivityStatus === 'online'
                 ? 'text-emerald-700'
-                : connectivityStatus === 'syncing'
-                ? 'text-blue-700'
                 : 'text-amber-700'
             }`}
             title={
               connectivityStatus === 'online'
                 ? 'Backend is reachable. You can sign in.'
-                : connectivityStatus === 'syncing'
-                ? 'Syncing offline changes to the server...'
-                : 'Backend unreachable — sign-in may fail. Offline changes will sync when it returns.'
+                : 'Backend unreachable — sign-in may fail.'
             }
           >
             {connectivityStatus === 'online' && 'System Online'}
-            {connectivityStatus === 'syncing' && 'Syncing...'}
-            {connectivityStatus === 'offline' && 'System Offline'}
+            {connectivityStatus === 'offline' && 'Offline'}
           </span>
-          {pendingCount > 0 && (
-            <span className="text-[10px] text-[#444748]">· {pendingCount} queued</span>
-          )}
         </div>
 
         {/* ================================================================= */}

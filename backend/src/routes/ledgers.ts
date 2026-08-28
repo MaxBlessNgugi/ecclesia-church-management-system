@@ -60,6 +60,8 @@ import { HttpError } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
 
+import { requireIdempotencyKey } from '../middleware/idempotency.js';
+
 // Create a new Express router for all ledger-related routes.
 const router = Router();
 
@@ -100,14 +102,20 @@ router.post('/', async (req, res, next) => {
       balance: z.number().default(0),
     }).parse(req.body);
 
-    // Count existing ledgers to determine the next sequential code.
-    const count = await appPrisma.ledger.count();
-
-    // Generate code: use client-provided code if non-empty, otherwise LDR-###.
-    const code = data.code && data.code.length > 0 ? data.code : `LDR-${String(count + 1).padStart(3, '0')}`;
-
-    // Create the new ledger record with the resolved code.
-    const created = await appPrisma.ledger.create({ data: { ...data, code } });
+    // Atomically determine code and create ledger in a transaction
+    const created = await appPrisma.$transaction(async (tx) => {
+      let resolvedCode = data.code && data.code.length > 0 ? data.code : undefined;
+      if (!resolvedCode) {
+        const highest = await tx.ledger.findFirst({
+          orderBy: { code: 'desc' },
+          select: { code: true },
+        });
+        const match = highest?.code?.match(/(\d+)$/);
+        const nextNum = match ? parseInt(match[1], 10) + 1 : 1;
+        resolvedCode = `LDR-${String(nextNum).padStart(3, '0')}`;
+      }
+      return tx.ledger.create({ data: { ...data, code: resolvedCode } });
+    });
 
     // Return 201 Created with the ledger object.
     res.status(201).json(created);
@@ -130,7 +138,7 @@ router.get('/movements', async (_req, res, next) => {
 // Body: { fromLedgerId, toLedgerId, amount, notes? }
 // Response: 201 with the created LedgerMovement record.
 // Errors: 400 (same ledger), 404 (ledger not found), 422 (insufficient balance).
-router.post('/transfer', async (req, res, next) => {
+router.post('/transfer', requireIdempotencyKey, async (req, res, next) => {
   try {
     // Validate and destructure the transfer request body.
     const { fromLedgerId, toLedgerId, amount, notes } = z.object({

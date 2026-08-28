@@ -13,8 +13,7 @@ import React from 'react';
 /** React core library — used here only for JSX type-checking support */
 import { NavigationTab, PanelKey } from '../types';
 /** NavigationTab: union of all valid top-level view identifiers; PanelKey: subset used for permission gating */
-import { useOffline } from '../context/OfflineContext';
-/** useOffline: hook returning the live connectivity status so the footer widget reflects reality */
+import { useConnectivity } from '../context/OfflineContext';
 
 /**
  * Interface properties for Sidebar navigation drawer component.
@@ -63,8 +62,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   allowedPanels
 }) => {
-  // Live connectivity status (online/offline/syncing) from the global context.
-  const { status: connectivityStatus } = useOffline();
+  // Live connectivity status (online/offline) from the global context.
+  const { status: connectivityStatus } = useConnectivity();
   // Main management navigation menu items configuration
   const allNavItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -185,25 +184,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-xs font-semibold flex items-center justify-center gap-1">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    connectivityStatus === 'online'
-                      ? 'bg-emerald-500 animate-pulse'
-                      : connectivityStatus === 'syncing'
-                      ? 'bg-blue-500 animate-pulse'
-                      : 'bg-amber-500'
+                    connectivityStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
                   }`}
                 ></span>
                 <span
                   className={
-                    connectivityStatus === 'online'
-                      ? 'text-emerald-700'
-                      : connectivityStatus === 'syncing'
-                      ? 'text-blue-700'
-                      : 'text-amber-700'
+                    connectivityStatus === 'online' ? 'text-emerald-700' : 'text-amber-700'
                   }
                 >
                   {connectivityStatus === 'online' && 'System Online'}
-                  {connectivityStatus === 'syncing' && 'Syncing...'}
-                  {connectivityStatus === 'offline' && 'System Offline'}
+                  {connectivityStatus === 'offline' && 'Offline'}
                 </span>
               </div>
               <p className="text-[10px] text-[#444748]">Ecclesia CMS</p>

@@ -25,6 +25,7 @@ export async function seedTestUser() {
     where: { email: 'admin@test.com' },
     update: {
       passwordHash,
+      role: 'super_admin',
       isActive: true,
       isDeleted: false,
       loginFailedAttempts: 0,

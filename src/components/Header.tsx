@@ -22,8 +22,7 @@ import { AuthUser, NavigationTab } from '../types';
 /** AuthUser: typed shape for the authenticated user object; NavigationTab: union of all valid view keys */
 import { authApi } from '../services/api';
 /** API service module exposing authentication helpers including changePassword */
-import { useOffline } from '../context/OfflineContext';
-/** Offline context hook for accessing connectivity status and pending queue count */
+import { useConnectivity } from '../context/OfflineContext';
 
 /**
  * Header component props interface.
@@ -93,8 +92,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [isDark, setIsDark] = useState(false);
   /** Whether dark mode is active for the whole shell */
 
-  // Offline connectivity status from global context
-  const { status: connectivityStatus, pendingCount } = useOffline();
+  // Connectivity status from global context
+  const { status: connectivityStatus } = useConnectivity();
 
   /** Restore the persisted theme choice on mount. */
   useEffect(() => {
@@ -203,35 +202,23 @@ export const Header: React.FC<HeaderProps> = ({
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium tracking-wide border ${
             connectivityStatus === 'online'
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
-              : connectivityStatus === 'syncing'
-              ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20'
               : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
           }`}
           title={
             connectivityStatus === 'online'
               ? 'Backend is reachable. All changes sync immediately.'
-              : connectivityStatus === 'syncing'
-              ? 'Syncing offline changes to the server...'
-              : 'Offline — changes will be saved locally and synced when the backend is available.'
+              : 'Backend unreachable — changes will not be saved until the server is available.'
           }
         >
           <span
             className={`w-1.5 h-1.5 rounded-full ${
               connectivityStatus === 'online'
                 ? 'bg-emerald-500'
-                : connectivityStatus === 'syncing'
-                ? 'bg-blue-500 animate-pulse'
                 : 'bg-amber-500'
             }`}
           />
           {connectivityStatus === 'online' && 'Online'}
-          {connectivityStatus === 'syncing' && 'Syncing'}
           {connectivityStatus === 'offline' && 'Offline'}
-          {pendingCount > 0 && (
-            <span className="ml-0.5 px-1 py-0.5 bg-current/10 rounded text-[9px]">
-              {pendingCount} queued
-            </span>
-          )}
         </div>
 
         {/* Mobile search trigger button — only visible below md breakpoint */}
