@@ -1864,7 +1864,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
         {/* JSON Diff Modal — compares the pre-delete snapshot against the record's
             current state, colouring added/removed/changed fields. */}
         {diffLog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs" onClick={() => setDiffLog(null)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs" onClick={() => setDiffLog(null)} onKeyDown={(e) => e.key === 'Escape' && setDiffLog(null)} role="dialog" aria-modal="true" tabIndex={-1}>
             {/* Modal card — stopPropagation prevents backdrop click from closing */}
             <div
               className="bg-white border border-[#e1e3e3] rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-xl animate-in fade-in"

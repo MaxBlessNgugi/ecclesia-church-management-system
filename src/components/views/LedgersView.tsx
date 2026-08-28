@@ -21,6 +21,7 @@ import React, { useState, useEffect } from 'react';
 import { LedgersSubTab, LedgerRecord, LedgerMovement, EmployeeRecord } from '../../types';
 import { ledgersApi, hrApi } from '../../services/api';
 import { usePermissions } from '../../permissions';
+import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 
 export const LedgersView: React.FC = () => {
   const perms = usePermissions();
@@ -28,6 +29,19 @@ export const LedgersView: React.FC = () => {
 
   // Ledger state
   const [ledgers, setLedgers] = useState<LedgerRecord[]>([]);
+
+  // Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<LedgerRecord | null>(null);
+
+  const handleDeleteLedger = async (id: string) => {
+    try {
+      await ledgersApi.remove(id);
+      setLedgers((prev) => prev.filter((l) => l.id !== id));
+    } catch (err) {
+      console.error('Failed to delete ledger', err);
+      alert('Failed to delete ledger. Please try again.');
+    }
+  };
 
   // Create Ledger Form State
   const [ledgerName, setLedgerName] = useState('');
@@ -356,6 +370,7 @@ export const LedgersView: React.FC = () => {
                       <th className="p-3">Type</th>
                       <th className="p-3">Cashier</th>
                       <th className="p-3 text-right">Balance</th>
+                      <th className="p-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e1e3e3]">
@@ -367,6 +382,18 @@ export const LedgersView: React.FC = () => {
                         <td className="p-3 italic text-[#444748]">{ldr.cashier}</td>
                         <td className="p-3 font-bold text-right text-[#1e1e1e]">
                           ${ldr.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-3">
+                          {perms.canDelete('finance') && (
+                            <button
+                              onClick={() => setDeleteTarget(ldr)}
+                              className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                              title="Delete ledger"
+                              aria-label="Delete ledger"
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -567,6 +594,19 @@ export const LedgersView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <DeleteConfirmationModal
+        open={deleteTarget !== null}
+        title="Delete Ledger"
+        recordLabel={deleteTarget ? `${deleteTarget.name} (${deleteTarget.code})` : ''}
+        recordDetails={deleteTarget ? [`Type: ${deleteTarget.type}`, `Cashier: ${deleteTarget.cashier}`, `Balance: $${deleteTarget.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`] : undefined}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await handleDeleteLedger(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 };

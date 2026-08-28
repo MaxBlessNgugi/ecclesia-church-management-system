@@ -168,6 +168,9 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  @@index([role])             // dashboard counts: WHERE role = 'super_admin'
+  @@index([resetTokenHash])   // auth: WHERE resetTokenHash = hash
+  @@index([isDeleted])         // soft-delete filter
   @@map("users")
 }
 
@@ -392,9 +395,7 @@ model Expense {
   @@index([date])
   @@index([voucherNo])  // sequential voucherNo generation: ORDER BY voucherNo DESC
   @@map("expenses")
-}
-
-model Ledger {
+}model Ledger {
   id        String   @id @default(uuid())
   name      String
   code      String   @unique
@@ -406,20 +407,20 @@ model Ledger {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([createdAt])  // list endpoint: ORDER BY createdAt
   @@map("ledgers")
-}
-
-model LedgerMovement {
+}model LedgerMovement {
   id        String   @id @default(uuid())
   amount    Decimal           @db.Decimal(12, 2)
   time      DateTime
   from      String
-  to        String
+  to      String
   notes     String?
   isDeleted Boolean  @default(false)
   deletedAt DateTime?
   createdAt DateTime @default(now())
 
+  @@index([createdAt])  // list endpoint: ORDER BY createdAt
   @@map("ledger_movements")
 }
 

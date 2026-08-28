@@ -34,6 +34,7 @@ import { usePermissions } from '../../permissions';
 // exportCsv + ExportColumn — generic CSV exporter that accepts a column
 // definition array and a rows array; used here to export the employee directory.
 import { exportCsv, ExportColumn } from '../../utils/export';
+import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 
 // Roles treated as unpaid ministry/volunteer service for the stipend-vs-volunteer
 // badge shown in the directory (everything else is stipend staff).
@@ -118,6 +119,9 @@ export const HRView: React.FC = () => {
 
   // Notifications — transient success banner, auto-dismissed after 4s.
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Delete confirmation modal state
+  const [deleteTarget, setDeleteTarget] = useState<EmployeeRecord | null>(null);
 
   // HR sub-tab data state
   // Payroll records loaded from /api/hr/payrolls when the payroll tab is active.
@@ -570,25 +574,10 @@ export const HRView: React.FC = () => {
                   soft-delete the selected employee, removes them from local state,
                   and shows a success notification. Requires HR delete permission. */}
               <button
-                onClick={async () => {
-                  // Guard: ensure an employee is selected before attempting deletion.
+                onClick={() => {
                   if (!selectedEmpId) { alert('Select an employee first.'); return; }
-                  // Look up the employee by ID for the confirmation dialog.
                   const emp = employees.find((e) => e.id === selectedEmpId);
-                  // Show a browser confirm dialog; cancellation aborts the action.
-                  if (!confirm(`Deactivate ${emp?.name ?? 'this employee'}? They can be restored from Admin > Trash & Audit.`)) return;
-                  try {
-                    // Call the API to soft-delete the employee record.
-                    await hrApi.employees.remove(selectedEmpId);
-                    // Remove the deactivated employee from the local state array.
-                    setEmployees((prev) => prev.filter((e) => e.id !== selectedEmpId));
-                    // Clear the selection since the selected employee no longer exists.
-                    setSelectedEmpId('');
-                    showNotif('Employee deactivated successfully.');
-                  } catch (err) {
-                    // Display the server error message or a generic fallback.
-                    alert(err instanceof Error ? err.message : 'Failed to deactivate employee');
-                  }
+                  if (emp) setDeleteTarget(emp);
                 }}
                 disabled={!perms.canDelete('hr') || !selectedEmpId}
                 title={perms.canDelete('hr') ? 'Deactivate the selected employee' : 'You do not have permission to delete employee records'}
@@ -1593,6 +1582,27 @@ export const HRView: React.FC = () => {
           )}
         </div>
       )}
+
+      <DeleteConfirmationModal
+        open={deleteTarget !== null}
+        title="Deactivate Employee"
+        recordLabel={deleteTarget ? `${deleteTarget.name} (${deleteTarget.code})` : ''}
+        recordDetails={deleteTarget ? [`Role: ${deleteTarget.role}`, `Phone: ${deleteTarget.phone}`] : undefined}
+        confirmLabel="Deactivate"
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            await hrApi.employees.remove(deleteTarget.id);
+            setEmployees((prev) => prev.filter((e) => e.id !== deleteTarget.id));
+            setSelectedEmpId('');
+            setDeleteTarget(null);
+            showNotif('Employee deactivated successfully.');
+          } catch (err) {
+            alert(err instanceof Error ? err.message : 'Failed to deactivate employee');
+          }
+        }}
+      />
     </div>
   );
 };

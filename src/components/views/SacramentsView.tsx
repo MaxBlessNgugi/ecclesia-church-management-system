@@ -25,6 +25,8 @@ import { ChristianRecord, SacramentsSubTab, DeathRecord } from '../../types';
 import { usePermissions } from '../../permissions';
 // Configured parish identity (real name + diocese, not placeholders)
 import { useParishInfo } from '../../hooks/useParishInfo';
+import { deathsApi } from '../../services/api';
+import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 
 /**
  * Props for the Sacrament Register & Memorial panel.
@@ -145,6 +147,9 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   const [deathMinister, setDeathMinister] = useState('');
   // Additional remarks / liturgy details
   const [remarks, setRemarks] = useState('');
+
+  // Delete confirmation modal state for death records
+  const [deleteDeathTarget, setDeleteDeathTarget] = useState<DeathRecord | null>(null);
 
   // Handles the sacrament save — lifts the four sacrament slices to the parent
   const handleSaveSacraments = (e: React.FormEvent) => {
@@ -686,13 +691,23 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
               <div className="space-y-2">
                 {/* One card per death record */}
                 {deathRecords.map((d) => (
-                  <div key={d.id} className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3]">
-                    {/* Deceased member name */}
-                    <div className="text-xs font-bold text-[#1a1c1c]">{d.memberName}</div>
-                    {/* Burial date and place of death */}
-                    <div className="text-[10px] text-[#444748]">
-                      Burial: {d.dateOfBurial} • {d.placeOfDeath}
+                  <div key={d.id} className="p-3 bg-[#f4f3f3] rounded-lg border border-[#e1e3e3] flex items-start justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-[#1a1c1c]">{d.memberName}</div>
+                      <div className="text-[10px] text-[#444748]">
+                        Burial: {d.dateOfBurial} • {d.placeOfDeath}
+                      </div>
                     </div>
+                    {perms.canDelete('sacraments') && (
+                      <button
+                        onClick={() => setDeleteDeathTarget(d)}
+                        className="text-[#ba1a1a] hover:text-red-700 text-xs shrink-0 ml-2"
+                        title="Delete death record"
+                        aria-label="Delete death record"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -825,6 +840,19 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           </div>
         </div>
       )}
+
+      <DeleteConfirmationModal
+        open={deleteDeathTarget !== null}
+        title="Delete Death Record"
+        recordLabel={deleteDeathTarget ? `${deleteDeathTarget.memberName} — ${deleteDeathTarget.dateOfDeath}` : ''}
+        recordDetails={deleteDeathTarget ? [`Burial: ${deleteDeathTarget.dateOfBurial}`, `Place: ${deleteDeathTarget.placeOfDeath}`] : undefined}
+        onCancel={() => setDeleteDeathTarget(null)}
+        onConfirm={async () => {
+          if (!deleteDeathTarget) return;
+          await deathsApi.remove(deleteDeathTarget.id);
+          setDeleteDeathTarget(null);
+        }}
+      />
     </div>
   );
 };

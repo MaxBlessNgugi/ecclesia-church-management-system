@@ -8,7 +8,19 @@
  *   npm run test:e2e        — headless CI
  */
 import { test, expect, Page } from '@playwright/test';
-import { USERS, NEW_MEMBER, DEMO_DATA } from '../utils/test-data';
+const USERS = {
+  admin: { email: 'admin@ecclesia.local', password: 'Admin123!', name: 'Administrator', role: 'admin' },
+  viewer: { email: 'viewer@ecclesia.local', password: 'Viewer123!', name: 'Viewer', role: 'viewer' },
+} as const;
+
+const NEW_MEMBER = {
+  baptismalName: 'Angela',
+  secondName: 'Marie',
+  sirName: 'TestFlight',
+  nationalId: '33000001',
+  phone: '0700123456',
+};
+
 import {
   announceStep,
   observe,
@@ -102,17 +114,12 @@ test.describe.serial('ECCLESIA Visual Tour', () => {
   // ── 3. CHRISTIAN REGISTRY ───────────────────────────────────────────────
 
   test('5 — Member list + search', async ({ page }) => {
-    await announceStep(page, 'Christian Registry', `${DEMO_DATA.expectedChristianCount} parishioners`);
+    await announceStep(page, 'Christian Registry');
     await loginViaUI(page);
 
     await go(page, /christian|member|registry/i);
     await tab(page, /find|search|list|view/i);
     await observe(page, 1500);
-
-    // Verify known demo members appear
-    for (const name of DEMO_DATA.knownMembers) {
-      await showIfFound(page, new RegExp(name), 600);
-    }
 
     // Search for "Peter"
     const search = page.locator('input[placeholder*="search" i], input[type="search"]').first();

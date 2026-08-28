@@ -138,23 +138,6 @@ request, any time.
 
 ## 7. Demo data (sales pitches only)
 
-A separate seeder loads a realistic parish dataset for demos. It is **never**
-invoked by `npm run setup`, so a commercial install stays pristine:
-
-```bash
-npm run db:seed:demo      # load demo data (backend/)
-npm run db:clear:demo     # wipe ALL business data + demo users
-```
-
-Demo logins: `admin@demo.ecclesia.local` / `AdminDemo123!` (admin),
-`cashier@demo.ecclesia.local` / `CashierDemo123!`, and
-`viewer@demo.ecclesia.local` / `ViewerDemo123!`. The demo admin cannot access
-the super-admin-only import route.
-
-**Before handing a system to a customer**, run `npm run db:clear:demo` (or skip
-the demo seeder entirely on the production box). For an iron-clad build, delete
-`prisma/seed-demo.ts` and `scripts/clear-demo.ts` from the shipped code.
-
 ## 8. License / Activation
 
 Not yet implemented. A future version may add an offline license-key check

@@ -56,7 +56,8 @@ import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { requireModule } from '../middleware/perms.js';
-import { HttpError } from '../lib/audit.js';
+import { softDelete, resolveActor, HttpError } from '../lib/audit.js';
+import { AuthRequest } from '../middleware/auth.js';
 import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
 
@@ -203,6 +204,17 @@ router.post('/transfer', requireIdempotencyKey, async (req, res, next) => {
     emitChange('ledger-movements', 'created', movement);
     emitChange('ledgers', 'updated', { id: fromLedgerId });
     emitChange('ledgers', 'updated', { id: toLedgerId });
+  } catch (e) { next(e); }
+});
+
+// ── DELETE /:id ─────────────────────────────────────────────────────────────
+// Soft-delete a ledger (restorable from Trash & Audit).
+router.delete('/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Ledger', req.params.id, actor);
+    res.status(204).end();
+    emitChange('ledgers', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 

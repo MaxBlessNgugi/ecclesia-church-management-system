@@ -39,6 +39,8 @@ import { appPrisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
 import { emitChange } from '../lib/events.js';
+import { softDelete, resolveActor } from '../lib/audit.js';
+import { AuthRequest } from '../middleware/auth.js';
 
 // Create a new Express router for all death-record routes.
 const router = Router();
@@ -114,6 +116,17 @@ router.post('/', async (req, res, next) => {
     // Broadcast real-time event to all connected clients.
     emitChange('deaths', 'created', created);
     emitChange('christians', 'updated', { id: data.christianId, status: 'Deceased' });
+  } catch (e) { next(e); }
+});
+
+// ── DELETE /:id ─────────────────────────────────────────────────────────────
+// Soft-delete a death record (restorable from Trash & Audit).
+router.delete('/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Death', req.params.id, actor);
+    res.status(204).end();
+    emitChange('deaths', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 

@@ -69,9 +69,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
     baptismalName: '',
     secondName: '',
     sirName: '',
-    phone: '',
-    localChurch: '',
-    scc: ''
+    phone: ''
   });
 
   // Transient flag for the "record saved" toast; auto-clears after 3s (see handleSave).
@@ -96,9 +94,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       baptismalName: '',
       secondName: '',
       sirName: '',
-      phone: '',
-      localChurch: '',
-      scc: ''
+      phone: ''
     });
   };
 
@@ -111,11 +107,9 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       !formData.baptismalName ||
       !formData.sirName ||
       !formData.nationalId ||
-      !formData.phone ||
-      !formData.localChurch ||
-      !formData.scc
+      !formData.phone
     ) {
-      alert('Please complete all required fields: names, National ID, phone, local church and SCC.');
+      alert('Please complete all required fields: names, National ID, and phone.');
       return;
     }
 
@@ -138,8 +132,8 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       phone: formData.phone,
       diocese: parish.diocese,
       parish: parish.name,
-      localChurch: formData.localChurch,
-      scc: formData.scc,
+      localChurch: parish.localChurch,
+      scc: parish.sccLabel,
       status: 'Active'
     };
 
@@ -359,50 +353,6 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                 />
               </div>
 
-              {/* Local Church / Outstation — the specific
-                  chapel or outstation within the parish; validated in handleSave */}
-              <div>
-                <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                  Local Church / Outstation
-                </label>
-                {/* Select dropdown — represents the outstation/chapel level of the
-                    church hierarchy; options are hardcoded; onChange updates
-                    formData.localChurch */}
-                <select
-                  value={formData.localChurch}
-                  onChange={(e) => setFormData({ ...formData, localChurch: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                >
-                  <option value="">Select Local Church...</option>
-                  <option value="Our Lady of Sorrows">Our Lady of Sorrows</option>
-                  <option value="St. Peters Center">St. Peters Center</option>
-                  <option value="St. Teresa Chapel">St. Teresa Chapel</option>
-                </select>
-              </div>
-
-              {/* SCC (Jumuiya) — required dropdown; the Small Christian Community
-                  the member belongs to; validated in handleSave; used for
-                  community-level reporting */}
-              <div>
-                <label className="block text-xs font-medium text-[#1a1c1c] mb-1">
-                  Small Christian Community (SCC / Jumuiya)
-                </label>
-                {/* Select dropdown — SCC is the smallest grouping unit in the
-                    Kenyan Catholic structure; options list available Jumuiyas;
-                    onChange updates formData.scc */}
-                <select
-                  value={formData.scc}
-                  onChange={(e) => setFormData({ ...formData, scc: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-xs text-[#1a1c1c] focus:outline-none focus:border-[#1e1e1e]"
-                >
-                  <option value="">Select SCC / Jumuiya...</option>
-                  <option value="St. Jude">St. Jude</option>
-                  <option value="St. Francis">St. Francis</option>
-                  <option value="St. Anne">St. Anne</option>
-                  <option value="St. Anthony">St. Anthony</option>
-                  <option value="St. Monica">St. Monica</option>
-                </select>
-              </div>
             </div>
 
             {/* Form Actions — bottom-right aligned button row; Clear Form resets all

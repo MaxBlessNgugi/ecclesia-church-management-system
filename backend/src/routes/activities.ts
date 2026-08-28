@@ -57,6 +57,8 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireModule } from '../middleware/perms.js';
 import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
+import { softDelete, resolveActor } from '../lib/audit.js';
+import { AuthRequest } from '../middleware/auth.js';
 
 // Create a new Express router for all activity-related routes.
 const router = Router();
@@ -354,6 +356,28 @@ router.post('/billed-items', async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+});
+
+// ── DELETE /contributions/:id ──────────────────────────────────────────────
+// Soft-delete a contribution record (restorable from Trash & Audit).
+router.delete('/contributions/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Contribution', req.params.id, actor);
+    res.status(204).end();
+    emitChange('contributions', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
+// ── DELETE /billed-items/:id ───────────────────────────────────────────────
+// Soft-delete a billed item record (restorable from Trash & Audit).
+router.delete('/billed-items/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('BilledItem', req.params.id, actor);
+    res.status(204).end();
+    emitChange('billed-items', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
 });
 
 // Export the router for mounting in index.ts at /api (root level).

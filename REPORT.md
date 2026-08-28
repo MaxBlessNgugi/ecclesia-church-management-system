@@ -126,10 +126,10 @@ installing Node.js and PostgreSQL.
 | Real-time sync (Socket.IO) | ✅ Working |
 | Installation guide (`INSTALL.md`) | ✅ Written |
 | Guided first-run setup (create parish admin) | ✅ Built and verified end-to-end |
-| Demo dataset for sales pitches | ✅ Available (30-member realistic parish) |
+| Demo dataset for sales pitches | ✅ Removed (clean database for production) |
 | HTTPS in production deployments | ✅ Available via Caddy, per-deployment |
 | Automated test suite | ✅ Auth, security, finance, HR, Christians |
-| CI pipeline | ⏳ Not yet |
+| CI pipeline (GitHub Actions) | ✅ Working |
 | License / activation mechanism | ⏳ Not yet |
 | Crash reporting & telemetry | ⏳ Not yet |
 
@@ -161,9 +161,7 @@ commercial release.
 2. **No automated update channel** — each new version must be delivered by hand.
    A built-in update notification mechanism would help installed parishes know
    when new versions are available.
-3. **No automated test suite or CI** — today's regression was run manually.
-   Commercial releases need an automated pipeline (typecheck → unit/integration
-   tests → build → publish) so a shipped build is reproducible and regression-free.
+3. ~~No automated test suite or CI~~ — **Resolved.** GitHub Actions CI runs lint, typecheck, tests, and build on every push. 145 backend tests passing.
 4. **Code signing not applicable** — as a web application, there is no installer
    to sign. However, HTTPS certificates (via Caddy) are recommended for production
    deployments to prevent browser warnings.
@@ -183,7 +181,7 @@ commercial release.
 
 1. Add a licensing/activation layer (online or offline key).
 2. Build an update notification mechanism for installed parishes.
-3. Stand up CI (GitHub Actions: lint → test → build → publish).
+3. ~~Stand up CI~~ — **Done.** GitHub Actions CI pipeline is live.
 4. Add crash reporting (Sentry) + a minimal telemetry opt-in.
 5. Write the data-protection & backup-restore policy; run a restore drill.
 6. Run 2–3 pilot parishes per `INSTALL.md` for real-world validation.
@@ -196,9 +194,7 @@ commercial release.
    validate in the field.
 2. **Add update notifications** — so installed parishes know when new versions
    are available.
-3. **Sales readiness** — demo dataset ready (`npm run db:seed:demo` loads a
-   realistic 30-member parish; `npm run db:clear:demo` wipes it) for
-   presentations.
+3. **Sales readiness** — use a fresh database with the first-run wizard for live demos.
 4. **Multi-parish deployment** — consider whether a central management portal
    is needed for multiple parish installations.
 

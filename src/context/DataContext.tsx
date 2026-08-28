@@ -54,6 +54,10 @@ interface DataContextValue {
   handleMarkCreditorPaid: (id: string) => Promise<void>;
   handleRecordDebtorPayment: (debtorId: string, amountPaid: number) => Promise<void>;
   handleAddExpense: (e: ExpenseRecord) => Promise<void>;
+  handleDeleteDeposit: (id: string) => Promise<void>;
+  handleDeleteCreditor: (id: string) => Promise<void>;
+  handleDeleteDebtor: (id: string) => Promise<void>;
+  handleDeleteExpense: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -226,6 +230,46 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const handleDeleteDeposit = useCallback(async (id: string) => {
+    try {
+      await depositsApi.remove(id);
+      setDeposits(prev => prev.filter(d => d.id !== id));
+    } catch (error) {
+      console.error('Failed to delete deposit', error);
+      throw error;
+    }
+  }, []);
+
+  const handleDeleteCreditor = useCallback(async (id: string) => {
+    try {
+      await creditorsApi.remove(id);
+      setCreditors(prev => prev.filter(c => c.id !== id));
+    } catch (error) {
+      console.error('Failed to delete creditor', error);
+      throw error;
+    }
+  }, []);
+
+  const handleDeleteDebtor = useCallback(async (id: string) => {
+    try {
+      await debtorsApi.remove(id);
+      setDebtors(prev => prev.filter(d => d.id !== id));
+    } catch (error) {
+      console.error('Failed to delete debtor', error);
+      throw error;
+    }
+  }, []);
+
+  const handleDeleteExpense = useCallback(async (id: string) => {
+    try {
+      await expensesApi.remove(id);
+      setExpenses(prev => prev.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('Failed to delete expense', error);
+      throw error;
+    }
+  }, []);
+
   return (
     <DataContext.Provider
       value={{
@@ -234,6 +278,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleRecordPayment,
         handleAddDeposit, handleAddCreditor, handleMarkCreditorPaid,
         handleRecordDebtorPayment, handleAddExpense,
+        handleDeleteDeposit, handleDeleteCreditor, handleDeleteDebtor, handleDeleteExpense,
       }}
     >
       {children}

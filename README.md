@@ -122,46 +122,14 @@ All seeded accounts require a password change at first sign-in.
 
 ---
 
-## Demo Mode (for sales pitches)
-
-A believable, fully-populated parish dataset makes the app instantly demoable.
-It loads 30 members, contributions, finance, ledgers, inventory, HR and more:
-
-```bash
-cd backend
-npm run db:seed:demo
-```
-
-Demo logins (no forced password change):
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | `admin@demo.ecclesia.local` | `AdminDemo123!` |
-| Cashier | `cashier@demo.ecclesia.local` | `CashierDemo123!` |
-| Viewer | `viewer@demo.ecclesia.local` | `ViewerDemo123!` |
-
-**This never affects a commercial install.** The standard `npm run setup`
-flow does not run the demo seed. To wipe demo data before going live:
-
-```bash
-cd backend
-npm run db:clear:demo
-```
-
-That removes every business record and the demo users, returning the system to
-its pristine post-install state. For an iron-clad commercial build you can also
-delete `backend/prisma/seed-demo.ts` and `backend/scripts/clear-demo.ts`.
-
----
-
 ## Visual Tour (E2E Testing)
 
 Watch the entire system being tested live in your browser. The visual tour runs
 Playwright in headed mode with slow-motion delays so you can see every action:
 
 ```bash
-# 1. Seed demo data (30 members, finance, inventory, HR, etc.)
-cd backend && npm run db:seed:demo && cd ..
+# 1. Start the backend + frontend
+npm run dev
 
 # 2. Start the backend + frontend
 npm run dev
@@ -193,7 +161,7 @@ with a red border so you can follow along.
 | `npm run test:e2e` | Fast headless E2E tests (CI-friendly) |
 | `npm run test:report` | Open HTML report after a test run |
 
-> **Requires:** demo data seeded (`npm run db:seed:demo`), backend running on
+> **Requires:** database seeded (`npm run db:seed`), backend running on
 > port 5000, frontend on port 3000.
 
 ---
@@ -232,7 +200,7 @@ caddy run          # uses the Caddyfile at the repo root
 ├── src/                 # React frontend
 ├── backend/             # Production API (Express + Prisma + PostgreSQL)
 │   ├── src/routes/      # All REST endpoints
-│   ├── prisma/          # Schema + seed (+ seed-demo.ts, demo only)
+│   ├── prisma/          # Schema + seed
 │   └── start-local.sh
 ├── e2e/                 # Playwright visual tour + E2E tests
 │   ├── tests/           # visual-tour.spec.ts (the complete tour)
@@ -252,8 +220,6 @@ caddy run          # uses the Caddyfile at the repo root
 | `npm run build` | Build frontend for production |
 | `npm run tour` | Visual E2E tour — watch the system being tested live |
 | `npm run test:e2e` | Fast headless E2E tests |
-| `cd backend && npm run db:seed:demo` | Load realistic demo data for pitches |
-| `cd backend && npm run db:clear:demo` | Wipe demo data (commercial handover) |
 
 ---
 

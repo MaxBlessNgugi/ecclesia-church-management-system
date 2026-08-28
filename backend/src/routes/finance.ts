@@ -53,6 +53,8 @@ import { AppError } from '../middleware/errorHandler.js';   // Middleware that r
 import { requireModule } from '../middleware/perms.js'; // Middleware that checks the user has permission for a specific module
 import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
+import { softDelete, resolveActor } from '../lib/audit.js';
+import { AuthRequest } from '../middleware/auth.js';
 
 // ----- Router Setup -----------------------------------------------------------
 
@@ -449,6 +451,44 @@ router.post('/expenses', async (req, res, next) => {
 
     // Broadcast real-time event to all connected clients.
     emitChange('expenses', 'created', created);
+  } catch (e) { next(e); }
+});
+
+// ── DELETE endpoints (soft-delete, restorable from Trash & Audit) ─────────
+
+router.delete('/deposits/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Deposit', req.params.id, actor);
+    res.status(204).end();
+    emitChange('deposits', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
+router.delete('/creditors/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Creditor', req.params.id, actor);
+    res.status(204).end();
+    emitChange('creditors', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
+router.delete('/debtors/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Debtor', req.params.id, actor);
+    res.status(204).end();
+    emitChange('debtors', 'deleted', { id: req.params.id });
+  } catch (e) { next(e); }
+});
+
+router.delete('/expenses/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Expense', req.params.id, actor);
+    res.status(204).end();
+    emitChange('expenses', 'deleted', { id: req.params.id });
   } catch (e) { next(e); }
 });
 
