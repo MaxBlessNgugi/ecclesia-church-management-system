@@ -12,8 +12,9 @@
 // in state. Mutation handlers (create / update) POST/PATCH to the Express API
 // and then re-fetch the affected lists so the tables reflect server truth.
 //
-// NOTE: inventory DELETE (items.remove) is not wired into this view. Deletes
-// are soft deletes server-side — removed records land in Admin > Trash & Audit.
+// All inventory sub-resources (items, deliveries, sales, stock-takes, issues)
+// support soft-delete via the DeleteConfirmationModal. Deleted records are
+// restorable from Admin > Trash & Audit.
 // =============================================================================
 // React core: component framework, local state, side-effects, and derived state via useMemo
 import React, { useState, useEffect, useMemo } from 'react';
@@ -1528,6 +1529,7 @@ export const InventoryView: React.FC = () => {
             else if (deleteTarget.type === 'stockTake') setStockTake(prev => prev.filter(s => s.id !== deleteTarget.id));
             else if (deleteTarget.type === 'issue') setIssueTrail(prev => prev.filter(i => i.id !== deleteTarget.id));
             setDeleteTarget(null);
+            showNotif('Record moved to Trash. You can restore it from Administration → Trash & Audit.');
           } catch {
             alert('Failed to delete record. Please try again.');
           }

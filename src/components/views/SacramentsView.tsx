@@ -151,6 +151,13 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
   // Delete confirmation modal state for death records
   const [deleteDeathTarget, setDeleteDeathTarget] = useState<DeathRecord | null>(null);
 
+  // Success notification state — auto-dismisses after 4 seconds
+  const [notification, setNotification] = useState<string | null>(null);
+  const showNotif = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 4000);
+  };
+
   // Handles the sacrament save — lifts the four sacrament slices to the parent
   const handleSaveSacraments = (e: React.FormEvent) => {
     e.preventDefault();
@@ -841,6 +848,14 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
         </div>
       )}
 
+      {/* Success notification banner */}
+      {notification && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          <span>{notification}</span>
+        </div>
+      )}
+
       <DeleteConfirmationModal
         open={deleteDeathTarget !== null}
         title="Delete Death Record"
@@ -851,6 +866,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           if (!deleteDeathTarget) return;
           await deathsApi.remove(deleteDeathTarget.id);
           setDeleteDeathTarget(null);
+          showNotif('Death record moved to Trash. You can restore it from Administration → Trash & Audit.');
         }}
       />
     </div>

@@ -605,6 +605,7 @@ export const LedgersView: React.FC = () => {
           if (!deleteTarget) return;
           await handleDeleteLedger(deleteTarget.id);
           setDeleteTarget(null);
+          showNotification('Ledger moved to Trash. You can restore it from Administration → Trash & Audit.');
         }}
       />
     </div>
