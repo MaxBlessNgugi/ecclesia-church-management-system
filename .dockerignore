@@ -1,0 +1,44 @@
+# Dependencies (will be installed in container)
+node_modules/
+backend/node_modules/
+
+# Build outputs (will be built in container)
+dist/
+backend/dist/
+
+# Git
+.git/
+.gitignore
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Documentation (not needed in image)
+*.md
+!README.md
+docs/
+tutorial-screenshots/
+
+# Test files
+e2e/
+playwright-report/
+test-results/
+*.test.*
+*.spec.*
+
+# Environment files (secrets must come from docker-compose env)
+.env
+backend/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (don't include themselves)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Freebuff workspace
+.freebuff/
