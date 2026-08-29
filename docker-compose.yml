@@ -61,9 +61,10 @@ services:
       # Entrypoint needs these to locate PostgreSQL
       DB_HOST: db
       DB_PORT: "5432"
-    volumes:
-      # Backups directory (optional — for pg_dump output)
-      - ${BACKUP_DIR:-./backups}:/app/backups
+    # To mount a backup directory, add:
+    #   volumes:
+    #     - ./backups:/app/backups
+    # Ensure the host directory exists and is writable by the container user.
 
 volumes:
   ecclesia-pgdata:

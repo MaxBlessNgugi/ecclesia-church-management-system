@@ -46,11 +46,8 @@ COPY backend/prisma/ backend/prisma/
 #               (2) runtime to execute Prisma queries
 RUN npx prisma generate --schema=backend/prisma/schema.prisma
 
-# Build frontend (Vite → repo-root dist/)
+# Build frontend + backend (vite build → dist/ && tsc → backend/dist/)
 RUN npm run build
-
-# Build backend (tsc → backend/dist/)
-RUN npm run backend:build
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────
 FROM node:20-slim AS runtime
@@ -67,12 +64,9 @@ RUN groupadd -r ecclesia && useradd -r -g ecclesia -d /app -s /bin/sh ecclesia
 WORKDIR /app
 
 # ── Dependencies ─────────────────────────────────────────────────────────
-# Root: production only (not strictly needed at runtime, but keeps layer simple)
-COPY --from=deps /app/node_modules ./node_modules
-
-# Backend: from BUILD stage (includes @prisma/client + generated .prisma/client/
-# + prisma CLI + all runtime deps). Stage 1's backend/node_modules lacks the
-# generated Prisma Client, so we must use stage 2's copy.
+# Backend only — from BUILD stage (includes @prisma/client + generated
+# .prisma/client/ + prisma CLI + all runtime deps). Root node_modules
+# (Vite, React, etc.) is build-time only and not needed at runtime.
 COPY --from=build /app/backend/node_modules ./backend/node_modules
 
 # ── Compiled output ──────────────────────────────────────────────────────
