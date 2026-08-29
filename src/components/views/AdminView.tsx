@@ -42,6 +42,7 @@ import { adminApi } from '../../services/api';
 import { ParishIdentitySection } from './ParishIdentitySection';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
+import { useToast } from '../Toast';
 
 // Human-readable labels for the UserRole union, shown in dropdowns and tables.
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -366,17 +367,11 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   // Current state of the record being diffed — undefined = loading, null = deleted
   const [diffCurrent, setDiffCurrent] = useState<Record<string, unknown> | null | undefined>(undefined);
 
-  // Transient success notification message — auto-dismisses after 4 seconds
-  const [notification, setNotification] = useState<string | null>(null);
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
 
   // Derived lookup of the account selected in the Rights Centre dropdown.
   const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
-
-  // Transient success banner; auto-dismisses after 4s (errors use alert instead).
-  const showNotif = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
-  };
 
   // True when a row belongs to the signed-in user — gates the Remove button.
   const isSelf = (userId: string) => userId === currentUserId;
@@ -482,12 +477,12 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
     setRestoringId(log.id);
     try {
       await adminApi.audit.restore(log.id);
-      showNotif(`${ENTITY_LABELS[log.entityName] ?? log.entityName} restored successfully.`);
+      showSuccess(`${ENTITY_LABELS[log.entityName] ?? log.entityName} restored successfully.`);
       // Reload the audit log so the restored row updates
       void loadAudit();
     } catch (error) {
       console.error('Failed to restore record', error);
-      alert(error instanceof Error ? error.message : 'Failed to restore record');
+      showError(error instanceof Error ? error.message : 'Failed to restore record');
     } finally {
       setRestoringId(null);
     }
@@ -526,13 +521,13 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
     setBulkRestoring(true);
     try {
       const res = await adminApi.audit.restoreBulk(Array.from(selectedAuditIds));
-      showNotif(`Restored ${res.restored} record(s).${res.failed > 0 ? ` ${res.failed} could not be restored.` : ''}`);
+      showSuccess(`Restored ${res.restored} record(s).${res.failed > 0 ? ` ${res.failed} could not be restored.` : ''}`);
       // Clear selection and reload the audit log
       setSelectedAuditIds(new Set());
       void loadAudit();
     } catch (error) {
       console.error('Failed to restore records', error);
-      alert(error instanceof Error ? error.message : 'Failed to restore records');
+      showError(error instanceof Error ? error.message : 'Failed to restore records');
     } finally {
       setBulkRestoring(false);
     }
@@ -596,7 +591,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   const handleResetRights = () => {
     setPanels({ ...ALL_PANELS });
     setActions({ view: true, edit: true, delete: true });
-    showNotif('Permissions reset to full access.');
+    showSuccess('Permissions reset to full access.');
   };
 
   // Persists the toggle state for the selected user; alerts if none is selected.
@@ -604,15 +599,15 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
     e.preventDefault();
     // Guard: a user must be selected before saving permissions
     if (!selectedUserId) {
-      alert('Please select a user first.');
+      showError('Please select a user first.');
       return;
     }
     try {
       await adminApi.permissions.update(selectedUserId, { panels, actions });
-      showNotif(`Access permissions updated for ${selectedUser?.name ?? 'user'}!`);
+      showSuccess(`Access permissions updated for ${selectedUser?.name ?? 'user'}!`);
     } catch (error) {
       console.error('Failed to save permissions', error);
-      alert(error instanceof Error ? error.message : 'Failed to save permissions');
+      showError(error instanceof Error ? error.message : 'Failed to save permissions');
     }
   };
 
@@ -622,7 +617,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
     e.preventDefault();
     // Guard: name, email, and password are all required
     if (!newName || !newEmail || !newPassword) {
-      alert('Please fill in name, email and password.');
+      showError('Please fill in name, email and password.');
       return;
     }
     try {
@@ -642,10 +637,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
       setNewPassword('');
       setNewRole('staff');
       setNewTitle('');
-      showNotif(`User account created for ${created.name}.`);
+      showSuccess(`User account created for ${created.name}.`);
     } catch (error) {
       console.error('Failed to create user', error);
-      alert(error instanceof Error ? error.message : 'Failed to create user');
+      showError(error instanceof Error ? error.message : 'Failed to create user');
     }
   };
 
@@ -676,10 +671,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
       // Replace the updated user in the local list
       setUsers(users.map((u) => (u.id === editUserId ? updated : u)));
       setShowEditUser(false);
-      showNotif(`User ${updated.name} updated.`);
+      showSuccess(`User ${updated.name} updated.`);
     } catch (error) {
       console.error('Failed to update user', error);
-      alert(error instanceof Error ? error.message : 'Failed to update user');
+      showError(error instanceof Error ? error.message : 'Failed to update user');
     }
   };
 
@@ -701,10 +696,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
         }
       }
       setDeleteTargetId(null);
-      showNotif('User removed.');
+      showSuccess('User removed.');
     } catch (error) {
       console.error('Failed to remove user', error);
-      alert(error instanceof Error ? error.message : 'Failed to remove user');
+      showError(error instanceof Error ? error.message : 'Failed to remove user');
     }
   };
 
@@ -717,7 +712,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
       setResetTarget(u);
     } catch (error) {
       console.error('Failed to generate reset code', error);
-      alert(error instanceof Error ? error.message : 'Failed to generate reset code');
+      showError(error instanceof Error ? error.message : 'Failed to generate reset code');
     } finally {
       setResetting(false);
     }
@@ -726,7 +721,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   // Copies the reset code to the clipboard for easy sharing
   const handleCopyCode = () => {
     void navigator.clipboard.writeText(resetCode);
-    showNotif('Reset code copied to clipboard.');
+    showSuccess('Reset code copied to clipboard.');
   };
 
   // Downloads the full parish data bundle (all tables, secrets stripped) — the
@@ -742,10 +737,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
       a.download = `ecclesia-export-${data.exportedAt.replace(/[:.]/g, '-')}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      showNotif('Data export downloaded.');
+      showSuccess('Data export downloaded.');
     } catch (error) {
       console.error('Failed to export data', error);
-      alert(error instanceof Error ? error.message : 'Failed to export data');
+      showError(error instanceof Error ? error.message : 'Failed to export data');
     }
   };
 
@@ -753,10 +748,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   const handleBackupNow = async () => {
     try {
       const info = await adminApi.ops.backup();
-      showNotif(`Backup created: ${info.file} (${(info.sizeBytes / 1024).toFixed(0)} KB)`);
+      showSuccess(`Backup created: ${info.file} (${(info.sizeBytes / 1024).toFixed(0)} KB)`);
     } catch (error) {
       console.error('Failed to create backup', error);
-      alert(error instanceof Error ? error.message : 'Failed to create backup');
+      showError(error instanceof Error ? error.message : 'Failed to create backup');
     }
   };
 
@@ -765,10 +760,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
     try {
       const updated = await adminApi.users.update(user.id, { role });
       setUsers(users.map((u) => (u.id === user.id ? updated : u)));
-      showNotif(`Role updated for ${updated.name}: ${ROLE_LABELS[role]}`);
+      showSuccess(`Role updated for ${updated.name}: ${ROLE_LABELS[role]}`);
     } catch (error) {
       console.error('Failed to update role', error);
-      alert(error instanceof Error ? error.message : 'Failed to update role');
+      showError(error instanceof Error ? error.message : 'Failed to update role');
     }
   };
 
@@ -777,10 +772,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
     try {
       const updated = await adminApi.users.update(user.id, { isActive: !user.isActive });
       setUsers(users.map((u) => (u.id === user.id ? updated : u)));
-      showNotif(`${updated.name} account ${updated.isActive ? 'activated' : 'deactivated'}.`);
+      showSuccess(`${updated.name} account ${updated.isActive ? 'activated' : 'deactivated'}.`);
     } catch (error) {
       console.error('Failed to toggle active', error);
-      alert(error instanceof Error ? error.message : 'Failed to toggle active');
+      showError(error instanceof Error ? error.message : 'Failed to toggle active');
     }
   };
 
@@ -803,10 +798,10 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
       // placeholder sentinel still counts as "stored" — it represents one).
       setHasConsumerKey(Boolean(consumerKey));
       setHasConsumerSecret(Boolean(consumerSecret));
-      showNotif('Gateway configuration saved!');
+      showSuccess('Gateway configuration saved!');
     } catch (error) {
       console.error('Failed to save gateway settings', error);
-      alert(error instanceof Error ? error.message : 'Failed to save gateway settings');
+      showError(error instanceof Error ? error.message : 'Failed to save gateway settings');
     }
   };
 
@@ -816,11 +811,12 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   const handleSendTestStk = (e: React.FormEvent) => {
     e.preventDefault();
     const env = gatewayMode === 'live' ? 'LIVE' : 'SANDBOX';
-    showNotif(`STK Push prompt sent to ${testPhone} for KES ${testAmount} (${env} mode).`);
+    showSuccess(`STK Push prompt sent to ${testPhone} for KES ${testAmount} (${env} mode).`);
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-4">
         <div>
@@ -891,14 +887,6 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
           PARISH IDENTITY
         </button>
       </div>
-
-      {/* Transient success notification banner — auto-dismisses after 4 seconds */}
-      {notification && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in">
-          <span className="material-symbols-outlined text-base">check_circle</span>
-          <span>{notification}</span>
-        </div>
-      )}
 
       {/* 1. RIGHTS CENTRE — per-user permission toggles */}
       {activeSubTab === 'rights' && (
@@ -1209,7 +1197,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
                           : 'No users match the current search or filters.'}
                       </td>
                     </tr>
-                  ) : (
+                  ) : (
                     filteredUsers.map((u) => (
                      <tr key={u.id} className="hover:bg-[#f9f9f9]">
                        {/* User name — bold */}
@@ -1416,7 +1404,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
        )}
 
       {/* 3. ONLINE & PUSH PAYMENTS — M-Pesa gateway configuration */}
-      {activeSubTab === 'push_payments' && (
+      {activeSubTab === 'push_payments' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-5xl">
           {/* Gateway configuration form */}
           <div className="lg:col-span-7 bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
@@ -1787,7 +1775,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
                        No audit records found. Deleted items will appear here.
                      </td>
                    </tr>
-                 ) : (
+                 ) : (
                    auditLogs.map((log) => (
                      <tr key={log.id} className={`hover:bg-[#f9f9f9] ${selectedAuditIds.has(log.id) ? 'bg-emerald-50/60' : ''}`}>
                        {/* Row selection checkbox — disabled for RESTORE actions */}
@@ -1863,7 +1851,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
 
         {/* JSON Diff Modal — compares the pre-delete snapshot against the record's
             current state, colouring added/removed/changed fields. */}
-        {diffLog && (
+        {diffLog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/50 backdrop-blur-xs" onClick={() => setDiffLog(null)} onKeyDown={(e) => e.key === 'Escape' && setDiffLog(null)} role="dialog" aria-modal="true" tabIndex={-1}>
             {/* Modal card — stopPropagation prevents backdrop click from closing */}
             <div
@@ -1902,7 +1890,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
                   <p className="text-xs text-[#444748] text-center py-8">
                     Current record no longer exists — only the stored snapshot remains.
                   </p>
-                ) : (
+                ) : (
                   <div className="space-y-1.5">
                     {buildDiff(diffLog.metadata, diffCurrent).map((row) => {
                       // Status-based styling — emerald for added, rose for removed,
@@ -1962,7 +1950,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
 
       {/* 6. PARISH IDENTITY — same form as first-run wizard, editable by admin */}
       {activeSubTab === 'parish' && (
-        <ParishIdentitySection notification={notification} showNotif={showNotif} />
+        <ParishIdentitySection />
       )}
 
        {/* EDIT USER MODAL — pre-filled form for editing an existing account */}

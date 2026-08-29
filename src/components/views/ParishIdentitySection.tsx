@@ -19,13 +19,10 @@ import { parishApi } from '../../services/api';
 import { ParishSettings } from '../../types';
 import { PARISH_CHANGED_EVENT } from '../../hooks/useParishInfo';
 import { resizeImage } from '../../lib/image';
+import { useToast } from '../Toast';
 
-interface ParishIdentitySectionProps {
-  notification: string | null;
-  showNotif: (msg: string) => void;
-}
-
-export const ParishIdentitySection: React.FC<ParishIdentitySectionProps> = ({ notification, showNotif }) => {
+export const ParishIdentitySection: React.FC = () => {
+  const { showSuccess, toastEl } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -104,7 +101,7 @@ export const ParishIdentitySection: React.FC<ParishIdentitySectionProps> = ({ no
         logoData,
       });
       window.dispatchEvent(new CustomEvent(PARISH_CHANGED_EVENT));
-      showNotif('Parish identity updated successfully!');
+      showSuccess('Parish identity updated successfully!');
     } catch (err) {
       console.error('Failed to save parish settings', err);
       setError(err instanceof Error ? err.message : 'Failed to save settings.');
@@ -123,6 +120,7 @@ export const ParishIdentitySection: React.FC<ParishIdentitySectionProps> = ({ no
 
   return (
     <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6 max-w-3xl">
+      {toastEl}
       <div>
         <h3 className="text-xl font-serif font-bold text-[#1a1c1c]">Parish Identity</h3>
         <p className="text-xs text-[#444748] mt-1">
@@ -224,13 +222,6 @@ export const ParishIdentitySection: React.FC<ParishIdentitySectionProps> = ({ no
         {/* Error */}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded text-red-800">{error}</div>
-        )}
-
-        {/* Success notification */}
-        {notification && (
-          <div className="p-3 bg-emerald-50 border border-emerald-300 rounded text-emerald-800 text-xs font-medium">
-            {notification}
-          </div>
         )}
 
         {/* Submit */}

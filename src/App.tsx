@@ -24,6 +24,7 @@ import React, { Suspense, useEffect } from 'react';
 import { Footer, GlobalSearchModal, Header, Sidebar, TitleBar } from './components';
 import { ServerConnection } from './components/ServerConnection';
 
+
 // Lazy-load view components to split the bundle — each view is only loaded when its tab is active
 const DashboardView = React.lazy(() => import('./components/views/DashboardView').then(m => ({ default: m.DashboardView })));
 const ChristianView = React.lazy(() => import('./components/views/ChristianView').then(m => ({ default: m.ChristianView })));

@@ -16,6 +16,7 @@
 import React, { useState } from 'react';
 import { ChristianRecord, ChristianSubTab } from '../../types';
 import { usePermissions } from '../../permissions';
+import { useToast } from '../Toast';
 import { useParishInfo } from '../../hooks/useParishInfo';
 
 /**
@@ -55,6 +56,8 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
   // user's role; used to disable the Save and Delete buttons when the user
   // lacks the required privilege.
   const perms = usePermissions();
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
 
   // Active sub-panel: 'add' | 'find' | 'delete'. Switching tabs mounts/unmounts
   // the matching block below; find/delete filters re-evaluate every render.
@@ -109,13 +112,13 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
       !formData.nationalId ||
       !formData.phone
     ) {
-      alert('Please complete all required fields: names, National ID, and phone.');
+      showError('Please complete all required fields: names, National ID, and phone.');
       return;
     }
 
     // Parish settings must be loaded before creating a member
     if (!parish.diocese || !parish.name) {
-      alert('Parish settings not loaded. Please refresh and try again.');
+      showError('Parish settings not loaded. Please refresh and try again.');
       return;
     }
 
@@ -174,6 +177,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Title & Navigation Sub-Tabs */}
       {/* Header bar — flexbox layout that stacks vertically on mobile, horizontal on sm+;
           contains the section title/description on the left and the sub-tab pill buttons
@@ -631,7 +635,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
                   setShowConfirmModal(false);
                   setMemberToDelete(null);
                   setDeleteSearch('');
-                  alert('Record successfully removed.');
+                  showSuccess('Record successfully removed.');
                 }}
                 disabled={!perms.canDelete('christian')}
                 className="px-4 py-1.5 text-xs font-bold text-white bg-[#ba1a1a] hover:bg-[#961212] rounded opacity-50 cursor-not-allowed"

@@ -26,6 +26,7 @@ import { inventoryApi } from '../../services/api';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
+import { useToast } from '../Toast';
 
 /**
  * Inventory Management panel: track sacred vessels, liturgical supplies and
@@ -63,13 +64,8 @@ export const InventoryView: React.FC = () => {
     );
   }, [items, inventorySearch]);
 
-  // Notifications — transient success banner, auto-dismissed after 4s.
-  const [notification, setNotification] = useState<string | null>(null);
-  // Shows a success notification that auto-clears after 4 seconds
-  const showNotif = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
-  };
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
 
   // Low-stock alerts: items whose current stock is at or below their reorder
   // threshold (a reorder level of 0 with 0 stock is also flagged as "out").
@@ -89,7 +85,7 @@ export const InventoryView: React.FC = () => {
   const handleOpenPriceHistory = async () => {
     // Guard: an item must be selected before viewing its history
     if (!editId) {
-      alert('Select an item to edit first.');
+      showError('Select an item to edit first.');
       return;
     }
     try {
@@ -101,7 +97,7 @@ export const InventoryView: React.FC = () => {
       setShowPriceHistory(true);
     } catch (error) {
       console.error('Failed to load price history', error);
-      alert(error instanceof Error ? error.message : 'Failed to load price history');
+      showError(error instanceof Error ? error.message : 'Failed to load price history');
     }
   };
 
@@ -127,7 +123,7 @@ export const InventoryView: React.FC = () => {
     e.preventDefault();
     // Guard: a zero/negative quantity makes no sense for a delivery record.
     if (qtyReceived <= 0) {
-      alert('Please enter a valid quantity.');
+      showError('Please enter a valid quantity.');
       return;
     }
     try {
@@ -147,10 +143,10 @@ export const InventoryView: React.FC = () => {
       setDeliveries(delRows);
       setItems(itemRows);
       setQtyReceived(0); // Reset quantity so the next entry starts clean.
-      showNotif(`Received ${qtyReceived} units of ${inwardItem} into inventory!`);
+      showSuccess(`Received ${qtyReceived} units of ${inwardItem} into inventory!`);
     } catch (error) {
       console.error('Failed to record delivery', error);
-      alert(error instanceof Error ? error.message : 'Failed to record delivery');
+      showError(error instanceof Error ? error.message : 'Failed to record delivery');
     }
   };
 
@@ -186,10 +182,10 @@ export const InventoryView: React.FC = () => {
       setSalesHistory(saleRows);
       setItems(itemRows);
       setCustomerName(''); // Only clears the optional customer field after a successful sale.
-      showNotif(`Processed sale of KSh ${total.toFixed(2)} for ${saleItem}!`);
+      showSuccess(`Processed sale of KSh ${total.toFixed(2)} for ${saleItem}!`);
     } catch (error) {
       console.error('Failed to process sale', error);
-      alert(error instanceof Error ? error.message : 'Failed to process sale');
+      showError(error instanceof Error ? error.message : 'Failed to process sale');
     }
   };
 
@@ -205,7 +201,7 @@ export const InventoryView: React.FC = () => {
       setStockTake(stockTake.map((st) => (st.id === id ? updated : st)));
     } catch (error) {
       console.error('Failed to update physical count', error);
-      alert(error instanceof Error ? error.message : 'Failed to update physical count');
+      showError(error instanceof Error ? error.message : 'Failed to update physical count');
     }
   };
 
@@ -238,10 +234,10 @@ export const InventoryView: React.FC = () => {
       });
       const rows = await inventoryApi.issues.list();
       setIssueTrail(rows);
-      showNotif(`Issued ${issueQty} units of ${issueItem} to ${recipientDept}.`);
+      showSuccess(`Issued ${issueQty} units of ${issueItem} to ${recipientDept}.`);
     } catch (error) {
       console.error('Failed to record stock issue', error);
-      alert(error instanceof Error ? error.message : 'Failed to record stock issue');
+      showError(error instanceof Error ? error.message : 'Failed to record stock issue');
     }
   };
 
@@ -317,7 +313,7 @@ export const InventoryView: React.FC = () => {
     // Edge case: an update is only valid once at least one item exists. With an
     // empty inventory the pre-selection above never runs, so editId stays ''.
     if (!editId) {
-      alert('No inventory item selected for editing. Please add an item first.');
+      showError('No inventory item selected for editing. Please add an item first.');
       return;
     }
     try {
@@ -331,10 +327,10 @@ export const InventoryView: React.FC = () => {
       // Refresh the items list so dropdowns and Stock Insights reflect the changes
       const rows = await inventoryApi.items.list();
       setItems(rows);
-      showNotif(`Updated details for "${editName}"!`);
+      showSuccess(`Updated details for "${editName}"!`);
     } catch (error) {
       console.error('Failed to update item', error);
-      alert(error instanceof Error ? error.message : 'Failed to update item');
+      showError(error instanceof Error ? error.message : 'Failed to update item');
     }
   };
 
@@ -369,12 +365,12 @@ export const InventoryView: React.FC = () => {
     const value = Number(bulkValue);
     // Guard: at least one item must be selected
     if (bulkSelected.size === 0) {
-      alert('Select at least one item to update.');
+      showError('Select at least one item to update.');
       return;
     }
     // Guard: value must be a valid non-negative number
     if (!Number.isFinite(value) || value < 0) {
-      alert('Please enter a valid non-negative value.');
+      showError('Please enter a valid non-negative value.');
       return;
     }
     try {
@@ -386,15 +382,16 @@ export const InventoryView: React.FC = () => {
       // Clear the selection and value input
       setBulkSelected(new Set());
       setBulkValue('');
-      showNotif(`Updated ${updates.length} ${updates.length === 1 ? 'item' : 'items'} (${bulkField}) to ${value}.`);
+      showSuccess(`Updated ${updates.length} ${updates.length === 1 ? 'item' : 'items'} (${bulkField}) to ${value}.`);
     } catch (error) {
       console.error('Failed to batch update items', error);
-      alert(error instanceof Error ? error.message : 'Failed to batch update items');
+      showError(error instanceof Error ? error.message : 'Failed to batch update items');
     }
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-4">
         <div>
@@ -469,14 +466,6 @@ export const InventoryView: React.FC = () => {
           );
         })}
       </div>
-
-      {/* Success banner — appears after each successful mutation, auto-clears. */}
-      {notification && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in">
-          <span className="material-symbols-outlined text-base">check_circle</span>
-          <span>{notification}</span>
-        </div>
-      )}
 
       {/* Low-stock alert — amber banner listing every item at/below its reorder
           threshold. Dismissible per item; click a name to jump to the Edit tab. */}
@@ -862,14 +851,14 @@ export const InventoryView: React.FC = () => {
             <div className="flex gap-2">
               {/* Stub actions: both only show an alert; no export/rebalance logic. */}
               <button
-                onClick={() => alert("Exporting stock take reconciliation sheet...")}
+                onClick={() => showSuccess('Exporting stock take reconciliation sheet...')}
                 className="px-3 py-1.5 text-xs font-semibold text-[#1a1c1c] bg-[#ffffff] border border-[#c4c7c7] rounded hover:bg-[#f4f3f3] cursor-pointer flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-sm">print</span>
                 Export Sheet
               </button>
               <button
-                onClick={() => showNotif("System stock counts balanced with physical audit.")}
+                onClick={() => showSuccess("System stock counts balanced with physical audit.")}
                 className={`px-3 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] rounded hover:bg-[#333333] flex items-center gap-1 ${
                   perms.canEdit('inventory') ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
                 }`}
@@ -1529,9 +1518,9 @@ export const InventoryView: React.FC = () => {
             else if (deleteTarget.type === 'stockTake') setStockTake(prev => prev.filter(s => s.id !== deleteTarget.id));
             else if (deleteTarget.type === 'issue') setIssueTrail(prev => prev.filter(i => i.id !== deleteTarget.id));
             setDeleteTarget(null);
-            showNotif('Record moved to Trash. You can restore it from Administration → Trash & Audit.');
+            showSuccess('Record moved to Trash. You can restore it from Administration → Trash & Audit.');
           } catch {
-            alert('Failed to delete record. Please try again.');
+            showError('Failed to delete record. Please try again.');
           }
         }}
       />

@@ -25,6 +25,7 @@ import {
 } from '../../types';
 import { usePermissions } from '../../permissions';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
+import { useToast } from '../Toast';
 
 /**
  * Props for the FinanceView panel.
@@ -128,12 +129,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<{ type: string; id: string; label: string; details: string[] } | null>(null);
 
-  // Success notification state — auto-dismisses after 4 seconds
-  const [notification, setNotification] = useState<string | null>(null);
-  const showNotif = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
-  };
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
 
   // 4. Expense Form State
   // Date of the expense, defaults to today in ISO format (YYYY-MM-DD)
@@ -159,7 +156,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     e.preventDefault();
     // Validate all required fields are present and amount is positive
     if (!depositAmount || depositAmount <= 0 || !bankName || !accountNo || !sourceOfCash || !depositedBy) {
-      alert('Please complete all deposit fields.');
+      showError('Please complete all deposit fields.');
       return;
     }
     // Build the deposit record with a unique timestamp-based ID
@@ -175,7 +172,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     };
     // Lift the new deposit to the parent component
     onAddDeposit(newDep);
-    alert(`Deposit slip (KSh ${depositAmount.toFixed(2)}) recorded into parish accounts!`);
+    showSuccess(`Deposit slip (KSh ${depositAmount.toFixed(2)}) recorded into parish accounts!`);
     // Reset form fields for the next entry
     setDepositAmount(0);
     setBankName('');
@@ -198,7 +195,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     if (!newVendor) return;
     // Validate invoice number is provided
     if (!newInvoiceNo) {
-      alert('Please enter the vendor invoice number.');
+      showError('Please enter the vendor invoice number.');
       return;
     }
     // Build the creditor record with defaults for optional fields
@@ -221,7 +218,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     setNewInvoiceNo('');
     setNewVendorAmount(0);
     setNewVendorDueDate('');
-    alert(`New debt invoice recorded for ${newVendor}!`);
+    showSuccess(`New debt invoice recorded for ${newVendor}!`);
   };
 
   /**
@@ -234,7 +231,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     e.preventDefault();
     // Validate payee and amount are provided and amount is positive
     if (!expensePayee || !expenseAmount || expenseAmount <= 0) {
-      alert('Please enter a payee and a positive amount.');
+      showError('Please enter a payee and a positive amount.');
       return;
     }
     // Build the expense record with a unique timestamp-based ID
@@ -249,7 +246,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     };
     // Lift the new expense to the parent component
     onAddExpense(newExp);
-    alert(`Expense voucher (KSh ${expenseAmount.toFixed(2)}) saved!`);
+    showSuccess(`Expense voucher (KSh ${expenseAmount.toFixed(2)}) saved!`);
     // Reset form fields for the next entry
     setExpensePayee('');
     setExpenseAmount(0);
@@ -272,6 +269,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Title & Navigation Sub-Tabs */}
       {/* Header card with title and tab switcher */}
       <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1204,8 +1202,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   setShowDebtorModal(false);
                   // Clear the active debtor reference
                   setActiveDebtor(null);
-                  // Show confirmation alert
-                  alert(`Pledge payment recorded!`);
+                  // Show confirmation toast
+                  showSuccess('Pledge payment recorded!');
                 }}
                 disabled={!perms.canEdit('finance')}
                 className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] rounded opacity-50 cursor-not-allowed"
@@ -1214,14 +1212,6 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Success notification banner */}
-      {notification && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in">
-          <span className="material-symbols-outlined text-base">check_circle</span>
-          <span>{notification}</span>
         </div>
       )}
 
@@ -1240,9 +1230,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
             else if (deleteTarget.type === 'debtor') await onDeleteDebtor(deleteTarget.id);
             else if (deleteTarget.type === 'expense') await onDeleteExpense(deleteTarget.id);
             setDeleteTarget(null);
-            showNotif('Record moved to Trash. You can restore it from Administration → Trash & Audit.');
+            showSuccess('Record moved to Trash. You can restore it from Administration → Trash & Audit.');
           } catch {
-            alert('Failed to delete record. Please try again.');
+            showError('Failed to delete record. Please try again.');
           }
         }}
       />
