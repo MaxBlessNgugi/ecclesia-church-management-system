@@ -392,6 +392,16 @@ export interface ExpenseRecord {
  * Employee record — represents a staff member in the HR directory.
  * Used by the HR panel for directory, payroll, and leave management.
  */
+export interface EmployeeDocument {
+  id: string;
+  employeeId: string;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
 export interface EmployeeRecord {
   /** Unique identifier (UUID). */
   id: string;

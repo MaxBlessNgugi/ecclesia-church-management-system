@@ -78,7 +78,7 @@
 // ---------------------------------------------------------------------------
 
 /** Session data returned after a successful login (user profile + token). */
-import { AuthSession } from '../types';
+import { AuthSession, EmployeeDocument } from '../types';
 
 /** Billed-item receipt record used in the activity / sacrament fee workflow. */
 import { BilledItemReceipt } from '../types';
@@ -1138,6 +1138,10 @@ export const hrApi = {
      * @param id - The unique identifier of the employee to delete.
      */
     remove: (id: string) => request<void>(`/hr/employees/${id}`, { method: 'DELETE' }),
+    documents: (id: string) => request<EmployeeDocument[]>(`/hr/employees/${id}/documents`),
+    uploadDocument: (id: string, body: { originalName: string; mimeType: string; data: string }) =>
+      request<EmployeeDocument>(`/hr/employees/${id}/documents`, { method: 'POST', body: JSON.stringify(body) }),
+    documentDownloadUrl: (employeeId: string, documentId: string) => `${getBaseUrl()}/hr/employees/${employeeId}/documents/${documentId}/download`,
   },
 
   /** Sub-API for payroll runs. */

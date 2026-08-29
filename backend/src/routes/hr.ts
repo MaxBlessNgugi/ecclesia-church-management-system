@@ -36,6 +36,7 @@
 // All endpoints defined in this file are mounted on a single router instance
 // that is later mounted at a prefix (e.g. '/api/hr') in the main app.
 import { Router } from 'express';
+import { publicDocument, storeEmployeeDocument } from '../lib/employeeDocuments.js';
 
 // ---- Import: Zod schema & validation --------------------------------------------------
 // Zod is a TypeScript-first schema validation library. It is used throughout this
@@ -119,6 +120,42 @@ router.get('/employees', async (_req, res, next) => {
 // ---- GET /employees/:id ---------------------------------------------------------------
 // Retrieves a single employee record by its unique ID.
 // Returns: JSON employee object, or 404 if not found.
+router.get('/employees/:id/documents', async (req, res, next) => {
+  try {
+    const employee = await appPrisma.employee.findUnique({ where: { id: req.params.id } });
+    if (!employee) return next(new AppError('Employee not found', 404, 'NOT_FOUND'));
+    const documents = await appPrisma.employeeDocument.findMany({ where: { employeeId: employee.id }, orderBy: { createdAt: 'desc' } });
+    res.json(documents.map(publicDocument));
+  } catch (e) {
+    if (e instanceof Error && e.message === 'Unsupported document type') return next(new AppError(e.message, 415, 'UNSUPPORTED_MEDIA_TYPE'));
+    if (e instanceof Error && e.message.startsWith('Document must be')) return next(new AppError(e.message, 413, 'PAYLOAD_TOO_LARGE'));
+    next(e);
+  }
+});
+
+router.get('/employees/:id/documents/:documentId/download', async (req, res, next) => {
+  try {
+    const document = await appPrisma.employeeDocument.findFirst({ where: { id: req.params.documentId, employeeId: req.params.id } });
+    if (!document) return next(new AppError('Document not found', 404, 'NOT_FOUND'));
+    res.type(document.mimeType).download(document.storagePath, document.originalName);
+  } catch (e) { next(e); }
+});
+
+router.post('/employees/:id/documents', async (req: any, res, next) => {
+  try {
+    const data = z.object({
+      originalName: z.string().min(1).max(255),
+      mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
+      data: z.string().min(1),
+    }).parse(req.body);
+    const employee = await appPrisma.employee.findUnique({ where: { id: req.params.id } });
+    if (!employee) return next(new AppError('Employee not found', 404, 'NOT_FOUND'));
+    const stored = await storeEmployeeDocument(employee.id, data.originalName, data.mimeType, data.data);
+    const document = await appPrisma.employeeDocument.create({ data: stored });
+    res.status(201).json(publicDocument(document));
+  } catch (e) { next(e); }
+});
+
 router.get('/employees/:id', async (req, res, next) => {
   try {
     // Look up the employee by primary key (UUID).

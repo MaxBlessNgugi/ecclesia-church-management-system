@@ -42,6 +42,7 @@
 //   Christian 1──● Death        (christianId)
 //   Employee  1──● Payroll      (employeeId)
 //   Employee  1──● Leave        (employeeId)
+//   Employee  1──● EmployeeDocument (employeeId)
 //   Recruitment 1──● RecruitmentApplicant (recruitmentId)
 //
 // INDEXES (query optimization)
@@ -511,8 +512,24 @@ model Employee {
   updatedAt DateTime @updatedAt
   payrolls  Payroll[]
   leaves    Leave[]
+  documents EmployeeDocument[]
 
   @@map("employees")
+}
+
+model EmployeeDocument {
+  id           String   @id @default(uuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  originalName String
+  storedName   String   @unique
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId, createdAt])
+  @@map("employee_documents")
 }
 
 model Payroll {

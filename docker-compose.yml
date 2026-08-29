@@ -7,7 +7,7 @@
 #   1. cp .env.example.docker .env
 #   2. Edit .env → set POSTGRES_PASSWORD + JWT_SECRET
 #   3. docker compose up -d --build
-#   4. docker compose logs app | grep "SEED ACCOUNTS" → get admin password
+#   4. Set SUPER_ADMIN_PASSWORD in .env before first start; if omitted, the generated password is shown once in app logs
 #   5. Open http://localhost:5000
 # =============================================================================
 
@@ -55,16 +55,14 @@ services:
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-maxblessngugi@ecclesia.local}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
       SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-Max Bless Ngugi}
-      # Backups disabled by default inside Docker.
-      # To backup: docker compose exec db pg_dump -U ecclesia ecclesia > backup.sql
       BACKUP_DISABLED: "true"
+      UPLOAD_DIR: /app/uploads
       # Entrypoint needs these to locate PostgreSQL
       DB_HOST: db
       DB_PORT: "5432"
-    # To mount a backup directory, add:
-    #   volumes:
-    #     - ./backups:/app/backups
-    # Ensure the host directory exists and is writable by the container user.
+    volumes:
+      - ./uploads:/app/uploads
+      - ./backups:/app/backups
 
 volumes:
   ecclesia-pgdata:

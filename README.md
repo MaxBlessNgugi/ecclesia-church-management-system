@@ -66,7 +66,7 @@ cd ecclesia-church-management-system
 cp .env.example.docker .env
 # Edit .env → set POSTGRES_PASSWORD and JWT_SECRET
 docker compose up -d --build
-docker compose logs app | grep "SEED ACCOUNTS"  # get admin password
+docker compose logs app | grep "SEED ACCOUNTS"  # only needed when SUPER_ADMIN_PASSWORD was omitted
 ```
 
 Open http://localhost:5000. See [DOCKER.md](DOCKER.md) for full instructions.
@@ -119,9 +119,11 @@ npx vite          # terminal 2 → app at http://localhost:3000
 
 ## Super Admin accounts
 
-Three super_admin accounts are seeded on first run. Each gets a random
-temporary password (printed once during `npm run db:seed`). All three have
-full access and can add other users.
+Three super_admin accounts are seeded on first run. Set `SUPER_ADMIN_PASSWORD`
+before the first seed to make the primary account's initial password deterministic;
+otherwise a random password is generated and printed once during `npm run db:seed`.
+Existing accounts are never overwritten by reseeding. All three have full access
+and can add other users.
 
 | Email | Name | Role |
 |-------|------|------|
