@@ -1,41 +1,48 @@
-# Dependencies (will be installed in container)
+# =============================================================================
+# Docker Build Context Exclusions
+# =============================================================================
+# Keeps the build context small and prevents leaking secrets/local state.
+# =============================================================================
+
+# Dependencies — installed fresh in the container
 node_modules/
 backend/node_modules/
 
-# Build outputs (will be built in container)
+# Build outputs — compiled in the build stage
 dist/
 backend/dist/
 
-# Git
+# Version control
 .git/
 .gitignore
+.github/
 
-# IDE / editor
+# IDE / editor state
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Documentation (not needed in image)
+# Documentation — not needed in the image
 *.md
 !README.md
 docs/
 tutorial-screenshots/
 
-# Test files
+# Test infrastructure
 e2e/
 playwright-report/
 test-results/
-*.test.*
-*.spec.*
 
-# Environment files (secrets must come from docker-compose env)
+# Environment files — secrets come from docker-compose env, not baked in
 .env
 backend/.env
 
-# OS files
+# OS metadata
 .DS_Store
 Thumbs.db
 
-# Docker files (don't include themselves)
+# Docker files themselves
 Dockerfile
 docker-compose*.yml
 .dockerignore
