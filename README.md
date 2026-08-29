@@ -43,22 +43,33 @@ ECCLESIA is a **pure web application** designed for multi-user access on a local
 
 ## Quick Start (Server Setup)
 
-### 1. Install prerequisites
+### Option A: Node.js + PostgreSQL (Recommended)
 
-- **Node.js 18+** (https://nodejs.org)
-- **PostgreSQL 14+** (https://postgresql.org)
-- A dedicated computer on your parish network
-
-### 2. Download and setup
+**Prerequisites:** Node.js 18+ and PostgreSQL 14+
 
 ```bash
-# Clone or download the repository
 git clone https://github.com/MaxBlessNgugi/ecclesia-church-management-system.git
 cd ecclesia-church-management-system
-
-# Install dependencies and setup database
 npm run setup
+cd backend && npm start
 ```
+
+See [INSTALL.md](INSTALL.md) for detailed steps.
+
+### Option B: Docker Compose (Full Stack)
+
+**Prerequisites:** Docker Desktop (Windows/macOS) or Docker Engine (Linux)
+
+```bash
+git clone https://github.com/MaxBlessNgugi/ecclesia-church-management-system.git
+cd ecclesia-church-management-system
+cp .env.example.docker .env
+# Edit .env → set POSTGRES_PASSWORD and JWT_SECRET
+docker compose up -d --build
+docker compose logs app | grep "SEED ACCOUNTS"  # get admin password
+```
+
+Open http://localhost:5000. See [DOCKER.md](DOCKER.md) for full instructions.
 
 ### 3. Configure the friendly hostname (ecclesia.local)
 
@@ -225,7 +236,9 @@ caddy run          # uses the Caddyfile at the repo root
 
 ## Requirements
 
-- Node.js 18+
-- PostgreSQL 14+ (or use Docker for easy setup)
+**Path A (Node + PostgreSQL):** Node.js 18+ and PostgreSQL 14+
+**Path B (Docker Compose):** Docker Desktop or Docker Engine + Compose — no Node/PostgreSQL install needed
+
+See [INSTALL.md](INSTALL.md) for Path A, [DOCKER.md](DOCKER.md) for Path B.
 
 Private — Max Bless Ngugi / Ecclesia

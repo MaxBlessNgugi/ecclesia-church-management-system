@@ -168,6 +168,44 @@ The server starts on port 5000 and serves both the frontend and API.
 
 ---
 
+## Path B: Docker Compose (Full Stack)
+
+If you have Docker Desktop (Windows/macOS) or Docker Engine (Linux), you can
+run the entire stack without installing Node.js or PostgreSQL on the host.
+
+### Prerequisites
+
+- **Docker Desktop** (Windows/macOS) or **Docker Engine + Compose** (Linux)
+- 4 GB RAM, 10 GB disk
+
+### Steps
+
+```bash
+# 1. Clone or download
+git clone https://github.com/MaxBlessNgugi/ecclesia-church-management-system.git
+cd ecclesia-church-management-system
+
+# 2. Create environment file
+cp .env.example.docker .env
+# Edit .env → set POSTGRES_PASSWORD and JWT_SECRET (see DOCKER.md)
+
+# 3. Build and start
+docker compose up -d --build
+
+# 4. Get admin password
+docker compose logs app | grep -A 10 "SEED ACCOUNTS"
+
+# 5. Open http://localhost:5000
+```
+
+See [DOCKER.md](DOCKER.md) for LAN access, backup, troubleshooting, and update
+instructions.
+
+> **Note:** Docker and native installs are independent. You can switch between
+> them at any time — both use PostgreSQL and produce compatible backups.
+
+---
+
 ## First-Run Wizard
 
 On first login, after authentication you will be forced into the **Parish Setup
