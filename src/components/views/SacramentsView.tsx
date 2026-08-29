@@ -23,6 +23,7 @@ import React, { useState, useEffect } from 'react';
 import { ChristianRecord, SacramentsSubTab, DeathRecord } from '../../types';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
+import { useToast } from '../Toast';
 // Configured parish identity (real name + diocese, not placeholders)
 import { useParishInfo } from '../../hooks/useParishInfo';
 import { deathsApi } from '../../services/api';
@@ -65,6 +66,8 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 }) => {
   // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
   // Configured parish identity — printed on the certificate instead of a mock name
   const parish = useParishInfo();
   const parishName = parish.name || 'ECCLESIA PARISH';
@@ -164,7 +167,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
       confirmation,
       marriage
     });
-    alert(`Sacrament registers updated for ${activeMember.baptismalName} ${activeMember.sirName}!`);
+    showSuccess(`Sacrament registers updated for ${activeMember.baptismalName} ${activeMember.sirName}!`);
   };
 
   // Handles the death record submission — builds a DeathRecord and lifts it to the parent
@@ -190,11 +193,12 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
 
     // Parent persists the death entry AND flips the member's status to Deceased.
     onRecordDeath(newDeathRecord);
-    alert(`Death record logged and Parish Roll updated for ${deceasedMember.baptismalName} ${deceasedMember.sirName}.`);
+    showSuccess(`Death record logged and Parish Roll updated for ${deceasedMember.baptismalName} ${deceasedMember.sirName}.`);
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Title & Sub-tabs Header */}
       <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -851,6 +855,7 @@ export const SacramentsView: React.FC<SacramentsViewProps> = ({
           if (!deleteDeathTarget) return;
           await deathsApi.remove(deleteDeathTarget.id);
           setDeleteDeathTarget(null);
+          showSuccess('Death record moved to Trash. You can restore it from Administration → Trash & Audit.');
         }}
       />
     </div>

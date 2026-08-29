@@ -23,6 +23,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ReportsSubTab, SacramentReportRow, ContributionReportRow, SalesReportRow, CashierReportRow } from '../../types';
 import { reportsApi } from '../../services/api';
 import { exportCsv, exportExcel, exportPdf, ExportColumn } from '../../utils/export';
+import { useToast } from '../Toast';
 
 // Column definitions for the CSV / Excel exports — one pair per report panel,
 // so each export mirrors exactly what its table displays.
@@ -319,6 +320,8 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 
 export const ReportsView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<ReportsSubTab>('sacraments');
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
 
   // Sacrament report state
   const [sacramentType, setSacramentType] = useState('baptism');
@@ -403,7 +406,7 @@ export const ReportsView: React.FC = () => {
       setGeneratedPdf(`${sacramentType}_Registry_${(localChurch || 'Parish').replace(/\s+/g, '_')}_${new Date().getFullYear()}.pdf`);
     } catch (error) {
       console.error('Failed to generate sacrament report', error);
-      alert(error instanceof Error ? error.message : 'Failed to generate sacrament report');
+      showError(error instanceof Error ? error.message : 'Failed to generate sacrament report');
     }
   };
 
@@ -423,7 +426,7 @@ export const ReportsView: React.FC = () => {
       setContributionRows(rows);
     } catch (error) {
       console.error('Failed to load contribution report', error);
-      alert(error instanceof Error ? error.message : 'Failed to load contribution report');
+      showError(error instanceof Error ? error.message : 'Failed to load contribution report');
     }
   };
 
@@ -444,6 +447,7 @@ export const ReportsView: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-4">
         <div>
@@ -633,7 +637,7 @@ export const ReportsView: React.FC = () => {
                         <span className="font-mono text-[11px] text-emerald-900 font-bold">{generatedPdf}</span>
                       </div>
                       <button
-                        onClick={() => alert(`Downloading ${generatedPdf}`)}
+                        onClick={() => showSuccess(`Downloading ${generatedPdf}`)}
                         className="text-emerald-900 underline text-[10px] font-bold"
                       >
                         Download

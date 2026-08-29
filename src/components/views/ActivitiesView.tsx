@@ -36,6 +36,7 @@ import { useReactToPrint } from 'react-to-print';
 import { ContributionReceipt } from '../printables';
 // Permission hook — provides canEdit / canDelete / canView gates per module key
 import { usePermissions } from '../../permissions';
+import { useToast } from '../Toast';
 
 // Configured parish identity (real name, not a placeholder)
 import { useParishInfo } from '../../hooks/useParishInfo';
@@ -66,6 +67,8 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
 }) => {
   // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
 
   // Configured parish identity — used on receipts instead of a hardcoded name
   const parish = useParishInfo();
@@ -179,7 +182,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     e.preventDefault();
     // Guard: a contribution must target a real parishioner
     if (!activeMember) {
-      alert('Please select a parishioner first.');
+      showError('Please select a parishioner first.');
       return;
     }
 
@@ -219,7 +222,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
       scc: destSCC
     });
     // Confirm the transfer to the operator
-    alert(`Transfer record updated for ${transferMember.baptismalName} ${transferMember.sirName}!`);
+    showSuccess(`Transfer record updated for ${transferMember.baptismalName} ${transferMember.sirName}!`);
   };
 
   /**
@@ -261,7 +264,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     } catch (error) {
       // Surface failures to the operator via console and alert
       console.error('Failed to save billed item', error);
-      alert(error instanceof Error ? error.message : 'Failed to save billed item');
+      showError(error instanceof Error ? error.message : 'Failed to save billed item');
     }
   };
 
@@ -278,6 +281,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Title & Sub-tabs Header */}
       <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

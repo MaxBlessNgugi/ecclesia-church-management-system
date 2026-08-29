@@ -21,10 +21,13 @@ import React, { useState, useEffect } from 'react';
 import { LedgersSubTab, LedgerRecord, LedgerMovement, EmployeeRecord } from '../../types';
 import { ledgersApi, hrApi } from '../../services/api';
 import { usePermissions } from '../../permissions';
+import { useToast } from '../Toast';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 
 export const LedgersView: React.FC = () => {
   const perms = usePermissions();
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
   const [activeSubTab, setActiveSubTab] = useState<LedgersSubTab>('mgmt');
 
   // Ledger state
@@ -39,7 +42,7 @@ export const LedgersView: React.FC = () => {
       setLedgers((prev) => prev.filter((l) => l.id !== id));
     } catch (err) {
       console.error('Failed to delete ledger', err);
-      alert('Failed to delete ledger. Please try again.');
+      showError('Failed to delete ledger. Please try again.');
     }
   };
 
@@ -62,8 +65,6 @@ export const LedgersView: React.FC = () => {
 
   // Employees for cashier assignment
   const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
-
-  const [notification, setNotification] = useState<string | null>(null);
 
   /**
    * Loads the ledger directory and the recent-movements feed in parallel so both
@@ -96,12 +97,6 @@ export const LedgersView: React.FC = () => {
       .catch((error) => console.error('Failed to load employees', error));
   }, []);
 
-  /** Displays a transient success banner that auto-clears after 4s. */
-  const showNotification = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
-  };
-
   /** Clears only the create-ledger fields, deliberately keeping the assigned cashier. */
   const handleClearForm = () => {
     setLedgerName('');
@@ -128,10 +123,10 @@ export const LedgersView: React.FC = () => {
       });
       setLedgers([created, ...ledgers]);
       handleClearForm();
-      showNotification(`Ledger "${ledgerName}" created with code ${created.code}!`);
+      showSuccess(`Ledger "${ledgerName}" created with code ${created.code}!`);
     } catch (error) {
       console.error('Failed to create ledger', error);
-      alert(error instanceof Error ? error.message : 'Failed to create ledger');
+      showError(error instanceof Error ? error.message : 'Failed to create ledger');
     }
   };
 
@@ -147,13 +142,13 @@ export const LedgersView: React.FC = () => {
     e.preventDefault();
     const amt = parseFloat(transferAmount);
     if (!amt || amt <= 0) {
-      alert('Please enter a valid transfer amount.');
+      showError('Please enter a valid transfer amount.');
       return;
     }
     const fromLedger = ledgers.find((l) => l.name === sourceLedger);
     const toLedger = ledgers.find((l) => l.name === destLedger);
     if (!fromLedger || !toLedger) {
-      alert('Please select valid source and destination ledgers.');
+      showError('Please select valid source and destination ledgers.');
       return;
     }
     try {
@@ -166,15 +161,16 @@ export const LedgersView: React.FC = () => {
       await loadLedgers();
       setTransferAmount('');
       setTransferNotes('');
-      showNotification(`Inter-ledger transfer of KSh ${amt.toFixed(2)} executed from ${sourceLedger} to ${destLedger}!`);
+      showSuccess(`Inter-ledger transfer of KSh ${amt.toFixed(2)} executed from ${sourceLedger} to ${destLedger}!`);
     } catch (error) {
       console.error('Failed to execute transfer', error);
-      alert(error instanceof Error ? error.message : 'Failed to execute transfer');
+      showError(error instanceof Error ? error.message : 'Failed to execute transfer');
     }
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-4">
         <div>
@@ -222,13 +218,6 @@ export const LedgersView: React.FC = () => {
           INTER-LEDGER TRANSFER
         </button>
       </div>
-
-      {notification && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in">
-          <span className="material-symbols-outlined text-base">check_circle</span>
-          <span>{notification}</span>
-        </div>
-      )}
 
       {/* SUB-TAB 1: LEDGER & CASHIER MGMT — create-ledger form (5 cols) + ledger directory (7 cols). */}
       {activeSubTab === 'mgmt' && (
@@ -353,7 +342,7 @@ export const LedgersView: React.FC = () => {
                   Active Ledgers Directory
                 </h3>
                 <button
-                  onClick={() => alert('Filtering options applied.')}
+                  onClick={() => showSuccess('Filtering options applied.')}
                   className="text-xs font-medium text-[#444748] hover:text-[#1a1c1c] flex items-center gap-1 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-sm">filter_list</span>
@@ -574,7 +563,7 @@ export const LedgersView: React.FC = () => {
               </div>
 
               <button
-                onClick={() => alert("Displaying full inter-ledger audit logs.")}
+                onClick={() => showSuccess('Displaying full inter-ledger audit logs.')}
                 className="w-full py-2 text-xs text-[#1a1c1c] hover:bg-[#f4f3f3] border border-[#e1e3e3] rounded font-medium cursor-pointer"
               >
                 View Full Audit History
@@ -605,6 +594,7 @@ export const LedgersView: React.FC = () => {
           if (!deleteTarget) return;
           await handleDeleteLedger(deleteTarget.id);
           setDeleteTarget(null);
+          showSuccess('Ledger moved to Trash. You can restore it from Administration → Trash & Audit.');
         }}
       />
     </div>

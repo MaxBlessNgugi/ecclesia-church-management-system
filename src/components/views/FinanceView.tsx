@@ -25,6 +25,7 @@ import {
 } from '../../types';
 import { usePermissions } from '../../permissions';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
+import { useToast } from '../Toast';
 
 /**
  * Props for the FinanceView panel.
@@ -128,6 +129,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<{ type: string; id: string; label: string; details: string[] } | null>(null);
 
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
+
   // 4. Expense Form State
   // Date of the expense, defaults to today in ISO format (YYYY-MM-DD)
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -152,7 +156,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     e.preventDefault();
     // Validate all required fields are present and amount is positive
     if (!depositAmount || depositAmount <= 0 || !bankName || !accountNo || !sourceOfCash || !depositedBy) {
-      alert('Please complete all deposit fields.');
+      showError('Please complete all deposit fields.');
       return;
     }
     // Build the deposit record with a unique timestamp-based ID
@@ -168,7 +172,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     };
     // Lift the new deposit to the parent component
     onAddDeposit(newDep);
-    alert(`Deposit slip (KSh ${depositAmount.toFixed(2)}) recorded into parish accounts!`);
+    showSuccess(`Deposit slip (KSh ${depositAmount.toFixed(2)}) recorded into parish accounts!`);
     // Reset form fields for the next entry
     setDepositAmount(0);
     setBankName('');
@@ -191,7 +195,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     if (!newVendor) return;
     // Validate invoice number is provided
     if (!newInvoiceNo) {
-      alert('Please enter the vendor invoice number.');
+      showError('Please enter the vendor invoice number.');
       return;
     }
     // Build the creditor record with defaults for optional fields
@@ -214,7 +218,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     setNewInvoiceNo('');
     setNewVendorAmount(0);
     setNewVendorDueDate('');
-    alert(`New debt invoice recorded for ${newVendor}!`);
+    showSuccess(`New debt invoice recorded for ${newVendor}!`);
   };
 
   /**
@@ -227,7 +231,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     e.preventDefault();
     // Validate payee and amount are provided and amount is positive
     if (!expensePayee || !expenseAmount || expenseAmount <= 0) {
-      alert('Please enter a payee and a positive amount.');
+      showError('Please enter a payee and a positive amount.');
       return;
     }
     // Build the expense record with a unique timestamp-based ID
@@ -242,7 +246,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
     };
     // Lift the new expense to the parent component
     onAddExpense(newExp);
-    alert(`Expense voucher (KSh ${expenseAmount.toFixed(2)}) saved!`);
+    showSuccess(`Expense voucher (KSh ${expenseAmount.toFixed(2)}) saved!`);
     // Reset form fields for the next entry
     setExpensePayee('');
     setExpenseAmount(0);
@@ -265,6 +269,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Title & Navigation Sub-Tabs */}
       {/* Header card with title and tab switcher */}
       <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -554,16 +559,21 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                       </td>
                       {/* Name of person who made the deposit */}
                       <td className="p-3 text-[#444748]">{d.depositedBy}</td>
-                      {/* Delete button */}
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => setDeleteTarget({ type: 'deposit', id: d.id, label: `${d.bankName} deposit of $${d.amount.toLocaleString()}`, details: [`Ref: ${d.refNo}`, `Date: ${d.date}`, `Source: ${d.sourceOfCash}`, `Deposited by: ${d.depositedBy}`] })}
-                          className="text-[#ba1a1a] hover:text-red-700 text-xs"
-                          title="Delete deposit"
-                          aria-label="Delete deposit"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
+                        {perms.canDelete('finance') ? (
+                          <button
+                            onClick={() => setDeleteTarget({ type: 'deposit', id: d.id, label: `${d.bankName} deposit of $${d.amount.toLocaleString()}`, details: [`Ref: ${d.refNo}`, `Date: ${d.date}`, `Source: ${d.sourceOfCash}`, `Deposited by: ${d.depositedBy}`] })}
+                            className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                            title="Delete deposit"
+                            aria-label="Delete deposit"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[#ccc]" title="You do not have permission to delete deposits">
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -687,14 +697,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                             Mark Paid
                           </button>
                         )}
-                        <button
-                          onClick={() => setDeleteTarget({ type: 'creditor', id: cred.id, label: `${cred.vendor} invoice (${cred.invoiceNo})`, details: [`Amount: $${cred.amountOwed.toLocaleString()}`, `Due: ${cred.dueDate}`, `Status: ${cred.status}`] })}
-                          className="ml-1 text-[#ba1a1a] hover:text-red-700 text-xs"
-                          title="Delete creditor"
-                          aria-label="Delete creditor"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
+                        {perms.canDelete('finance') ? (
+                          <button
+                            onClick={() => setDeleteTarget({ type: 'creditor', id: cred.id, label: `${cred.vendor} invoice (${cred.invoiceNo})`, details: [`Amount: $${cred.amountOwed.toLocaleString()}`, `Due: ${cred.dueDate}`, `Status: ${cred.status}`] })}
+                            className="ml-1 text-[#ba1a1a] hover:text-red-700 text-xs"
+                            title="Delete creditor"
+                            aria-label="Delete creditor"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        ) : (
+                          <span className="ml-1 text-xs text-[#ccc]" title="You do not have permission to delete creditors">
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -802,14 +818,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                             Record Payment
                           </button>
                         )}
-                        <button
-                          onClick={() => setDeleteTarget({ type: 'debtor', id: debt.id, label: `${debt.memberName} — ${debt.contributionType}`, details: [`Amount: $${debt.amount.toLocaleString()}`, `Status: ${debt.status}`] })}
-                          className="ml-1 text-[#ba1a1a] hover:text-red-700 text-xs"
-                          title="Delete debtor"
-                          aria-label="Delete debtor"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
+                        {perms.canDelete('finance') ? (
+                          <button
+                            onClick={() => setDeleteTarget({ type: 'debtor', id: debt.id, label: `${debt.memberName} — ${debt.contributionType}`, details: [`Amount: $${debt.amount.toLocaleString()}`, `Status: ${debt.status}`] })}
+                            className="ml-1 text-[#ba1a1a] hover:text-red-700 text-xs"
+                            title="Delete debtor"
+                            aria-label="Delete debtor"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        ) : (
+                          <span className="ml-1 text-xs text-[#ccc]" title="You do not have permission to delete debtors">
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1001,14 +1023,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                       <td className="p-3 text-[#444748]">{exp.paymentMethod}</td>
                       {/* Delete button */}
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => setDeleteTarget({ type: 'expense', id: exp.id, label: `${exp.category} expense ($${exp.amount.toLocaleString()})`, details: [`Voucher: ${exp.voucherNo}`, `Date: ${exp.date}`, `Payee: ${exp.description}`, `Method: ${exp.paymentMethod}`] })}
-                          className="text-[#ba1a1a] hover:text-red-700 text-xs"
-                          title="Delete expense"
-                          aria-label="Delete expense"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
+                        {perms.canDelete('finance') ? (
+                          <button
+                            onClick={() => setDeleteTarget({ type: 'expense', id: exp.id, label: `${exp.category} expense ($${exp.amount.toLocaleString()})`, details: [`Voucher: ${exp.voucherNo}`, `Date: ${exp.date}`, `Payee: ${exp.description}`, `Method: ${exp.paymentMethod}`] })}
+                            className="text-[#ba1a1a] hover:text-red-700 text-xs"
+                            title="Delete expense"
+                            aria-label="Delete expense"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[#ccc]" title="You do not have permission to delete expenses">
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1174,8 +1202,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   setShowDebtorModal(false);
                   // Clear the active debtor reference
                   setActiveDebtor(null);
-                  // Show confirmation alert
-                  alert(`Pledge payment recorded!`);
+                  // Show confirmation toast
+                  showSuccess('Pledge payment recorded!');
                 }}
                 disabled={!perms.canEdit('finance')}
                 className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] rounded opacity-50 cursor-not-allowed"
@@ -1202,8 +1230,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
             else if (deleteTarget.type === 'debtor') await onDeleteDebtor(deleteTarget.id);
             else if (deleteTarget.type === 'expense') await onDeleteExpense(deleteTarget.id);
             setDeleteTarget(null);
+            showSuccess('Record moved to Trash. You can restore it from Administration → Trash & Audit.');
           } catch {
-            alert('Failed to delete record. Please try again.');
+            showError('Failed to delete record. Please try again.');
           }
         }}
       />

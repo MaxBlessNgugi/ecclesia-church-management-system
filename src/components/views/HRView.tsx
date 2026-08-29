@@ -35,6 +35,7 @@ import { usePermissions } from '../../permissions';
 // definition array and a rows array; used here to export the employee directory.
 import { exportCsv, ExportColumn } from '../../utils/export';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
+import { useToast } from '../Toast';
 
 // Roles treated as unpaid ministry/volunteer service for the stipend-vs-volunteer
 // badge shown in the directory (everything else is stipend staff).
@@ -117,8 +118,8 @@ export const HRView: React.FC = () => {
   // Next-of-kin phone number — optional emergency contact phone.
   const [nokPhone, setNokPhone] = useState('');
 
-  // Notifications — transient success banner, auto-dismissed after 4s.
-  const [notification, setNotification] = useState<string | null>(null);
+  // Toast notifications
+  const { showSuccess, showError, toastEl } = useToast();
 
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<EmployeeRecord | null>(null);
@@ -195,13 +196,6 @@ export const HRView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   // Role dropdown filter; when set, only employees with this exact role are shown.
   const [roleFilter, setRoleFilter] = useState('');
-
-  // Displays a transient green success banner for 4 seconds, then auto-hides it
-  // by setting the notification state back to null.
-  const showNotif = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
-  };
 
   // Data loaders for each HR sub-tab
   // Fetches the full payroll list from /api/hr/payrolls and stores it in local
@@ -280,7 +274,7 @@ export const HRView: React.FC = () => {
     e.preventDefault();
     // Guard: surname + first name are the mandatory identity fields.
     if (!surname || !firstName) {
-      alert('Please enter surname and first name.');
+      showError('Please enter surname and first name.');
       return;
     }
     try {
@@ -313,18 +307,19 @@ export const HRView: React.FC = () => {
       setNatId('');
       setHireDate('');
       // Show a success notification with the new employee's name and code.
-      showNotif(`Personnel record for ${created.name} (${created.code}) saved successfully!`);
+      showSuccess(`Personnel record for ${created.name} (${created.code}) saved successfully!`);
       // Jump back to the directory to show the result.
       setActiveSubTab('directory');
     } catch (error) {
       // Log the error and display the server message (or a generic fallback).
       console.error('Failed to save personnel', error);
-      alert(error instanceof Error ? error.message : 'Failed to save personnel');
+      showError(error instanceof Error ? error.message : 'Failed to save personnel');
     }
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
+      {toastEl}
       {/* Page Header */}
       {/* Header bar with title and the "+ New Employee" quick-action button; flexbox
           rows on mobile, side-by-side on md+ screens; bottom border separator. */}
@@ -385,18 +380,9 @@ export const HRView: React.FC = () => {
         })}
       </div>
 
-      {/* Success banner — appears after a successful save, auto-clears. */}
-      {/* Conditionally rendered green notification bar with a checkmark icon. */}
-      {notification && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in">
-          <span className="material-symbols-outlined text-base">check_circle</span>
-          <span>{notification}</span>
-        </div>
-      )}
-
       {/* 1. EMPLOYEE MANAGEMENT (DIRECTORY) — read-only table of the loaded
           employees with row selection and alert-stub row actions. */}
-      {activeSubTab === 'directory' && (
+      {activeSubTab === 'directory' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
             {/* Directory header row: title on the left, search + filter controls on the right;
                 stacks vertically on small screens. */}
@@ -492,8 +478,8 @@ export const HRView: React.FC = () => {
                           : 'No employees match the current search or role filter.'}
                       </td>
                     </tr>
-                  ) : (
-                    filteredEmployees.map((emp) => (
+                  ) : (
+                    filteredEmployees.map((emp) => (
                                             <tr
                         key={emp.id}
                         onClick={() => setSelectedEmpId(emp.id)}
@@ -575,7 +561,7 @@ export const HRView: React.FC = () => {
                   and shows a success notification. Requires HR delete permission. */}
               <button
                 onClick={() => {
-                  if (!selectedEmpId) { alert('Select an employee first.'); return; }
+                  if (!selectedEmpId) { showError('Select an employee first.'); return; }
                   const emp = employees.find((e) => e.id === selectedEmpId);
                   if (emp) setDeleteTarget(emp);
                 }}
@@ -590,7 +576,7 @@ export const HRView: React.FC = () => {
               {/* View/Edit Record — currently a stub that alerts the selected employee ID.
                   Future implementation will open a detail/edit modal or panel. */}
               <button
-                onClick={() => alert(`Viewing full file for selected employee ID: ${selectedEmpId}`)}
+                onClick={() => showError('View Record feature coming soon')}
                 className="px-4 py-1.5 font-bold text-white bg-[#1e1e1e] rounded hover:bg-[#333333] cursor-pointer"
               >
                 View / Edit Record
@@ -602,7 +588,7 @@ export const HRView: React.FC = () => {
 
       {/* 2. ADD NEW EMPLOYEE (ONBOARDING) — the only write-capable tab; posts to
           /hr/employees via handleSavePersonnel, then returns to the directory. */}
-      {activeSubTab === 'onboarding' && (
+      {activeSubTab === 'onboarding' && (
         <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6 max-w-4xl">
           {/* Form header: title and instructional subtitle. */}
           <div>
@@ -837,7 +823,7 @@ export const HRView: React.FC = () => {
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      if (f) showNotif(`Attached ${f.name} to this personnel record.`);
+                      if (f) showSuccess(`Attached ${f.name} to this personnel record.`);
                     }}
                   />
                   {/* Styled upload button — visually resembles a button but is a label. */}
@@ -882,7 +868,7 @@ export const HRView: React.FC = () => {
       )}
 
       {/* 3. PAYROLL & BENEFITS — real data from /api/hr/payrolls */}
-      {activeSubTab === 'payroll' && (
+      {activeSubTab === 'payroll' && (
                 <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
           {/* Header row: title on the left, "+ New Payroll Entry" button on the right. */}
           <div className="flex items-center justify-between">
@@ -965,8 +951,8 @@ export const HRView: React.FC = () => {
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-[#444748]">No payroll records yet. Create the first entry above.</td>
                   </tr>
-                ) : (
-                  payrolls.map((p) => (
+                ) : (
+                  payrolls.map((p) => (
                                         <tr key={p.id} className="hover:bg-[#f9f9f9]">
                       {/* Employee name — falls back to em-dash if not populated. */}
                       <td className="p-3 font-bold text-[#1a1c1c]">{p.employee?.name ?? '—'}</td>
@@ -995,13 +981,13 @@ export const HRView: React.FC = () => {
                         {/* "Approve" button — only shown for Draft entries; calls
                             hrApi.payroll.approve() then reloads the list. */}
                         {p.status === 'Draft' && (
-                          <button onClick={async () => { await hrApi.payroll.approve(p.id); loadPayrolls(); showNotif('Payroll approved.'); }}
+                          <button onClick={async () => { await hrApi.payroll.approve(p.id); loadPayrolls(); showSuccess('Payroll approved.'); }}
                             className="text-blue-700 hover:underline font-bold text-[11px]">Approve</button>
                         )}
                         {/* "Pay" button — only shown for Approved entries; calls
                             hrApi.payroll.pay() then reloads the list. */}
                         {p.status === 'Approved' && (
-                          <button onClick={async () => { await hrApi.payroll.pay(p.id); loadPayrolls(); showNotif('Payroll marked as paid.'); }}
+                          <button onClick={async () => { await hrApi.payroll.pay(p.id); loadPayrolls(); showSuccess('Payroll marked as paid.'); }}
                             className="text-emerald-700 hover:underline font-bold text-[11px]">Pay</button>
                         )}
                       </td>
@@ -1071,7 +1057,7 @@ export const HRView: React.FC = () => {
                     the form, reloads the list, and shows a success notification. */}
                 <button onClick={async () => {
                   // Guard: period and basic salary are mandatory.
-                  if (!payBasic || !payPeriod) { alert('Period and basic salary are required.'); return; }
+                  if (!payBasic || !payPeriod) { showError('Period and basic salary are required.'); return; }
                   try {
                     // POST the new payroll entry with parsed numeric values.
                     await hrApi.payroll.create({
@@ -1089,8 +1075,8 @@ export const HRView: React.FC = () => {
                     setPayEmployeeId('');
                     // Reload the full payroll list to include the new entry.
                     loadPayrolls();
-                    showNotif('Payroll entry created.');
-                  } catch (err) { alert(err instanceof Error ? err.message : 'Failed to create payroll entry'); }
+                    showSuccess('Payroll entry created.');
+                  } catch (err) { showError(err instanceof Error ? err.message : 'Failed to create payroll entry'); }
                 }}
                   className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333] rounded cursor-pointer">Save Entry</button>
               </div>
@@ -1100,7 +1086,7 @@ export const HRView: React.FC = () => {
       )}
 
       {/* 4. LEAVE REQUESTS — real data from /api/hr/leaves */}
-      {activeSubTab === 'leave' && (
+      {activeSubTab === 'leave' && (
                 <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
           {/* Header row: title and subtitle on the left, "+ New Leave Request" button on the right. */}
           <div className="flex items-center justify-between">
@@ -1180,7 +1166,7 @@ export const HRView: React.FC = () => {
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-[#444748]">No leave requests yet. Create the first one above.</td>
                   </tr>
-                ) : (
+                ) : (
                   leaves.map((l) => (
                     <tr key={l.id} className="hover:bg-[#f9f9f9]">
                       {/* Employee name — falls back to em-dash. */}
@@ -1209,13 +1195,13 @@ export const HRView: React.FC = () => {
                         {l.status === 'Pending' && (
                           <>
                             {/* Approve button — calls hrApi.leave.approve() and reloads. */}
-                            <button onClick={async () => { await hrApi.leave.approve(l.id); loadLeaves(); showNotif('Leave approved.'); }}
+                            <button onClick={async () => { await hrApi.leave.approve(l.id); loadLeaves(); showSuccess('Leave approved.'); }}
                               className="text-emerald-700 hover:underline font-bold text-[11px]">Approve</button>
                             {/* Reject button — prompts for an optional rejection reason,
                                 then calls hrApi.leave.reject() with that note. */}
                             <button onClick={async () => {
                               const notes = prompt('Rejection reason (optional):');
-                              await hrApi.leave.reject(l.id, notes ?? undefined); loadLeaves(); showNotif('Leave rejected.');
+                              await hrApi.leave.reject(l.id, notes ?? undefined); loadLeaves(); showSuccess('Leave rejected.');
                             }}
                               className="text-red-700 hover:underline font-bold text-[11px]">Reject</button>
                           </>
@@ -1294,7 +1280,7 @@ export const HRView: React.FC = () => {
                     clears the form, reloads the list, and shows a success notification. */}
                 <button onClick={async () => {
                   // Guard: all fields are mandatory for a leave request.
-                  if (!leaveStart || !leaveEnd || !leaveDays || !leaveReason) { alert('All fields are required.'); return; }
+                  if (!leaveStart || !leaveEnd || !leaveDays || !leaveReason) { showError('All fields are required.'); return; }
                   try {
                     // POST the new leave request with parsed numeric days.
                     await hrApi.leave.create({
@@ -1309,8 +1295,8 @@ export const HRView: React.FC = () => {
                     setLeaveEmployeeId('');
                     // Reload the full leave list to include the new request.
                     loadLeaves();
-                    showNotif('Leave request submitted.');
-                  } catch (err) { alert(err instanceof Error ? err.message : 'Failed to submit leave request'); }
+                    showSuccess('Leave request submitted.');
+                  } catch (err) { showError(err instanceof Error ? err.message : 'Failed to submit leave request'); }
                 }}
                   className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333] rounded cursor-pointer">Submit Request</button>
               </div>
@@ -1320,7 +1306,7 @@ export const HRView: React.FC = () => {
       )}
 
       {/* 5. RECRUITMENT — real data from /api/hr/recruitments */}
-      {activeSubTab === 'recruitment' && (
+      {activeSubTab === 'recruitment' && (
                 <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-4">
           {/* Header row: title and subtitle on the left, "+ New Position" button on the right. */}
           <div className="flex items-center justify-between">
@@ -1357,8 +1343,8 @@ export const HRView: React.FC = () => {
               <div className="p-4 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg text-xs text-center text-[#444748]">
                 No open positions yet. Create the first one above.
               </div>
-            ) : (
-              recruitments.map((rec) => (
+            ) : (
+              recruitments.map((rec) => (
                 <div key={rec.id} className="p-4 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg text-xs space-y-2">
                   {/* Top row: position info on the left, action buttons on the right. */}
                   <div className="flex justify-between items-start">
@@ -1398,7 +1384,7 @@ export const HRView: React.FC = () => {
                         <button onClick={async () => {
                           await hrApi.recruitment.update(rec.id, { status: 'Closed' });
                           loadRecruitments();
-                          showNotif('Position closed.');
+                          showSuccess('Position closed.');
                         }} className="px-2 py-1 text-[10px] font-bold text-[#ba1a1a] bg-[#ffffff] border border-[#ba1a1a] rounded hover:bg-[#fce8e8] cursor-pointer">
                           Close
                         </button>
@@ -1427,7 +1413,7 @@ export const HRView: React.FC = () => {
                       <span className="text-[10px] font-bold text-[#444748] uppercase">{rec.applicants.length} Applicant{rec.applicants.length !== 1 ? 's' : ''}</span>
                       {/* Stack of applicant rows — each shows name, email, phone, and status. */}
                       <div className="mt-1 space-y-1">
-                        {rec.applicants.map((a) => (
+                        {rec.applicants.map((a) => (
                           <div key={a.id} className="flex items-center justify-between bg-[#ffffff] border border-[#e1e3e3] rounded px-3 py-1.5">
                             {/* Left: applicant name (bold), email, and optional phone. */}
                             <div>
@@ -1475,7 +1461,7 @@ export const HRView: React.FC = () => {
                             shows a success notification. */}
                         <button onClick={async () => {
                           // Guard: name and email are mandatory for an applicant.
-                          if (!appName || !appEmail) { alert('Name and email are required.'); return; }
+                          if (!appName || !appEmail) { showError('Name and email are required.'); return; }
                           try {
                             // POST the new applicant to the specific recruitment position.
                             await hrApi.recruitment.addApplicant(rec.id, {
@@ -1487,8 +1473,8 @@ export const HRView: React.FC = () => {
                             setAppName(''); setAppEmail(''); setAppPhone(''); setAppCv('');
                             // Reload the recruitment list to reflect the new applicant.
                             loadRecruitments();
-                            showNotif('Applicant added.');
-                          } catch (err) { alert(err instanceof Error ? err.message : 'Failed to add applicant'); }
+                            showSuccess('Applicant added.');
+                          } catch (err) { showError(err instanceof Error ? err.message : 'Failed to add applicant'); }
                         }}
                           className="px-3 py-1.5 text-[10px] font-bold text-white bg-[#1e1e1e] rounded hover:bg-[#333] cursor-pointer">
                           Save
@@ -1505,7 +1491,7 @@ export const HRView: React.FC = () => {
           {/* Collapsible form for creating a new recruitment position. Only visible
               to users with HR edit permissions. Hidden when an applicant form is
               open (selectedRecId is set) to avoid UI overlap. */}
-          {perms.canEdit('hr') && recruitments.length >= 0 && !selectedRecId && (
+          {perms.canEdit('hr') && recruitments.length >= 0 && !selectedRecId && (
             <details className="group">
               {/* Summary acts as the toggle; ▸ arrow indicates expandability. */}
               <summary className="cursor-pointer text-xs font-bold text-[#444748] hover:text-[#1a1c1c]">
@@ -1554,7 +1540,7 @@ export const HRView: React.FC = () => {
                 <div className="flex justify-end">
                   <button onClick={async () => {
                     // Guard: position, department and description are mandatory.
-                    if (!recPosition || !recDepartment || !recDescription) { alert('Position, department, and description are required.'); return; }
+                    if (!recPosition || !recDepartment || !recDescription) { showError('Position, department, and description are required.'); return; }
                     try {
                       // POST the new recruitment position with today's date as datePosted.
                       await hrApi.recruitment.create({
@@ -1570,8 +1556,8 @@ export const HRView: React.FC = () => {
                       setRecRequirements(''); setRecClosingDate('');
                       // Reload the full recruitment list to include the new position.
                       loadRecruitments();
-                      showNotif('Position created.');
-                    } catch (err) { alert(err instanceof Error ? err.message : 'Failed to create position'); }
+                      showSuccess('Position created.');
+                    } catch (err) { showError(err instanceof Error ? err.message : 'Failed to create position'); }
                   }}
                     className="px-4 py-1.5 text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333] rounded cursor-pointer">
                     Publish Position
@@ -1597,9 +1583,9 @@ export const HRView: React.FC = () => {
             setEmployees((prev) => prev.filter((e) => e.id !== deleteTarget.id));
             setSelectedEmpId('');
             setDeleteTarget(null);
-            showNotif('Employee deactivated successfully.');
+            showSuccess('Employee deactivated successfully.');
           } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to deactivate employee');
+            showError(err instanceof Error ? err.message : 'Failed to deactivate employee');
           }
         }}
       />

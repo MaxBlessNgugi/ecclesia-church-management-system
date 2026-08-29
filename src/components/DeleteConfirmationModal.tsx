@@ -40,6 +40,8 @@ export interface DeleteConfirmationModalProps {
   onCancel: () => void;
   /** Override the confirm button text (default: "Confirm Delete") */
   confirmLabel?: string;
+  /** Whether the confirm action is in progress (disables button, shows spinner) */
+  loading?: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
   onConfirm,
   onCancel,
   confirmLabel = 'Confirm Delete',
+  loading = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
@@ -162,9 +165,19 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
           <button
             ref={confirmBtnRef}
             onClick={onConfirm}
-            className="px-4 py-1.5 text-xs font-bold text-white bg-[#ba1a1a] hover:bg-[#961212] rounded cursor-pointer"
+            disabled={loading}
+            className={`px-4 py-1.5 text-xs font-bold text-white bg-[#ba1a1a] hover:bg-[#961212] rounded ${
+              loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+            }`}
           >
-            {confirmLabel}
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                Deleting...
+              </span>
+            ) : (
+              confirmLabel
+            )}
           </button>
         </div>
       </div>
