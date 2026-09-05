@@ -33,7 +33,7 @@ echo "✅ PostgreSQL is ready."
 # prisma migrate deploy: applies pending migrations in order, never drops
 # columns, idempotent on already-applied migrations.
 echo "📦 Running database migrations..."
-npx prisma migrate deploy --schema=backend/prisma/schema.prisma
+./backend/node_modules/.bin/prisma migrate deploy --schema=backend/prisma/schema.prisma
 echo "✅ Migrations applied."
 
 # ── 3. Seed initial data ─────────────────────────────────────────────────
@@ -41,7 +41,7 @@ echo "✅ Migrations applied."
 # for singleton rows. Safe to run on every start. New users added in future
 # releases are created automatically with random passwords logged to stdout.
 echo "🌱 Running seed (idempotent — skips existing data)..."
-npx tsx backend/prisma/seed.ts
+./backend/node_modules/.bin/tsx backend/prisma/seed.ts
 echo "✅ Seed completed."
 
 # ── 4. Start the server ──────────────────────────────────────────────────

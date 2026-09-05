@@ -10,8 +10,8 @@
 // =============================================================================
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import 'dotenv/config';
+import { generateRandomPassword } from '../src/lib/passwords.js';
 
 const prisma = new PrismaClient();
 
@@ -20,17 +20,6 @@ const SEED_USERS = [
   { email: 'josephndung\'u@ecclesia.local', name: 'Joseph Ndung\'u', title: 'Administrator', role: 'super_admin' },
   { email: 'anko@ecclesia.local', name: 'Anko', title: 'Administrator', role: 'super_admin' },
 ] as const;
-
-function generateRandomPassword(length = 16): string {
-  // Generate a secure random password with alphanumeric + special chars
-  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  const bytes = crypto.randomBytes(length);
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset[bytes[i] % charset.length];
-  }
-  return password;
-}
 
 async function main() {
   const createdAccounts: Array<{ email: string; password: string; role: string }> = [];

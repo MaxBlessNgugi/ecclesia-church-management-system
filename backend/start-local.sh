@@ -36,6 +36,7 @@ npm run db:seed
 
 echo ""
 echo "→ Starting API on http://localhost:5000"
-echo "  Login: maxblessngugi@ecclesia.local / ChangeMeImmediately123!"
+echo "  Login email: ${SUPER_ADMIN_EMAIL:-maxblessngugi@ecclesia.local}"
+echo "  Password: set SUPER_ADMIN_PASSWORD in backend/.env before the first seed, or use the password printed by db:seed"
 echo ""
 npm run dev
