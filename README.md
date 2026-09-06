@@ -66,10 +66,11 @@ cd ecclesia-church-management-system
 cp .env.example.docker .env
 # Edit .env → set POSTGRES_PASSWORD and JWT_SECRET
 docker compose up -d --build
-docker compose logs app | grep "SEED ACCOUNTS"  # get admin password
+docker compose logs app | grep "SEED ACCOUNTS"  # only needed when SUPER_ADMIN_PASSWORD was omitted
 ```
 
-Open http://localhost:5000. See [DOCKER.md](DOCKER.md) for full instructions.
+Open http://ecclesia.local (port 80 is the default in `.env.example.docker`, so no
+`:port` suffix is needed). See [DOCKER.md](DOCKER.md) for full instructions.
 
 ### 3. Configure the friendly hostname (ecclesia.local)
 
@@ -100,9 +101,14 @@ From any computer on the same network:
 
 1. Open a web browser (Chrome, Firefox, Edge, or Safari)
 2. Go to: **http://ecclesia.local**
-3. First time: Click **Connect to Server** (address should be pre-filled)
+3. The app finds the server automatically and opens the sign-in screen
+   (first-ever visits on a fresh database show the guided administrator setup)
 4. Log in with your credentials
 5. Start using ECCLESIA!
+
+> If automatic discovery fails (for example the app is opened as a static file
+> or from a different origin than the server), the app falls back to a
+> **Connect to Parish Server** screen — enter the server address there once.
 
 See **[CLIENT_SETUP.md](CLIENT_SETUP.md)** for detailed instructions.
 
@@ -119,9 +125,11 @@ npx vite          # terminal 2 → app at http://localhost:3000
 
 ## Super Admin accounts
 
-Three super_admin accounts are seeded on first run. Each gets a random
-temporary password (printed once during `npm run db:seed`). All three have
-full access and can add other users.
+Three super_admin accounts are seeded on first run. Set `SUPER_ADMIN_PASSWORD`
+before the first seed to make the primary account's initial password deterministic;
+otherwise a random password is generated and printed once during `npm run db:seed`.
+Existing accounts are never overwritten by reseeding. All three have full access
+and can add other users.
 
 | Email | Name | Role |
 |-------|------|------|
@@ -130,8 +138,33 @@ full access and can add other users.
 | `anko@ecclesia.local` | Anko | `super_admin` |
 
 All seeded accounts require a password change at first sign-in.
-
----
+### Resetting a lost administrator password
+Passwords cannot be recovered (only bcrypt hashes are stored), but an operator
+with access to the server can issue a new temporary password:
+```bash
+# Native install (run in backend/)
+npm run admin:reset -- maxblessngugi@ecclesia.local
+# Docker install
+docker compose exec app npm run admin:reset -- maxblessngugi@ecclesia.local
+```
+The command prints a one-time temporary password and clears any account lockout.
+The account must choose a new password at next sign-in. This works only on the
+server itself — there is deliberately no web-based reset for administrator accounts.
+### Making `ecclesia.local` resolve
+For the bare hostname to work, the server machine must own the name on the LAN:
+1. Give the server a fixed IP (DHCP reservation on the router), e.g. `192.168.1.20`.
+2. Create a DNS A record `ecclesia.local → 192.168.1.20` (most routers with
+   local-DNS support can do this; on a Linux server `avahi-daemon` provides it
+   via mDNS automatically).
+3. Run the app on port 80 (the Docker default: `APP_PORT=80`) so no `:port`
+   suffix is needed.
+If the router cannot host DNS, each client PC can map the name in its hosts file
+(`C:\Windows\System32\drivers\etc\hosts` on Windows, `/etc/hosts` elsewhere):
+```
+192.168.1.20    ecclesia.local
+```
+The `scripts/setup-hostname.sh` / `.ps1` helpers configure the server side of this.
+---
 
 ## Visual Tour (E2E Testing)
 

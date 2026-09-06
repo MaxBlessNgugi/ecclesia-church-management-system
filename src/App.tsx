@@ -38,7 +38,7 @@ const HRView = React.lazy(() => import('./components/views/HRView').then(m => ({
 const AdminView = React.lazy(() => import('./components/views/AdminView').then(m => ({ default: m.AdminView })));
 const AuthView = React.lazy(() => import('./components/views/AuthView').then(m => ({ default: m.AuthView })));
 const SetupView = React.lazy(() => import('./components/views/SetupView').then(m => ({ default: m.SetupView })));
-import { getServerUrl } from './services/api';
+import { getServerUrl, setServerUrl } from './services/api';
 import { parseHashRoute } from './utils/url';
 import { ChristianRecord, NavigationTab } from './types';
 import { PermissionsProvider } from './permissions';
@@ -237,10 +237,39 @@ const AppShell: React.FC = () => {
  * Composes context providers and renders the server connection gate or AppShell.
  */
 export const App: React.FC = () => {
-  const [serverConfigured, setServerConfigured] = React.useState(() => !!getServerUrl());
+  // Whether boot has settled: either a saved server URL exists, or the app
+  // probed same-origin and found (or failed to find) the backend.
+  const [bootResolved, setBootResolved] = React.useState(() => !!getServerUrl());
+  // When the same-origin probe succeeds without a saved URL, we auto-configure
+  // and go straight to login — no server-address screen needed.
+  const [selfHosted, setSelfHosted] = React.useState(false);
 
-  if (!serverConfigured) {
-    return <ServerConnection onConnected={() => setServerConfigured(true)} />;
+  React.useEffect(() => {
+    if (bootResolved) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/health', { signal: AbortSignal.timeout(2500) });
+        if (!cancelled && res.ok) {
+          // Same-origin backend detected (production: backend serves this app).
+          setServerUrl(window.location.origin);
+          setSelfHosted(true);
+        }
+      } catch {
+        // No same-origin backend — fall through to the connection screen.
+      } finally {
+        if (!cancelled) setBootResolved(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootResolved]);
+
+  if (!bootResolved) return null; // brief probe; avoids a connection-screen flash
+
+  if (!getServerUrl() && !selfHosted) {
+    return <ServerConnection onConnected={() => setBootResolved(true)} />;
   }
 
   return (

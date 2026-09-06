@@ -24,7 +24,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Domain types used throughout the component: HRSubTab for tab routing,
 // EmployeeRecord / PayrollRecord / LeaveRecord / RecruitmentRecord /
 // RecruitmentApplicant for typed state arrays and API payloads.
-import { HRSubTab, EmployeeRecord, PayrollRecord, LeaveRecord, RecruitmentRecord } from '../../types';
+import { HRSubTab, EmployeeRecord, EmployeeDocument, PayrollRecord, LeaveRecord, RecruitmentRecord } from '../../types';
 // hrApi — the typed HTTP client for all /api/hr/* endpoints (employees, payroll,
 // leave, recruitment). Every data load and mutation flows through this module.
 import { hrApi } from '../../services/api';
@@ -123,6 +123,7 @@ export const HRView: React.FC = () => {
 
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<EmployeeRecord | null>(null);
+  const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
 
   // HR sub-tab data state
   // Payroll records loaded from /api/hr/payrolls when the payroll tab is active.
@@ -251,6 +252,11 @@ export const HRView: React.FC = () => {
   // Mount-time data load: fetch the employee list once. Auto-selects the first
   // row so selectedEmpId is never empty when the directory renders; an empty
   // result leaves selectedEmpId '' (the leave panel then shows a placeholder dash).
+  useEffect(() => {
+    if (!selectedEmpId) return;
+    hrApi.employees.documents(selectedEmpId).then(setDocuments).catch((error) => console.error('Failed to load employee documents', error));
+  }, [selectedEmpId]);
+
   useEffect(() => {
     // Call the employees list endpoint; on success populate local state.
     hrApi.employees
@@ -820,10 +826,22 @@ export const HRView: React.FC = () => {
                       On change, shows a notification with the filename. */}
                   <input
                     type="file"
+                    accept="application/pdf,image/jpeg,image/png"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const f = e.target.files?.[0];
-                      if (f) showSuccess(`Attached ${f.name} to this personnel record.`);
+                      if (!f) return;
+                      if (!selectedEmpId) { showError('Save the personnel record before uploading a document.'); return; }
+                      if (f.size > 5 * 1024 * 1024) { showError('Each document must be 5MB or smaller.'); return; }
+                      const reader = new FileReader();
+                      reader.onload = async () => {
+                        try {
+                          const uploaded = await hrApi.employees.uploadDocument(selectedEmpId, { originalName: f.name, mimeType: f.type, data: String(reader.result) });
+                          setDocuments((current) => [uploaded, ...current]);
+                          showSuccess(`Uploaded ${f.name} to this personnel record.`);
+                        } catch (error) { showError(error instanceof Error ? error.message : 'Failed to upload document'); }
+                      };
+                      reader.readAsDataURL(f);
                     }}
                   />
                   {/* Styled upload button — visually resembles a button but is a label. */}
@@ -834,8 +852,17 @@ export const HRView: React.FC = () => {
                   </span>
                   {/* Helper text indicating accepted file types and size limit. */}
                   <span className="text-[10px] text-[#444748]">
-                    PDF, JPG or PNG — max 5MB per file.
+                    PDF, JPG or PNG — max 5MB per file. Stored securely on the parish server.
                   </span>
+                  {documents.length > 0 && (
+                    <ul className="text-[10px] text-[#444748] space-y-1 mt-2">
+                      {documents.map((document) => (
+                        <li key={document.id}>
+                          <a className="underline" href={hrApi.employees.documentDownloadUrl(selectedEmpId, document.id)} target="_blank" rel="noreferrer">{document.originalName}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </label>
               </div>
             </div>

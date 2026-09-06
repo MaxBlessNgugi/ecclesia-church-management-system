@@ -23,8 +23,8 @@
 //   - src/hooks/useRealtime.ts     → Frontend data-change listener hook
 // =============================================================================
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
-import { resolveJwtSecret } from './config.js';
+import { appPrisma } from './prisma.js';
+import { verifyToken } from './auth.js';
 
 // Cached Socket.IO server instance. Set once during server startup in index.ts.
 let io: Server | null = null;
@@ -58,18 +58,26 @@ export function initSocket(httpServer: import('http').Server): Server {
   });
 
   // ── JWT Authentication Middleware ──────────────────────────────────────
-  // Rejects connections without a valid token. Attaches decoded user to
-  // socket.data.user so connection handlers can identify the user.
-  io.use((socket, next) => {
+  // Rejects connections without a valid token. Mirrors the REST requireAuth
+  // contract: signature + expiry via verifyToken, then a live DB check for
+  // active status AND the tokenVersion claim, so tokens issued before a
+  // password change/reset cannot open new realtime sessions either.
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
       return next(new Error('Authentication error'));
     }
 
     try {
-      const secret = resolveJwtSecret();
-      const decoded = jwt.verify(token, secret) as { id: string; email: string; role: string };
-      socket.data.user = decoded;
+      const decoded = verifyToken(token);
+      const user = await appPrisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { id: true, email: true, role: true, isActive: true, tokenVersion: true },
+      });
+      if (!user || !user.isActive || (user.tokenVersion ?? 0) !== (decoded.tokenVersion ?? -1)) {
+        return next(new Error('Authentication error'));
+      }
+      socket.data.user = { id: user.id, email: user.email, role: user.role };
       next();
     } catch {
       next(new Error('Authentication error'));

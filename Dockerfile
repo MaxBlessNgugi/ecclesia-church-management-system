@@ -80,12 +80,16 @@ COPY --from=build /app/backend/dist ./backend/dist
 # Needed by entrypoint: `npx prisma migrate deploy --schema=backend/prisma/schema.prisma`
 COPY backend/prisma/ backend/prisma/
 
+# ── Recovery CLI source ──────────────────────────────────────────────────
+# `npm run admin:reset` runs this TypeScript via tsx (in backend/node_modules)
+COPY backend/scripts/ backend/scripts/
+
 # ── Entrypoint ───────────────────────────────────────────────────────────
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 # ── Final setup ──────────────────────────────────────────────────────────
-RUN mkdir -p /app/backups && chown -R ecclesia:ecclesia /app
+RUN chown -R ecclesia:ecclesia /app
 
 USER ecclesia
 

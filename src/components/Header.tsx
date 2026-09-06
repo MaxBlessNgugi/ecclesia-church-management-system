@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 /** React core library and useState/useEffect hooks for component state and effects */
 import { AuthUser, NavigationTab } from '../types';
 /** AuthUser: typed shape for the authenticated user object; NavigationTab: union of all valid view keys */
-import { authApi } from '../services/api';
+import { authApi, storeToken } from '../services/api';
 /** API service module exposing authentication helpers including changePassword */
 import { useConnectivity } from '../context/OfflineContext';
 
@@ -114,8 +114,8 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [isDark]);
 
-  /**
-   * Handles the password change form submission.
+/**
+ * Handles the password change form submission.
    * Performs client-side validation (passwords match, minimum 8 characters),
    * then calls authApi.changePassword. On success, clears form fields and
    * auto-closes the modal after 2 seconds. On failure, displays the error.
@@ -141,7 +141,13 @@ export const Header: React.FC<HeaderProps> = ({
     setIsChangingPassword(true);
     try {
       /** Call the API to change the password with current and new credentials */
-      await authApi.changePassword({ currentPassword, newPassword });
+      const res = await authApi.changePassword({ currentPassword, newPassword });
+      // The password change rotated the session (all previously issued tokens
+      // were invalidated server-side). Store the fresh token the server issued
+      // for THIS session so the user stays signed in on this device.
+      if (res.token) {
+        storeToken(res.token, Boolean(localStorage.getItem('ecclesia_token')));
+      }
       /** Display success message after password is updated */
       setPasswordSuccess('Password updated successfully.');
       /** Clear form fields after successful password change */

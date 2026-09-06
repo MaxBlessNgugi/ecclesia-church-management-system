@@ -8,6 +8,12 @@ import { defineConfig, devices } from '@playwright/test';
  *   npx playwright test --headed        — watch in your browser
  *   npx playwright test --project=tour   — slow-motion visual tour
  *   npx playwright show-report           — open HTML report after run
+ *
+ * Server startup:
+ *   Playwright starts the COMPILED BACKEND (backend/dist/index.js), which
+ *   self-hosts the built frontend from <repo>/dist and the API on the same
+ *   origin (production mode). Run `npm run build` first. When E2E_BASE_URL is
+ *   set, an external server is assumed and none is started.
  */
 export default defineConfig({
   testDir: './tests',
@@ -19,8 +25,18 @@ export default defineConfig({
     ['list'],
     ['html', { outputFolder: '../playwright-report', open: 'never' }],
   ],
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: 'node backend/dist/index.js',
+        cwd: '..',
+        url: 'http://127.0.0.1:5000/api/health',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+    // Same-origin default: the compiled backend serves dist/ + /api on 5000.
+    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:5000',
     trace: 'on-first-retry',
     screenshot: 'on',
     video: 'on-first-retry',

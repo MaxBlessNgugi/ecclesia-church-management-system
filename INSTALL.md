@@ -302,7 +302,8 @@ cd backend && npm restart
 | "Cannot connect to server" | Check firewall (port 5000), verify server is running |
 | "Port 5000 already in use" | Change PORT in backend/.env |
 | "Database connection refused" | Check PostgreSQL is running, verify DATABASE_URL |
-| Forgot the admin password | Use **Forgot Password?** on login, or reset via database |
+| Forgot the admin password | Use **Forgot Password?** on login — the reset code is emailed. No SMTP configured? Read `backend/logs/outbox/` |
+| Reset code email never arrives | Set SMTP in the first-run wizard (or `SMTP_HOST` etc. in `backend/.env`, see `.env.example`), then retry; check spam folder |
 
 ---
 

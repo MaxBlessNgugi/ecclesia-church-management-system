@@ -98,6 +98,13 @@ export async function fillAndObserve(locator: Locator, value: string, ms = 800) 
 /** Wait for React root to render. */
 export async function waitForAppReady(page: Page) {
   await page.waitForSelector('#root > *', { timeout: 30_000 });
+  // First launch shows the "Connect to Parish Server" gate before the login
+  // screen. Connect to the same-origin server this e2e run targets.
+  const gate = page.getByPlaceholder(/192\.168\.1\.100 or ecclesia\.local/);
+  if (await gate.waitFor({ state: 'visible', timeout: 3000 }).catch(() => false)) {
+    await gate.fill('http://127.0.0.1:5000');
+    await page.getByRole('button', { name: /connect to server/i }).click();
+  }
   await page.waitForTimeout(1000);
 }
 

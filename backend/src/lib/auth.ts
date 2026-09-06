@@ -12,6 +12,9 @@
 //   - Passwords are hashed with bcrypt (cost factor 12) — never stored in plaintext.
 //   - JWT tokens are signed with HS256 using a secret resolved via config.ts.
 //   - Token expiry defaults to 7 days but is configurable via JWT_EXPIRES_IN env.
+//   - Every token embeds the user's current `tokenVersion`. The middleware
+//     compares it against the live DB value on every request, so changing or
+//     resetting a password immediately invalidates all previously issued tokens.
 //   - Reset tokens are generated using cryptographically secure random bytes and
 //     only their SHA-256 hashes are ever persisted to the database.
 //   - The module uses a custom alphabet for reset tokens that excludes ambiguous
@@ -20,6 +23,8 @@
 // USAGE
 //   - Import hashPassword/verifyPassword for credential operations.
 //   - Import signToken/verifyToken for session management in auth routes.
+//   - Import generateResetToken/hashResetToken for password reset flows.
+//
 //   - Import generateResetToken/hashResetToken for password reset flows.
 //   - Do NOT hand-roll bcrypt/jwt calls elsewhere — all crypto ops go through here.
 //
@@ -53,6 +58,23 @@ import { resolveJwtSecret } from './config.js';
 // expiresIn option when signing new tokens. The config.ts module fails hard in
 // production when JWT_SECRET is not set, preventing insecure token signing.
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+// ---------------------------------------------------------------------------
+// Token claims
+// ---------------------------------------------------------------------------
+// `tokenVersion` is embedded in every JWT and re-checked against the database
+// on every authenticated request (see middleware/auth.ts). Increment it with
+// bumpTokenVersion() whenever the user's credentials change — password change,
+// password reset via email code, or admin recovery — so that tokens issued
+// before the change are rejected immediately instead of lingering for the
+// remainder of their 7-day lifetime.
+export interface TokenClaims {
+  id: string;
+  email: string;
+  role: string;
+  /** Per-user session epoch; must match User.tokenVersion in the DB. */
+  tokenVersion?: number;
+}
 
 /**
  * Hashes a plaintext password using bcrypt with a cost factor of 12.
@@ -97,22 +119,23 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 /**
  * Issues an HS256 JSON Web Token containing the minimum claims needed by the
- * application: user id, email, and role.
+ * application: user id, email, role, and the user's current tokenVersion.
  *
  * The token is signed with the JWT secret resolved via config.ts and expires
  * according to the JWT_EXPIRES_IN environment variable (default: 7 days).
  *
- * @param payload - Object containing the user's id, email, and role.
- *   - id:    The unique user identifier (UUID) — used as the actor in audit logs.
- *   - email: The user's email address — used for display and identification.
- *   - role:  The user's role string — used by requireAuth/requireAdmin guards.
+ * @param payload - Object containing the user's id, email, role, and tokenVersion.
+ *   - id:           The unique user identifier (UUID) — used as the actor in audit logs.
+ *   - email:        The user's email address — used for display and identification.
+ *   - role:         The user's role string — used by requireAuth/requireAdmin guards.
+ *   - tokenVersion: The user's current session epoch from User.tokenVersion.
  * @returns A signed JWT string (header.payload.signature).
  *
  * @example
- * const token = signToken({ id: 'abc-123', email: 'user@church.org', role: 'admin' });
+ * const token = signToken({ id: 'abc-123', email: 'user@church.org', role: 'admin', tokenVersion: 0 });
  * // token: 'eyJhbGciOiJIUzI1NiIs...'
  */
-export function signToken(payload: { id: string; email: string; role: string }): string {
+export function signToken(payload: TokenClaims): string {
   // jwt.sign() creates a JWT with the given payload, signs it with the secret,
   // and sets the expiration claim. The type assertion is needed because
   // jsonwebtoken's SignOptions type doesn't include all valid expiresIn formats.
@@ -120,29 +143,45 @@ export function signToken(payload: { id: string; email: string; role: string }):
 }
 
 /**
- * Verifies and decodes a JWT, returning the decoded payload.
+ * Verifies and decodes a JWT, returning the decoded payload including
+ * tokenVersion when present.
  *
  * Validates the token's signature against the JWT secret and checks that the
  * token has not expired. Throws a JsonWebTokenError or TokenExpiredError on
  * failure — callers in the auth middleware translate these into 401 responses.
  *
  * @param token - The JWT string to verify (without the 'Bearer ' prefix).
- * @returns The decoded payload containing id, email, and role.
+ * @returns The decoded payload containing id, email, role, and tokenVersion.
  * @throws {jwt.JsonWebTokenError} If the token signature is invalid.
  * @throws {jwt.TokenExpiredError} If the token has expired.
  *
  * @example
  * try {
  *   const payload = verifyToken(req.headers.authorization?.slice(7));
- *   // payload: { id: 'abc-123', email: 'user@church.org', role: 'admin' }
+ *   // payload: { id: 'abc-123', email: 'user@church.org', role: 'admin', tokenVersion: 0 }
  * } catch {
  *   return res.status(401).json({ error: 'Invalid or expired token' });
  * }
  */
-export function verifyToken(token: string): { id: string; email: string; role: string } {
+export function verifyToken(token: string): TokenClaims {
   // jwt.verify() validates the signature and expiration, then decodes the payload.
   // The type assertion ensures TypeScript knows the shape of our application's claims.
-  return jwt.verify(token, resolveJwtSecret()) as { id: string; email: string; role: string };
+  return jwt.verify(token, resolveJwtSecret()) as TokenClaims;
+}
+
+/**
+ * Revokes every JWT previously issued to the user by incrementing their
+ * tokenVersion (requireAuth rejects any token whose embedded version no
+ * longer matches the DB).
+ *
+ * @param userId - The id of the user whose sessions should be revoked.
+ */
+export async function bumpTokenVersion(userId: string): Promise<void> {
+  const { appPrisma } = await import('./prisma.js');
+  await appPrisma.user.update({
+    where: { id: userId },
+    data: { tokenVersion: { increment: 1 } },
+  });
 }
 
 // Custom alphabet for password reset tokens. Excludes ambiguous characters:

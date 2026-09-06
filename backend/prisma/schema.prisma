@@ -42,6 +42,7 @@
 //   Christian 1──● Death        (christianId)
 //   Employee  1──● Payroll      (employeeId)
 //   Employee  1──● Leave        (employeeId)
+//   Employee  1──● EmployeeDocument (employeeId)
 //   Recruitment 1──● RecruitmentApplicant (recruitmentId)
 //
 // INDEXES (query optimization)
@@ -158,6 +159,10 @@ model User {
   resetTokenHash        String?
   resetTokenExpires     DateTime?
   resetFailedAttempts   Int       @default(0)
+  // Incremented on every password change/reset. Live-verified in requireAuth so
+  // JWTs issued before the change are rejected — stolen tokens cannot outlive a
+  // password reset. See backend/src/middleware/auth.ts.
+  tokenVersion          Int       @default(0)
   mustChangePassword    Boolean   @default(false)
   loginFailedAttempts   Int       @default(0)
   lockedUntil           DateTime?
@@ -511,8 +516,24 @@ model Employee {
   updatedAt DateTime @updatedAt
   payrolls  Payroll[]
   leaves    Leave[]
+  documents EmployeeDocument[]
 
   @@map("employees")
+}
+
+model EmployeeDocument {
+  id           String   @id @default(uuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  originalName String
+  storedName   String   @unique
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId, createdAt])
+  @@map("employee_documents")
 }
 
 model Payroll {
@@ -643,6 +664,26 @@ model ParishSettings {
 
 // Singleton row (id="default") storing Africa's Talking SMS gateway credentials.
 // Used by the SMS service to send member notifications (birthdays, reminders, etc.).
+// Singleton row (id="default") storing outbound email (SMTP) configuration,
+// editable from the first-run setup wizard and used by the mailer to deliver
+// password-reset codes. smtpPass is stored encrypted (backend/src/lib/crypto.ts)
+// and never returned by the API (masked like other credentials). When disabled
+// or empty, the mailer falls back to SMTP_* env vars, then to the dev outbox.
+model MailSettings {
+  id          String   @id @default("default")
+  enabled     Boolean  @default(false)
+  smtpHost    String   @default("")
+  smtpPort    Int      @default(587)
+  smtpSecure  Boolean  @default(false)
+  smtpUser    String   @default("")
+  smtpPass    String   @default("")
+  fromAddress String   @default("ECCLESIA <no-reply@ecclesia.local>")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("mail_settings")
+}
+
 model SmsSettings {
   id        String   @id @default("default")
   enabled   Boolean  @default(false)

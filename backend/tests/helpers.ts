@@ -39,7 +39,8 @@ export async function seedTestUser() {
       isActive: true,
     },
   });
-  const token = signToken({ id: user.id, email: user.email, role: user.role });
+  // Token version must match the DB value or requireAuth rejects the token.
+  const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
   return { user, token };
 }
 

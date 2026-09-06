@@ -24,7 +24,7 @@
 // =============================================================================
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getStoredToken, getServerUrl } from '../services/api';
+import { getStoredToken, getServerUrl, getStoredTokenVersion } from '../services/api';
 
 interface SocketContextType {
   /** The Socket.IO client instance, or null if not yet connected. */
@@ -53,6 +53,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
+  // Re-run when the tokenVersion changes: password change/reset rotates the
+  // token server-side, so the socket must be torn down and rebuilt with the
+  // fresh token (the handshake re-checks the version — a stale one is 401'd).
+  const tokenVersion = getStoredTokenVersion();
   useEffect(() => {
     const token = getStoredToken();
     if (!token) return;
@@ -96,7 +100,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setSocket(null);
       setConnected(false);
     };
-  }, []);
+  }, [tokenVersion]);
 
   return (
     <SocketContext.Provider value={{ socket, connected }}>

@@ -29,6 +29,8 @@
 //   - The Authorization header must be in the format 'Bearer <jwt>'.
 //   - Tokens that survive JWT expiry are caught by verifyToken() and return 401.
 //   - Tokens whose accounts have been deleted are caught by the DB lookup.
+//   - Tokens minted before a password change/reset are rejected via the
+//     tokenVersion claim (see lib/auth.ts bumpTokenVersion).
 //   - The req.user object is always fresh from the DB, never stale from JWT claims.
 // =============================================================================
 import { Request, Response, NextFunction } from 'express';
@@ -88,7 +90,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
   }
 
-  let payload: { id: string; email: string; role: string };
+  let payload: { id: string; email: string; role: string; tokenVersion?: number };
   try {
     // Strip the 'Bearer ' prefix (first 7 characters) to extract the raw JWT.
     // verifyToken() validates the signature against the JWT secret and checks
@@ -111,7 +113,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       where: { id: payload.id },
       // Only select the fields we need — avoids leaking password hashes or
       // other sensitive columns into the request context.
-      select: { id: true, email: true, role: true, isActive: true },
+      select: { id: true, email: true, role: true, isActive: true, tokenVersion: true },
     });
 
     // Check that the user exists AND is active. A missing user means the
@@ -119,6 +121,15 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     // treated as authentication failures, not authorization failures.
     if (!user || !user.isActive) {
       return next(new AppError('Account is inactive or has been removed', 401, 'UNAUTHORIZED'));
+    }
+
+    // Token-version check: reject tokens issued before the user's most recent
+    // password change/reset. The version embedded in the JWT must match the
+    // live DB value; a mismatch means the token predates a credential change
+    // and must be considered stolen-or-stale. Tokens without a version claim
+    // (legacy tokens or tokens minted outside the app) are rejected outright.
+    if (user.tokenVersion !== (payload.tokenVersion ?? -1)) {
+      return next(new AppError('Session expired. Please sign in again.', 401, 'UNAUTHORIZED'));
     }
 
     // Use the LIVE role from the database, not the role from the JWT claim.

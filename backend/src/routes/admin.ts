@@ -76,7 +76,14 @@ import { z } from 'zod';
 import { appPrisma, prisma } from '../lib/prisma.js';
 
 // Authentication utilities: hashPassword for secure password storage, generateResetToken for one-time codes, hashResetToken for SHA-256 hashing
-import { hashPassword, generateResetToken, hashResetToken } from '../lib/auth.js';
+import { hashPassword, generateResetToken, hashResetToken, bumpTokenVersion } from '../lib/auth.js';
+
+// Mailer: resolveMailConfig reports the active email delivery mode (db/env/dev-outbox)
+import { resolveMailConfig } from '../lib/mailer.js';
+
+// nodemailer is used directly in POST /mail-settings/verify to send a one-off
+// verification email through the submitted (not-yet-saved) SMTP configuration.
+import nodemailer from 'nodemailer';
 
 // Auth middleware: requireAuth validates JWT, requireAdmin checks admin role, requireSuperAdmin checks super_admin role, AuthRequest type extends Request with user
 import { requireAdmin, requireAuth, requireSuperAdmin, AuthRequest } from '../middleware/auth.js';
@@ -340,6 +347,10 @@ router.post('/users/:id/reset-password', async (req: AuthRequest, res, next) => 
         resetFailedAttempts: 0, // Reset failed attempt counter
       },
     });
+    // Revoke all outstanding JWTs for this account: an admin-issued reset means
+    // the current password (and any session holding it) must stop working, so
+    // existing tokens — including the target's active session — die immediately.
+    await bumpTokenVersion(target.id);
     // Return plain token once (admin shares offline) and expiration info
     res.json({ code: token, expiresInMinutes: RESET_TOKEN_TTL_MS / 60000 });
   } catch (e) { next(e); } // Pass errors to error handler
@@ -430,6 +441,158 @@ router.put('/rights', async (req, res, next) => {
     // Return updated permissions — Prisma returns native Json objects
     res.json({ panels: (row.panels as Record<string, boolean>) ?? data.panels, actions: (row.actions as Record<string, boolean>) ?? data.actions });
   } catch (e) { next(e); } // Pass errors to error handler
+});
+
+// ---------- Mail (SMTP) Settings ----------
+
+// GET /mail-settings — masked SMTP configuration for the settings UI / wizard.
+// Mirrors the M-Pesa settings contract: secrets are masked, presence is
+// reported via has* flags, and PUT accepts the mask as "keep existing".
+router.get('/mail-settings', async (_req, res, next) => {
+  try {
+    let row = await appPrisma.mailSettings.findUnique({ where: { id: 'default' } });
+    if (!row) {
+      row = await appPrisma.mailSettings.create({ data: { id: 'default' } });
+    }
+    const cfg = await resolveMailConfig();
+    res.json({
+      enabled: row.enabled,
+      smtpHost: row.smtpHost,
+      smtpPort: row.smtpPort,
+      smtpSecure: row.smtpSecure,
+      smtpUser: row.smtpUser,
+      smtpPass: row.smtpPass ? MASKED_PLACEHOLDER : '',
+      fromAddress: row.fromAddress,
+      hasSmtpPass: Boolean(row.smtpPass),
+      mode: cfg.mode, // 'db' | 'env' | 'dev-outbox' — what the mailer will actually do
+    });
+  } catch (e) { next(e); }
+});
+
+// PUT /mail-settings — update SMTP configuration (admin + super_admin only).
+// smtpPass may arrive as the masked placeholder, meaning "keep the stored one".
+router.put('/mail-settings', async (req: AuthRequest, res, next) => {
+  try {
+    if (req.user?.role !== 'super_admin' && req.user?.role !== 'admin') {
+      return next(new AppError('Only administrators can update mail settings.', 403, 'FORBIDDEN'));
+    }
+    const data = z.object({
+      enabled: z.boolean(),
+      smtpHost: z.string(),
+      smtpPort: z.number().int().min(1).max(65535).default(587),
+      smtpSecure: z.boolean(),
+      smtpUser: z.string(),
+      smtpPass: z.string(),
+      fromAddress: z.string(),
+    }).parse(req.body);
+
+    const existing = await appPrisma.mailSettings.findUnique({ where: { id: 'default' } });
+    // Masked placeholder (or blank while a secret exists) means "unchanged".
+    const rawPass = !data.smtpPass || data.smtpPass === MASKED_PLACEHOLDER
+      ? (existing?.smtpPass ? decryptString(existing.smtpPass) : '')
+      : data.smtpPass;
+
+    const payload = {
+      enabled: data.enabled,
+      smtpHost: data.smtpHost,
+      smtpPort: data.smtpPort,
+      smtpSecure: data.smtpSecure,
+      smtpUser: data.smtpUser,
+      smtpPass: rawPass ? encryptString(rawPass) : '',
+      fromAddress: data.fromAddress,
+    };
+    const row = await appPrisma.mailSettings.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', ...payload },
+      update: payload,
+    });
+    const cfg = await resolveMailConfig();
+    res.json({
+      enabled: row.enabled,
+      smtpHost: row.smtpHost,
+      smtpPort: row.smtpPort,
+      smtpSecure: row.smtpSecure,
+      smtpUser: row.smtpUser,
+      smtpPass: row.smtpPass ? MASKED_PLACEHOLDER : '',
+      fromAddress: row.fromAddress,
+      hasSmtpPass: Boolean(row.smtpPass),
+      mode: cfg.mode,
+    });
+  } catch (e) { next(e); }
+});
+
+// POST /mail-settings/verify — send a verification email using the SMTP
+// settings submitted in the request body WITHOUT saving them first. Used by
+// the first-run wizard and the settings form so the parish can confirm the
+// credentials actually deliver before committing them. Requires an admin.
+router.post('/mail-settings/verify', async (req: AuthRequest, res, next) => {
+  try {
+    if (req.user?.role !== 'super_admin' && req.user?.role !== 'admin') {
+      return next(new AppError('Only administrators can send verification emails.', 403, 'FORBIDDEN'));
+    }
+    const data = z.object({
+      enabled: z.boolean(),
+      smtpHost: z.string(),
+      smtpPort: z.number().int().min(1).max(65535).default(587),
+      smtpSecure: z.boolean(),
+      smtpUser: z.string(),
+      smtpPass: z.string().optional(),
+      fromAddress: z.string(),
+      to: z.string().email('Enter a valid recipient email address'),
+    }).parse(req.body);
+
+    if (!data.enabled || !data.smtpHost) {
+      return next(new AppError('Enable SMTP and enter a server host first.', 400, 'BAD_REQUEST'));
+    }
+
+    // The submitted password may be masked (unchanged) — resolve to the stored value.
+    const existing = await appPrisma.mailSettings.findUnique({ where: { id: 'default' } });
+    const pass = !data.smtpPass || data.smtpPass === MASKED_PLACEHOLDER
+      ? (existing?.smtpPass ? decryptString(existing.smtpPass) : '')
+      : data.smtpPass;
+
+    // Send directly over a one-off transporter — nothing is persisted here.
+    const transporter = nodemailer.createTransport({
+      host: data.smtpHost,
+      port: data.smtpPort,
+      secure: data.smtpSecure,
+      auth: data.smtpUser ? { user: data.smtpUser, pass } : undefined,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
+    });
+    try {
+      await transporter.sendMail({
+        from: data.fromAddress || 'ECCLESIA <no-reply@ecclesia.local>',
+        to: data.to,
+        subject: 'ECCLESIA email verification successful',
+        text: [
+          'Your ECCLESIA email (SMTP) settings work.',
+          '',
+          'Password-reset codes and other notifications will be delivered',
+          'from this configuration. No action is needed — keep this email for',
+          'your records.',
+          '',
+          '— ECCLESIA Church Management System',
+        ].join('\n'),
+        html: [
+          '<div style="font-family:Georgia,serif;max-width:480px;margin:0 auto;padding:24px;color:#1a1c1c">',
+          '  <h2 style="margin:0 0 12px">Email settings verified</h2>',
+          '  <p style="font-size:14px;line-height:1.5">Your ECCLESIA email (SMTP) settings work.</p>',
+          '  <p style="font-size:13px;line-height:1.5;color:#444748">Password-reset codes and other notifications will be delivered from this configuration.</p>',
+          '</div>',
+        ].join('\n'),
+      });
+    } catch (mailErr) {
+      // Surface the SMTP failure (bad host, auth rejected, etc.) as a clean
+      // 502 with the provider's message so the wizard can display it.
+      const detail = mailErr instanceof Error ? mailErr.message : String(mailErr);
+      return next(new AppError(`Verification email failed: ${detail}`, 502, 'BAD_GATEWAY'));
+    } finally {
+      transporter.close();
+    }
+    res.json({ ok: true, message: `Verification email sent to ${data.to}.` });
+  } catch (e) { next(e); }
 });
 
 // GET /push-payments — Fetch M-Pesa push payment settings with masked credentials
