@@ -85,7 +85,13 @@ const LOGIN_LOCK_MS = 15 * 60 * 1000;
 // Rate limiter for login endpoint: max 10 requests per 15-minute window per IP
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15-minute sliding window
-  max: 10,                    // Max 10 requests per window
+  // The e2e visual tour performs ~15 sequential UI logins from a single IP,
+  // which the default limit would 429 midway. Automated test runs may opt out
+  // via E2E_TESTING=1 — explicitly ignored when NODE_ENV is production.
+  max:
+    process.env.E2E_TESTING === '1' && process.env.NODE_ENV !== 'production'
+      ? 10_000
+      : 10,
   standardHeaders: true,      // Return rate limit info in headers (RateLimit-*)
   legacyHeaders: false,       // Disable X-RateLimit-* headers (deprecated)
   message: { error: 'Too many sign-in attempts. Please try again later.' }, // Error response

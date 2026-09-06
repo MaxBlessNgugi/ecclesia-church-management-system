@@ -116,6 +116,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/ecclesia_e2e
 
+      - name: Seed E2E test accounts
+        run: npm run seed:e2e --prefix backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/ecclesia_e2e
+
       - name: Build Frontend
         run: npm run build
 
@@ -124,6 +129,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/ecclesia_e2e
           JWT_SECRET: ecclesia-ci-secret-key-1234567890
+          # Raises the login rate limit for the tour's sequential UI logins
+          # (ignored when NODE_ENV=production; see backend/src/routes/auth.ts).
+          E2E_TESTING: "1"
 
       - name: Upload Playwright Report
         if: failure()
