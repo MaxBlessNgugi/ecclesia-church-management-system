@@ -7,7 +7,7 @@
 //   login        — email + password with show/hide toggle and inline error.
 //   setPassword  — forced first-login password change (temp/admin-set passwords).
 //   forgot       — asks for the user's email, posts /auth/forgot-password, then
-//                  tells them to collect a one-time reset code from their admin.
+//                  tells them the one-time reset code has been emailed to them.
 //   reset        — redeems the code with a new password via /auth/reset-password.
 // On successful login/setup the JWT is stored under `ecclesia_token`;
 // onSuccessAuth is called only once any forced password change is completed.
@@ -91,14 +91,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
   const [forgotEmail, setForgotEmail] = useState('');
 
   // When true, the forgot-password form is replaced with a success message
-  // instructing the user to contact their parish administrator.
+  // telling the user the reset code was emailed to them.
   const [forgotSent, setForgotSent] = useState(false);
 
   // -------------------------------------------------------------------------
   // State — reset-password screen
   // -------------------------------------------------------------------------
 
-  // The one-time reset code provided by the parish administrator.
+  // The one-time reset code delivered to the account's email address.
   // Stored as a plain string; displayed in uppercase monospace for readability.
   const [resetCode, setResetCode] = useState('');
 
@@ -248,7 +248,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
     try {
       // Send the original (temporary) password as `currentPassword` so the
       // server can verify the session, along with the desired `newPassword`.
-      await authApi.changePassword({ currentPassword: password, newPassword });
+      const res = await authApi.changePassword({ currentPassword: password, newPassword });
+      // The change rotated the session server-side (old tokens are dead).
+      // Store the fresh token the server issued for THIS session so
+      // onSuccessAuth() hands the app a token with the new tokenVersion.
+      if (res.token) {
+        storeToken(res.token, Boolean(localStorage.getItem('ecclesia_token')));
+      }
       // Password changed successfully — treat as full authentication.
       onSuccessAuth();
     } catch (error) {
@@ -265,8 +271,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
     setErrorMessage('');
     setIsSubmitting(true);
     try {
-      // The server always returns 200 to prevent email enumeration. The actual
-      // reset code is delivered out-of-band by the parish administrator.
+      // The server always returns 200 to prevent email enumeration. When the
+      // account exists, the reset code is emailed to the account's address
+      // (or written to the dev outbox when SMTP is not configured).
       await authApi.forgotPassword(forgotEmail);
       // Flip to the "sent" sub-view so the user knows what to do next.
       setForgotSent(true);
@@ -650,8 +657,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
               <>
                 {/* Success banner — tells user to contact their admin for the code */}
                 <div className="rounded border border-emerald-300 bg-emerald-50 px-3 py-3 text-[11px] text-emerald-800">
-                  If an account exists for that email, a one-time reset code has been prepared.
-                  Contact your parish administrator to receive your reset code.
+                  If an account exists for that email, a one-time reset code has been sent to it.
+                  Check your inbox (and spam folder), then enter the code below to set a new
+                  password.
                 </div>
                 {/* Primary action: move to the reset-code entry screen */}
                 <button
@@ -674,8 +682,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
               <>
                 {/* Instructional text before the email form */}
                 <div className="text-[11px] text-[#444748]">
-                  Enter your account email below. Your parish administrator will then provide a
-                  one-time reset code.
+                  Enter your account email below. A one-time reset code will be emailed to you
+                  (check your spam folder if it doesn't arrive).
                 </div>
                 {/* Inline error banner */}
                 {errorMessage && (
@@ -772,7 +780,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
               <>
                 {/* Instructional text for the reset-code form */}
                 <div className="text-[11px] text-[#444748]">
-                  Enter the reset code given to you by your parish administrator, then choose a new
+                  Enter the reset code from your email, then choose a new
                   password (at least 8 characters).
                 </div>
                 {/* Inline error banner */}

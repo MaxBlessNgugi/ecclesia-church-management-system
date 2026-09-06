@@ -970,6 +970,33 @@ export interface ParishSettings {
 export type SystemSettings = ParishSettings;
 
 /**
+ * Outbound email (SMTP) configuration — singleton row storing the server,
+ * credentials, and sender identity used to deliver password-reset codes.
+ * smtpPass is masked in GET responses; sending the mask back on PUT means
+ * "keep the stored password" (same convention as PushPaymentSettings).
+ */
+export interface MailSettings {
+  /** Whether DB-based SMTP delivery is enabled (env vars are used otherwise). */
+  enabled: boolean;
+  /** SMTP server hostname (e.g. smtp.gmail.com). */
+  smtpHost: string;
+  /** SMTP port (587 for STARTTLS, 465 for implicit TLS). */
+  smtpPort: number;
+  /** True for implicit TLS (port 465); false for STARTTLS/plain. */
+  smtpSecure: boolean;
+  /** SMTP username (omit for servers without auth). */
+  smtpUser: string;
+  /** SMTP password — masked placeholder in responses when one is stored. */
+  smtpPass: string;
+  /** From: header for outgoing mail (e.g. "ECCLESIA <no-reply@parish.org>"). */
+  fromAddress: string;
+  /** Whether an SMTP password is stored (reported because smtpPass is masked). */
+  hasSmtpPass?: boolean;
+  /** Active delivery mode: 'db' (saved settings), 'env' (.env vars), or 'dev-outbox'. */
+  mode?: 'db' | 'env' | 'dev-outbox';
+}
+
+/**
  * User role identifiers — determines the base level of system access.
  * Role-based access is supplemented by per-panel permissions in PanelPermissions.
  */

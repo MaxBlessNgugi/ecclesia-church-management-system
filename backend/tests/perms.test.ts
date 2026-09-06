@@ -73,7 +73,7 @@ async function createStaffUser(panels: Record<string, boolean>, actions: Record<
       actions,
     },
   });
-  const token = signToken({ id: user.id, email: user.email, role: user.role });
+  const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
   return { user, token };
 }
 
@@ -254,7 +254,7 @@ describe('requireModule — Global defaults fallback', () => {
         // panels and actions deliberately omitted (null)
       },
     });
-    const token = signToken({ id: user.id, email: user.email, role: user.role });
+    const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
 
     const res = await request(app)
       .get('/api/hr/employees')

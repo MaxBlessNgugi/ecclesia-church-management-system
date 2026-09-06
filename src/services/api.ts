@@ -164,6 +164,9 @@ import { ApplicantCreateInput } from '../types';
 /** Push-payment gateway settings (card reader / online payment config). */
 import { ParishSettings, PushPaymentSettings, SystemSettings } from '../types';
 
+/** Outbound email (SMTP) configuration for the mail settings UI and wizard. */
+import { MailSettings } from '../types';
+
 /** Aggregated row for the Sacrament Report view. */
 import { SacramentReportRow } from '../types';
 
@@ -280,6 +283,24 @@ export function getStoredToken(): string | null {
   // The nullish coalescing operator (??) falls through to sessionStorage
   // only when localStorage.getItem returns null.
   return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
+}
+
+/**
+ * Retrieve the tokenVersion claim from the stored JWT (unverified read of the
+ * payload — used only as a change signal so the Socket.IO connection can be
+ * rebuilt when a password change/reset rotates the token).
+ *
+ * @returns The numeric tokenVersion, or null when absent/unparsable.
+ */
+export function getStoredTokenVersion(): number | null {
+  const token = getStoredToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload?.tokenVersion === 'number' ? payload.tokenVersion : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -473,12 +494,17 @@ export const authApi = {
    *
    * **PUT** `/auth/change-password`
    *
+   * Changing the password rotates the session: the server bumps the user's
+   * tokenVersion (killing every previously issued JWT, including other
+   * devices/tabs) and returns a fresh token for THIS session, which the caller
+   * must store to stay signed in.
+   *
    * @param body - Object containing the current password and the desired new password.
-   * @returns A confirmation message.
+   * @returns A confirmation message plus the rotated session `token`.
    * @throws {ApiError} 400 if the current password is incorrect.
    */
   changePassword: (body: { currentPassword: string; newPassword: string }) =>
-    request<{ message: string }>('/auth/change-password', { method: 'PUT', body: JSON.stringify(body) }),
+    request<{ message: string; token?: string }>('/auth/change-password', { method: 'PUT', body: JSON.stringify(body) }),
 
   /**
    * Request a password-reset email.
@@ -1454,6 +1480,51 @@ export const adminApi = {
       request<{ code: string; expiresInMinutes: number }>(`/admin/users/${id}/reset-password`, {
         method: 'POST',
         body: JSON.stringify({})
+      }),
+  },
+
+  /**
+   * Sub-API for outbound email (SMTP) configuration.
+   *
+   * Used by the first-run setup wizard and Administration → Mail Settings.
+   * `smtpPass` is masked by the backend; sending the mask back means
+   * "keep the stored password".
+   */
+  mail: {
+    /**
+     * Retrieve the masked SMTP configuration.
+     *
+     * **GET** `/admin/mail-settings`
+     *
+     * @returns The `MailSettings` singleton (password masked) plus the active `mode`.
+     */
+    get: () => request<MailSettings>('/admin/mail-settings'),
+
+    /**
+     * Save the SMTP configuration.
+     *
+     * **PUT** `/admin/mail-settings`
+     *
+     * @param body - The full settings object; pass the masked password back to keep it.
+     * @returns The saved `MailSettings` (password masked) plus the active `mode`.
+     */
+    update: (body: MailSettings) =>
+      request<MailSettings>('/admin/mail-settings', { method: 'PUT', body: JSON.stringify(body) }),
+
+    /**
+     * Send a verification email WITHOUT saving the settings first.
+     *
+     * **POST** `/admin/mail-settings/verify`
+     *
+     * Used by the wizard to confirm credentials deliver before finishing.
+     *
+     * @param body - The settings under test plus the `to` recipient address.
+     * @returns `{ ok: true, message }` on acceptance by the SMTP server.
+     */
+    verify: (body: MailSettings & { to: string }) =>
+      request<{ ok: boolean; message: string }>('/admin/mail-settings/verify', {
+        method: 'POST',
+        body: JSON.stringify(body)
       }),
   },
 

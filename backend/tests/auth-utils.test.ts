@@ -35,7 +35,7 @@ describe('Auth utilities', () => {
   });
 
   it('verifyToken decodes a signed token', () => {
-    const payload = { id: '123', email: 'test@test.com', role: 'admin' };
+    const payload = { id: '123', email: 'test@test.com', role: 'admin', tokenVersion: 3 };
     const token = signToken(payload);
     const decoded = verifyToken(token);
     expect(decoded.id).toBe('123');

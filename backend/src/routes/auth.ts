@@ -7,7 +7,8 @@
 //                           keep their email reserved)
 //   GET  /me              JWT     — refresh the logged-in session payload
 //   PUT  /change-password JWT     — verify current password, re-hash new one
-//   POST /forgot-password public  — request a password reset code (no user enumeration)
+//   POST /forgot-password public  — request a password reset code, emailed to
+//                           the account address (no user enumeration)
 //   POST /reset-password  public  — redeem a one-time reset code with a new password
 //
 // Security measures:
@@ -23,6 +24,8 @@
 //   - Reset tokens stored as SHA-256 hashes, not plaintext
 //   - Reset tokens have 30-minute expiry
 //   - Successful login invalidates outstanding reset tokens
+//   - Password changes/resets bump the user's tokenVersion, invalidating all
+//     previously issued JWTs (stolen tokens cannot outlive a credential change)
 //   - mustChangePassword flag for newly created users
 //   - Session object never exposes passwordHash
 //
@@ -58,6 +61,11 @@ import { requireAuth, AuthRequest } from '../middleware/auth.js';
 
 // Import AppError for consistent error handling via the centralized error handler
 import { AppError } from '../middleware/errorHandler.js';
+
+// Import mailer — sends the password-reset code by email (SMTP, with a
+// zero-config dev fallback that writes to backend/logs/outbox when SMTP_HOST
+// is not configured). Never throws; failures are logged, never surfaced.
+import { sendPasswordResetCode } from '../lib/mailer.js';
 
 // Create Express router instance to define auth routes
 const router = Router();
@@ -243,8 +251,8 @@ router.post('/login', loginLimiter, async (req, res, next) => {
       },
     });
 
-    // Generate JWT token with user ID, email, and role
-    const token = signToken({ id: user.id, email: user.email, role: user.role });
+    // Generate JWT token with user ID, email, role, and current token version
+    const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
     // Return token and sanitized user session (no passwordHash)
     res.json({ token, user: session(user) });
   } catch (e) {
@@ -290,7 +298,7 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
     });
 
     // Generate JWT token for immediate login after registration
-    const token = signToken({ id: user.id, email: user.email, role: user.role });
+    const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
     // Return 201 Created with token and sanitized user session
     res.status(201).json({ token, user: session(user) });
   } catch (e) {
@@ -387,7 +395,7 @@ router.post('/bootstrap', async (req, res, next) => {
     });
 
     // Sign the JWT and return the same shape as /login for immediate entry
-    const token = signToken({ id: user.id, email: user.email, role: user.role });
+    const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
     res.status(201).json({ token, user: session(user) });
   } catch (e) {
     next(e);
@@ -443,13 +451,19 @@ router.put('/change-password', requireAuth, async (req: AuthRequest, res, next) 
 
     // Hash the new password with bcrypt
     const newHash = await hashPassword(newPassword);
-    // Database query: Update user's password hash and clear mustChangePassword flag
+    // Database query: Update user's password hash, clear mustChangePassword flag,
+    // and bump the tokenVersion — every JWT issued before this change becomes
+    // invalid, so a stolen token cannot outlive the credential change. The
+    // current caller receives a FRESH token in the response so their own session
+    // survives the rotation; all other sessions (other browsers/tabs) are killed.
     await appPrisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: newHash, mustChangePassword: false },
+      data: { passwordHash: newHash, mustChangePassword: false, tokenVersion: { increment: 1 } },
     });
-    // Return success message
-    res.json({ message: 'Password updated successfully' });
+    // Issue a new token carrying the incremented tokenVersion for the caller.
+    const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion + 1 });
+    // Return success message plus the rotated session token
+    res.json({ message: 'Password updated successfully', token });
   } catch (e) {
     // Pass any errors to Express error handler
     next(e);
@@ -461,7 +475,11 @@ router.put('/change-password', requireAuth, async (req: AuthRequest, res, next) 
  * Forgot-password request: always answers 200 `{ ok: true }` regardless of
  * whether the email exists (no user enumeration). When the account exists and
  * is active, a one-time reset code is issued and its SHA-256 hash stored with a
- * 30-minute expiry — the user collects the code from their parish administrator.
+ * 30-minute expiry, then emailed to the account address. Email delivery is
+ * fire-and-forget: it never delays or fails the response. Without SMTP config
+ * the mailer writes the code to backend/logs/outbox + console (dev fallback).
+ * Each request re-issues a fresh code — the plaintext of a previous code is
+ * never stored, so it can only be replaced (which immediately invalidates it).
  * @param {Request} req - Express request with email in body
  * @param {Response} res - Express response with ok status
  * @param {NextFunction} next - Express next middleware
@@ -475,23 +493,25 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res, next) =>
     const user = await appPrisma.user.findUnique({ where: { email } });
     // Only issue reset token if user exists and is active
     if (user && user.isActive) {
-      // Check if user already has a live (non-expired) reset token
-      const hasLiveToken =
-        user.resetTokenHash && user.resetTokenExpires && user.resetTokenExpires.getTime() > Date.now();
-      // Only generate new token if no live token exists
-      if (!hasLiveToken) {
-        // Generate cryptographically random reset token
-        const token = generateResetToken();
-        // Database query: Store hashed reset token with expiry
-        await appPrisma.user.update({
-          where: { id: user.id },
-          data: {
-            resetTokenHash: hashResetToken(token),                          // SHA-256 hash of token
-            resetTokenExpires: new Date(Date.now() + RESET_TOKEN_TTL_MS),   // 30-minute expiry
-            resetFailedAttempts: 0,                                          // Reset failure counter
-          },
-        });
-      }
+      // Always issue a FRESH token on every request: only its SHA-256 hash is
+      // stored, so an earlier plaintext code can never be re-sent — replacing
+      // the hash also immediately invalidates the previous code.
+      const token = generateResetToken();
+      const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+      // Database query: Store hashed reset token with expiry
+      await appPrisma.user.update({
+        where: { id: user.id },
+        data: {
+          resetTokenHash: hashResetToken(token),   // SHA-256 hash of token
+          resetTokenExpires: expiresAt,            // 30-minute expiry
+          resetFailedAttempts: 0,                  // Reset failure counter
+        },
+      });
+      // Email the code to the account address. Fire-and-forget (void): the
+      // response must not wait on SMTP, and mailer failures must never turn
+      // into a 500 for the user. Without SMTP config the code lands in the
+      // dev outbox (backend/logs/outbox) and the backend console.
+      void sendPasswordResetCode(user.email, token, user.name, expiresAt);
     }
     // Always return success to prevent user enumeration
     res.json({ ok: true });
@@ -558,7 +578,11 @@ router.post('/reset-password', resetPasswordLimiter, async (req, res, next) => {
 
     // Success: Hash new password and update user
     const passwordHash = await hashPassword(newPassword);
-    // Database query: Update user's password and clear all reset/lockout state
+    // Database query: Update user's password, clear all reset/lockout state, and
+    // bump the tokenVersion — every JWT issued before the reset (e.g. an
+    // attacker's stolen token, or the legitimate session on another device) is
+    // immediately invalidated. The password reset flow returns no token, so the
+    // user signs in again with the new password.
     await appPrisma.user.update({
       where: { id: user.id },
       data: {
@@ -568,6 +592,7 @@ router.post('/reset-password', resetPasswordLimiter, async (req, res, next) => {
         resetFailedAttempts: 0,    // Reset failure counter
         lockedUntil: null,         // Clear any lockout
         isActive: true,            // Ensure user is active
+        tokenVersion: { increment: 1 }, // Kill all pre-reset sessions
       },
     });
     // Return success message

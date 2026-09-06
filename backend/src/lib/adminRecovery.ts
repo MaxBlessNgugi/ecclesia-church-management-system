@@ -46,6 +46,9 @@ export async function resetAdminPassword(email: string): Promise<{ temporaryPass
       resetTokenHash: null,
       resetTokenExpires: null,
       resetFailedAttempts: 0,
+      // Revoke all outstanding JWTs: with the old password gone, any session
+      // holding a pre-reset token must be killed too.
+      tokenVersion: { increment: 1 },
     },
   });
 
