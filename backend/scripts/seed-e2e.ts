@@ -21,6 +21,14 @@ const E2E_USERS = [
 ] as const;
 
 async function main() {
+  // Mark first-run setup complete so the tour lands on the login screen
+  // (a fresh database would otherwise show the setup wizard).
+  await prisma.parishSettings.upsert({
+    where: { id: 'default' },
+    update: { setupCompleted: true },
+    create: { id: 'default', setupCompleted: true },
+  });
+
   for (const u of E2E_USERS) {
     const passwordHash = await bcrypt.hash(u.password, 12);
     const existing = await prisma.user.findUnique({ where: { email: u.email } });
