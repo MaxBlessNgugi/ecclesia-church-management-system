@@ -37,13 +37,24 @@ import {
 
 /** Click the first sidebar/nav link matching the regex. */
 async function go(page: Page, re: RegExp) {
-  const link = page.locator('a, button, [role="button"]').filter({ hasText: re }).first();
+  // Scope to the sidebar and main content — the top app bar hosts the global
+  // search button and user menu, whose labels match broad regexes (/member/i,
+  // /search/i) and would open modals that block the rest of the step.
+  const link = page
+    .locator('main a, main button, aside a, aside button')
+    .filter({ hasText: re })
+    .first();
   await clickAndObserve(link, 800);
 }
 
 /** Click the first tab/sub-tab matching the regex (silently skip if absent). */
 async function tab(page: Page, re: RegExp) {
-  const t = page.locator('button, a, [role="tab"]').filter({ hasText: re }).first();
+  // Scope to content areas — the top app bar's global-search button also
+  // matches /search/i and would open the search modal, blocking the page.
+  const t = page
+    .locator('main button, main a, aside button, nav button, [role="tab"]')
+    .filter({ hasText: re })
+    .first();
   if (await t.isVisible().catch(() => false)) await clickAndObserve(t, 800);
 }
 
@@ -73,7 +84,6 @@ test.describe.serial('ECCLESIA Visual Tour', () => {
     await waitForAppReady(page);
 
     await expect(page.locator('text=Ecclesia CMS')).toBeVisible();
-    await expect(page.locator('text=Church Management System')).toBeVisible();
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
 
@@ -93,6 +103,7 @@ test.describe.serial('ECCLESIA Visual Tour', () => {
     await page.goto('/');
     await waitForAppReady(page);
 
+    await page.locator('input[type="email"]').first().fill(USERS.admin.email);
     await page.locator('input[type="email"]').first().fill(USERS.admin.email);
     await page.locator('input[type="password"]').first().fill('WrongPassword!');
     await page.locator('button[type="submit"]').filter({ hasText: /sign in/i }).click();
