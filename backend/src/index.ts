@@ -102,6 +102,10 @@ import helmet from 'helmet';
 // Morgan middleware: HTTP request logger (method, URL, status, response time in ms).
 import morgan from 'morgan';
 
+// Compression middleware: gzip/deflate for text responses (HTML, JS, CSS, JSON,
+// SVG) — both the API and the self-hosted frontend assets pass through it.
+import compression from 'compression';
+
 // Resolves the JWT secret from environment variables.
 // Fails fast in production if JWT_SECRET is not set.
 import { resolveJwtSecret } from './lib/config.js';
@@ -237,6 +241,10 @@ app.use(express.json({ limit: '5mb' }));
 import { decimalJson } from './middleware/decimalJson.js';
 app.use(decimalJson());
 
+// Response compression for text-based payloads (API JSON + static JS/CSS/HTML).
+// Fonts/images are already compressed formats and are skipped automatically.
+app.use(compression());
+
 // ── Server configuration endpoint ───────────────────────────────────────
 
 // GET /api/server/config — returns server metadata for client configuration.
@@ -336,11 +344,27 @@ app.use('/api/support', supportRoutes);
 // an /api call). Skipped silently when the frontend has not been built yet.
 if (servingFrontend) {
   // Serve static assets (JS, CSS, images) from the frontend dist directory.
-  app.use(express.static(FRONTEND_DIST));
+  app.use(express.static(FRONTEND_DIST, {
+    // Cache policy: hashed build artifacts (assets/**, subset font) are
+    // immutable; stable-name files (PWA icons) cache for a day; index.html,
+    // sw.js, and manifest.json must always revalidate so deploys go live.
+    setHeaders(res, filePath) {
+      const base = path.basename(filePath).toLowerCase();
+      const value =
+        base === 'index.html' || base === 'sw.js' || base === 'manifest.json'
+          ? 'no-cache'
+          : filePath.includes(`${path.sep}assets${path.sep}`) || base.endsWith('.woff2')
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=86400';
+      res.set('Cache-Control', value);
+    },
+  }));
 
   // SPA fallback: any non-/api request returns index.html for client-side routing.
   // Regex /^(?!api(?:\/|$)).*/ matches everything that does NOT start with /api.
   app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
+    // Always revalidate the document so a new deploy is picked up immediately.
+    res.set('Cache-Control', 'no-cache');
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
 }
