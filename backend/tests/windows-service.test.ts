@@ -26,6 +26,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import net from 'node:net';
+import http from 'node:http';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const ORPHAN_MODULE = path.join(ROOT, 'scripts', 'windows-service', 'orphan-watch.cjs');
@@ -303,5 +304,25 @@ describe.skipIf(!fs.existsSync(DIST_INDEX))('server.cjs (static preview)', () =>
     expect(api.headers.get('content-type')).toContain('application/json');
     const apiBody = await api.json();
     expect(apiBody).toHaveProperty('error');
+
+    // Path traversal must never escape dist/ — raw ../ (curl/nc send it
+    // verbatim, so fetch() cannot express it) and %2e%2e%2f encodings alike.
+    const rawProbe = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const probe = http.request(
+        { host: '127.0.0.1', port, path: '/../backend/.env', method: 'GET' },
+        (res) => {
+          let body = '';
+          res.on('data', (d) => (body += String(d)));
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, body }));
+        },
+      );
+      probe.on('error', reject);
+      probe.end();
+    });
+    expect(rawProbe.status).toBe(404);
+    expect(rawProbe.body).not.toMatch(/JWT_SECRET|DATABASE_URL/);
+
+    const encodedProbe = await fetch(`${base}/%2e%2e%2fpackage.json`);
+    expect(encodedProbe.status).toBe(404);
   }, 15_000);
 });

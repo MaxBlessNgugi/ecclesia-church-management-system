@@ -1,10 +1,12 @@
 import { Page, Locator, expect } from '@playwright/test';
 const USERS = {
+  // Deterministic accounts created by backend/scripts/seed-e2e.ts. Override
+  // with E2E_EMAIL / E2E_PASSWORD when running against another deployment.
   admin: {
-    email: process.env.E2E_EMAIL || 'maxblessngugi@ecclesia.local',
-    password: process.env.E2E_PASSWORD || '',
-    name: 'Max Bless Ngugi',
-    role: 'super_admin',
+    email: process.env.E2E_EMAIL || 'admin@ecclesia.local',
+    password: process.env.E2E_PASSWORD || 'Admin123!',
+    name: 'Administrator',
+    role: 'admin',
   },
 } as const;
 
