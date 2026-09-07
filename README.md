@@ -164,6 +164,9 @@ server itself — there is deliberately no web-based reset for administrator acc
 192.168.1.20    ecclesia.local
 ```
 The `scripts/setup-hostname.sh` / `.ps1` helpers configure the server side of this.
+
+For the full router DNS + DHCP-reservation runbook (including device stopgaps
+while router access is unavailable), see **[docs/OPERATIONS.md § 11](docs/OPERATIONS.md)**.
 ---
 
 ## Visual Tour (E2E Testing)

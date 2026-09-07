@@ -22,6 +22,7 @@ import {
   PanelKey,
   SacramentsSubTab,
 } from '../types';
+import { getStoredToken } from '../services/api';
 import { clearStoredToken } from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -46,7 +47,8 @@ const NavigationContext = createContext<NavigationContextValue | null>(null);
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, logout } = useAuth();
 
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('auth');
+  // A restored session lands on the dashboard; only signed-out users start at the auth gate.
+  const [currentTab, setCurrentTab] = useState<NavigationTab>(getStoredToken() ? 'dashboard' : 'auth');
   const [christianSubTab, setChristianSubTab] = useState<ChristianSubTab>('add');
   const [activitiesSubTab, setActivitiesSubTab] = useState<ActivitiesSubTab>('receive_payment');
   const [sacramentsSubTab, setSacramentsSubTab] = useState<SacramentsSubTab>('update_card');
@@ -54,6 +56,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<ChristianRecord | null>(null);
+  // Last non-auth panel visited — the fallback when the signed-out auth gate shows.
+  const [lastPanel, setLastPanel] = useState<NavigationTab>('dashboard');
 
   /** Whether the signed-in user may open the given panel. */
   const canAccessTab = useCallback((tab: NavigationTab): boolean => {
@@ -70,11 +74,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const handleNavigate = useCallback((tab: NavigationTab, subTab?: string) => {
     if (tab === 'auth') {
       logout();
-      setCurrentTab('auth');
+      setCurrentTab(lastPanel);
       return;
     }
     if (tab !== 'dashboard' && !canAccessTab(tab)) return;
     setCurrentTab(tab);
+    setLastPanel(tab);
     if (subTab) {
       if (tab === 'christian') setChristianSubTab(subTab as ChristianSubTab);
       if (tab === 'activities') setActivitiesSubTab(subTab as ActivitiesSubTab);

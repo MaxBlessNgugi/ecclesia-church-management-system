@@ -723,6 +723,7 @@ export const HRView: React.FC = () => {
                     type="date"
                     value={hireDate}
                     onChange={(e) => setHireDate(e.target.value)}
+                    required
                     className="w-full px-3 py-2 bg-[#f4f3f3] border border-[#e1e3e3] rounded text-[#1a1c1c]"
                   />
                 </div>

@@ -66,6 +66,7 @@ export async function cleanupTestData() {
   await p.leave.deleteMany();
   await p.recruitmentApplicant.deleteMany();
   await p.recruitment.deleteMany();
+  await p.employeeDocument.deleteMany();
   await p.employee.deleteMany();
   await p.auditLog.deleteMany();
   await p.user.deleteMany({ where: { email: { not: 'admin@test.com' } } });

@@ -37,6 +37,7 @@
 // that is later mounted at a prefix (e.g. '/api/hr') in the main app.
 import { Router } from 'express';
 import { publicDocument, storeEmployeeDocument } from '../lib/employeeDocuments.js';
+import { prisma } from '../lib/prisma.js';
 
 // ---- Import: Zod schema & validation --------------------------------------------------
 // Zod is a TypeScript-first schema validation library. It is used throughout this
@@ -126,11 +127,7 @@ router.get('/employees/:id/documents', async (req, res, next) => {
     if (!employee) return next(new AppError('Employee not found', 404, 'NOT_FOUND'));
     const documents = await appPrisma.employeeDocument.findMany({ where: { employeeId: employee.id }, orderBy: { createdAt: 'desc' } });
     res.json(documents.map(publicDocument));
-  } catch (e) {
-    if (e instanceof Error && e.message === 'Unsupported document type') return next(new AppError(e.message, 415, 'UNSUPPORTED_MEDIA_TYPE'));
-    if (e instanceof Error && e.message.startsWith('Document must be')) return next(new AppError(e.message, 413, 'PAYLOAD_TOO_LARGE'));
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
 router.get('/employees/:id/documents/:documentId/download', async (req, res, next) => {
@@ -205,11 +202,16 @@ router.post('/employees', async (req, res, next) => {
     // `.filter(Boolean)` removes any undefined/empty middle name parts.
     const name = [data.firstName, data.middleName, data.surname].filter(Boolean).join(' ');
 
-    // Count existing employees to determine the next sequential code.
-    const count = await appPrisma.employee.count();
+    // Generate the next employee code from the raw client: soft-deleted rows
+    // are excluded from `count()` but still occupy their unique `code`, so the
+    // new code must not collide with them.
+    const [row] = await prisma.$queryRawUnsafe<Array<{ max_code: number | null }>>(
+      `SELECT MAX(NULLIF(SUBSTRING(code FROM '[0-9]+$'), '')::int) AS max_code FROM employees`
+    );
+    const nextNumber = row?.max_code ? Number(row.max_code) + 1 : 1;
 
     // Generate a zero-padded employee code: EMP-0001, EMP-0002, etc.
-    const code = `EMP-${String(count + 1).padStart(4, '0')}`;
+    const code = `EMP-${String(nextNumber).padStart(4, '0')}`;
 
     // Insert the new employee into the database with the generated code and name.
     const created = await appPrisma.employee.create({

@@ -9,7 +9,12 @@
  */
 import { test, expect, Page } from '@playwright/test';
 const USERS = {
-  admin: { email: 'admin@ecclesia.local', password: 'Admin123!', name: 'Administrator', role: 'admin' },
+  admin: {
+    email: process.env.E2E_EMAIL || 'maxblessngugi@ecclesia.local',
+    password: process.env.E2E_PASSWORD || '',
+    name: 'Max Bless Ngugi',
+    role: 'super_admin',
+  },
   viewer: { email: 'viewer@ecclesia.local', password: 'Viewer123!', name: 'Viewer', role: 'viewer' },
 } as const;
 
@@ -103,7 +108,6 @@ test.describe.serial('ECCLESIA Visual Tour', () => {
     await page.goto('/');
     await waitForAppReady(page);
 
-    await page.locator('input[type="email"]').first().fill(USERS.admin.email);
     await page.locator('input[type="email"]').first().fill(USERS.admin.email);
     await page.locator('input[type="password"]').first().fill('WrongPassword!');
     await page.locator('button[type="submit"]').filter({ hasText: /sign in/i }).click();

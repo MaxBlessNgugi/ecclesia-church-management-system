@@ -118,15 +118,17 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
             </label>
             <input
               type="text"
+              name="serverAddress"
+              autoComplete="url"
+              aria-describedby="server-address-help"
               value={serverAddress}
               onChange={(e) => setServerAddress(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="e.g. 192.168.1.100 or ecclesia.local"
               disabled={isTesting}
-              className="w-full px-4 py-3 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg text-sm text-[#1a1c1c] placeholder-[#9ca3af] focus:outline-none focus:border-[#1e1e1e] disabled:opacity-50"
+              className="w-full px-4 py-3 bg-[#f4f3f3] border border-[#e1e3e3] rounded-lg text-sm text-[#1a1c1c] placeholder-[#9ca3af] focus:border-[#1e1e1e] focus-visible:ring-2 focus-visible:ring-[#1e1e1e] disabled:opacity-50"
               autoFocus
-            />
-            <p className="mt-2 text-xs text-[#6b7280]">
+            />              <p id="server-address-help" className="mt-2 text-xs text-[#6b7280]">
               Default: <strong>ecclesia.local</strong> (if your server is configured). 
               Or use the server's IP address (e.g. 192.168.1.100)
             </p>
@@ -134,14 +136,14 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
 
           {/* Success Message */}
           {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div role="status" aria-live="polite" className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm text-green-700">Connected! Loading application...</p>
             </div>
           )}
@@ -150,7 +152,7 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
           <button
             onClick={handleConnect}
             disabled={isTesting || success}
-            className="w-full py-3 bg-[#1e1e1e] text-white text-sm font-semibold rounded-lg hover:bg-[#333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-[#1e1e1e] text-white text-sm font-semibold rounded-lg hover:bg-[#333] focus-visible:ring-2 focus-visible:ring-[#1e1e1e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isTesting ? (
               <span className="flex items-center justify-center gap-2">

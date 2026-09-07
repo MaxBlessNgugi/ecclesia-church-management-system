@@ -162,3 +162,70 @@ cd backend && npm restart
 Not yet implemented. A future version may add Sentry integration behind an
 environment variable (`SENTRY_DSN`). For now, errors are logged to
 `backend/logs/error.log`.
+
+## 11. LAN hostname (`ecclesia.local`) — network DNS runbook
+
+Goal: every device on the parish LAN resolves `http://ecclesia.local` to the
+server (currently `DESKTOP-6J958TJ`, Wi-Fi at `192.168.100.10`, gateway
+`192.168.100.1`). The app itself is already LAN-ready: the backend binds
+`0.0.0.0:80` and serves both the SPA and the API from one port.
+
+### A. Router configuration (the durable fix — needs admin login)
+
+Log in to the router admin UI (on this network: `https://192.168.100.1`,
+self-signed certificate — accept the warning). Then:
+
+1. **DHCP reservation** (usually under *DHCP* / *LAN Setup* / *Address
+   Reservation*): bind the server's MAC address (`30-24-A9-50-5C-D1` for the
+   Ethernet port, `08-5B-D6-94-F1-2E` for Wi-Fi) to a fixed address —
+   `192.168.100.10` today. Without this, a lease renewal can move the server's
+   IP and every DNS record below goes stale.
+2. **Local DNS record** (usually under *DNS* / *Local DNS* / *Custom DNS*):
+   add an A record `ecclesia.local → 192.168.100.10`.
+3. Save and reboot the router if the UI asks. No client changes needed — every
+   device already uses the router as its DNS server.
+
+Router-specific notes:
+
+- Some ISP firmwares (this one identifies as `dev.opt`) name local DNS
+  "Static DNS" or "Host Mapping". If truly absent, two fallbacks: (a) flash
+  OpenWrt on supported hardware, which gives full dnsmasq control; or
+  (b) run a small always-on DNS box (a Raspberry Pi running Pi-hole or dnsmasq
+  with `address=/ecclesia.local/192.168.100.10`) and hand out *its* IP as the
+  DNS server in the router's DHCP settings.
+- `.local` is reserved for mDNS (RFC 6762). Consumer routers generally hand
+  out `.local` records fine; if a device's browser refuses, it is an mDNS-only
+  resolver — see section C.
+
+### B. Verify (from any LAN device)
+
+1. DNS: `ping ecclesia.local` → replies from `192.168.100.10`.
+2. App: open `http://ecclesia.local` → sign-in screen; health endpoint
+   `http://ecclesia.local/api/health` returns `"status":"ok"`.
+3. Real-time: changes in one browser appear in another (Socket.IO, same port).
+
+### C. Stopgap until router access is available
+
+Nothing installed on the *server* can change how *other* devices resolve
+names (their DNS queries go to the router), so per-device setup is the only
+client-side interim:
+
+- **Windows / macOS / Linux clients:** add one line to the hosts file
+  (`C:\Windows\System32\drivers\etc\hosts`, `/etc/hosts`):
+  `192.168.100.10    ecclesia.local`
+- **Android:** Chrome does not resolve `.local` via mDNS and there is no hosts
+  file without root — use `http://192.168.100.10` directly (the app's server
+  connection screen accepts it).
+- **iOS/macOS:** resolve mDNS only for names a device advertises; hosts-file
+  or router-DNS approach is required for `ecclesia.local`.
+
+### D. Server-side operational notes
+
+- The server is currently on **Wi-Fi with a 24 h DHCP lease**. After the
+  reservation is in place, prefer the Ethernet port (cable) for stability and
+  update the reservation to the Ethernet MAC above.
+- Windows firewall already allows inbound Node.js on Private/Public profiles.
+  The **Public** profile rule matters: Wi-Fi networks without a router-
+  declared profile fall back to Public.
+- The hostname mapping for the server itself lives in the local hosts file
+  (`127.0.0.1 ecclesia.local`) and is unrelated to LAN clients.

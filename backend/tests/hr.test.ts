@@ -138,6 +138,30 @@ describe('HR - Employees', () => {
     expect(list.body[0].code).toBe('EMP-0001');
     expect(list.body[1].code).toBe('EMP-0002');
   });
+
+  it('does not reuse the code of a soft-deleted employee', async () => {
+    // Create an employee, then soft-delete it. The deleted row still occupies
+    // its unique code, so the next onboarding must skip to the next code
+    // instead of colliding with a 409.
+    const created = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${token}`)
+      .send(empData);
+    expect(created.status).toBe(201);
+
+    const deleted = await request(app)
+      .delete(`/api/hr/employees/${created.body.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(deleted.status).toBe(204);
+
+    const res = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...empData, email: 'rehire@parish.org', surname: 'Njeri', firstName: 'Alice' });
+    expect(res.status).toBe(201);
+    expect(res.body.code).not.toBe('EMP-0001');
+    expect(res.body.code).toBe('EMP-0002');
+  });
 });
 
 // =============================================================================
