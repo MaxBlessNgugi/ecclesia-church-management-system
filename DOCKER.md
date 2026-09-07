@@ -34,6 +34,22 @@ POSTGRES_PASSWORD=your-strong-database-password
 JWT_SECRET=your-random-jwt-secret-here   # generate: openssl rand -hex 48
 ```
 
+> **Which port does the app use?** The app listens on **port 5000 inside the
+> container**. `APP_PORT` in `.env` is the port mapped on the *host* — this is
+> the port you type in the browser. `.env.example.docker` ships with
+> `APP_PORT=80`, so the app is reached at a **bare URL with no `:port`
+> suffix**: `http://localhost` on the server itself, `http://ecclesia.local`
+> (or `http://<server-ip>`) from other devices. All examples below use that
+> port-80 form; if you set `APP_PORT` to something else (e.g. `5000` when
+> another service owns port 80), add `:<APP_PORT>` to every URL in this guide:
+> `http://localhost:5000`, `http://192.168.1.20:5000`.
+>
+> **Real-time sync & origins:** leave `CLIENT_URL` and `CORS_ORIGINS` empty in
+> `.env` (the shipped default). The app then accepts any browser that reached
+> it, so live updates work at `http://ecclesia.local`, `http://localhost`, or
+> an IP address alike. Only a locked-down deployment (e.g. HTTPS behind Caddy)
+> should set them — see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
 ### 3. Build and start
 
 ```bash
@@ -54,7 +70,8 @@ You'll see the generated password for `maxblessngugi@ecclesia.local`.
 ### 5. Open the app
 
 ```
-http://localhost:5000
+http://localhost        # APP_PORT=80 (default) — no :port needed
+http://localhost:5000   # only if you set APP_PORT=5000 in .env
 ```
 
 Log in, complete the one-time Parish Setup Wizard.
@@ -64,13 +81,20 @@ Log in, complete the one-time Parish Setup Wizard.
 ## LAN Access
 
 Find the server's LAN IP (`ipconfig` on Windows, `hostname -I` on Linux),
-then open `http://192.168.x.x:5000` from any client browser.
+then open it from any client browser — `http://192.168.1.20` when `APP_PORT=80`,
+or `http://192.168.1.20:<APP_PORT>` otherwise.
 
-To restrict CORS, edit `.env`:
+To restrict CORS, edit `.env` and list exactly the origins clients use — with a
+`:<APP_PORT>` suffix unless your `APP_PORT` is 80 (as shown):
+
 ```ini
-CORS_ORIGINS=http://localhost:5000,http://192.168.x.x:5000
+CORS_ORIGINS=http://ecclesia.local,http://192.168.1.20
+# With APP_PORT=5000 that would be:
+# CORS_ORIGINS=http://ecclesia.local:5000,http://192.168.1.20:5000
 ```
-Then `docker compose up -d`.
+
+Then `docker compose up -d`. Leaving `CORS_ORIGINS` empty keeps the
+trusted-LAN default where every origin is accepted.
 
 ---
 
@@ -120,13 +144,14 @@ removes the database volume — never use `-v` unless you want to destroy all da
 
 ## Verification Checklist
 
-Run these checks before any parish pilot:
+Run these checks before any parish pilot. Substitute `:<APP_PORT>` everywhere
+below if your `APP_PORT` is not 80 (the shipped default):
 
 | # | Check | Command | Expected |
 |---|-------|---------|----------|
 | 1 | Both containers healthy | `docker compose ps` | Both show `Up (healthy)` |
-| 2 | Health check works | `curl localhost:5000/api/health` | `{"status":"ok","db":"connected"}` |
-| 3 | UI loads | Open `http://localhost:5000` | Login page renders |
+| 2 | Health check works | `curl http://localhost/api/health` | `{"status":"ok","db":"connected"}` |
+| 3 | UI loads | Open `http://localhost` | Login page renders |
 | 4 | Login works | Use seed credentials from logs | Forced password change |
 | 5 | Wizard completes | Fill parish info, submit | Dashboard loads |
 | 6 | Data persists | `docker compose restart` → check records | Data still present |
@@ -143,8 +168,8 @@ Run these checks before any parish pilot:
 
 | Problem | Fix |
 |---------|-----|
-| Port 5000 in use | Set `APP_PORT=5001` in `.env` |
-| Can't connect from LAN | Check firewall allows port 5000 |
+| Host port `APP_PORT` in use | Set a free port, e.g. `APP_PORT=5001`, in `.env`, then `docker compose up -d` |
+| Can't connect from LAN | Check the firewall allows your `APP_PORT` on the host |
 | DB auth failed | Verify `POSTGRES_PASSWORD` in `.env` |
 | JWT error | Set a strong `JWT_SECRET` in `.env` |
 | Container restarting | `docker compose logs app` — usually a config issue |

@@ -22,9 +22,10 @@ All modules are working and verified. Client devices connect through Chrome, Fir
 Edge, or Safari — zero installation needed.
 
 **Why it matters:** the parish owns its software and its data outright. Records never
-leave the parish office, there are no recurring fees, and a single `npm run setup`
-command handles setup. This is a commercial-grade product ready for first deployments
-and sales demonstrations.
+leave the parish office, there are no recurring fees, and deployment takes a single
+command — `npm run setup` on a Node.js + PostgreSQL machine, or `docker compose
+up -d --build` with Docker. This is a commercial-grade product ready for first
+deployments and sales demonstrations.
 
 ---
 
@@ -75,16 +76,30 @@ and sales demonstrations.
 | Authentication | JWT with login rate-limiting, account lockout, forced first-login password change, admin reset codes |
 | Deployment | One parish PC runs Express + serves the built SPA; clients open a browser to `http://ecclesia.local` |
 
-The server runs as **one process on one port** (5000): Express serves both the API
-and the built frontend. There is nothing for a parish IT person to configure beyond
-installing Node.js and PostgreSQL.
+The app runs as **one process on one port**: Express serves both the API and the
+built frontend, so there is no separate web server to administer. The port is
+configurable (`PORT` in a native install, `APP_PORT` with Docker); the recommended
+setup binds port 80 so staff reach the system at the bare URL
+`http://ecclesia.local`.
 
-**Installation steps (documented in `INSTALL.md`):**
+**Two main installation paths are supported.** Both use the same PostgreSQL schema
+and produce compatible backups — see `INSTALL.md` (native) and `DOCKER.md` (Docker):
+
+**Path A — Native (Node.js + PostgreSQL), per `INSTALL.md`:**
 1. Install Node.js 18+ and PostgreSQL 14+ on the server machine
 2. Clone the repository and run `npm run setup`
-3. Configure `ecclesia.local` hostname (optional, for friendly URL)
+3. Configure the `ecclesia.local` hostname (optional, for a friendly URL)
 4. Start the server with `npm start`
-5. Clients open `http://ecclesia.local` in their browser — done
+
+**Path B — Docker Compose (no Node.js/PostgreSQL install needed), per `DOCKER.md`:**
+1. Install Docker Desktop (Windows/macOS) or Docker Engine (Linux) on the server
+2. Clone the repository and run `cp .env.example.docker .env`
+3. Set `POSTGRES_PASSWORD` and `JWT_SECRET` in `.env`, then run
+   `docker compose up -d --build` (first build takes 3–5 minutes)
+4. If `SUPER_ADMIN_PASSWORD` was left empty, fetch the one-time admin password with
+   `docker compose logs app | grep -A 10 "SEED ACCOUNTS"`
+
+Either way, clients open `http://ecclesia.local` in their browser — done.
 
 ---
 
@@ -124,7 +139,7 @@ installing Node.js and PostgreSQL.
 | Core product (v1.0.0, all modules) | ✅ Complete |
 | Web application (multi-user, LAN access) | ✅ Working |
 | Real-time sync (Socket.IO) | ✅ Working |
-| Installation guide (`INSTALL.md`) | ✅ Written |
+| Installation guides (`INSTALL.md` native, `DOCKER.md` Docker) | ✅ Written |
 | Guided first-run setup (create parish admin) | ✅ Built and verified end-to-end |
 | Demo dataset for sales pitches | ✅ Removed (clean database for production) |
 | HTTPS in production deployments | ✅ Available via Caddy, per-deployment |
@@ -184,14 +199,15 @@ commercial release.
 3. ~~Stand up CI~~ — **Done.** GitHub Actions CI pipeline is live.
 4. Add crash reporting (Sentry) + a minimal telemetry opt-in.
 5. Write the data-protection & backup-restore policy; run a restore drill.
-6. Run 2–3 pilot parishes per `INSTALL.md` for real-world validation.
+6. Run 2–3 pilot parishes per `INSTALL.md` (native) or `DOCKER.md` (Docker) for
+   real-world validation.
 
 ---
 
 ## 8. Next Steps / Roadmap
 
-1. **Deploy pilot installs** — use `INSTALL.md` on 1–2 parish servers to
-   validate in the field.
+1. **Deploy pilot installs** — use `INSTALL.md` (native) or `DOCKER.md` (Docker)
+   on 1–2 parish servers to validate in the field.
 2. **Add update notifications** — so installed parishes know when new versions
    are available.
 3. **Sales readiness** — use a fresh database with the first-run wizard for live demos.
@@ -211,4 +227,5 @@ distribution are licensing/activation and an automated update mechanism.
 ---
 
 *Private & confidential — prepared for internal review. For technical details see
-`docs/OPERATIONS.md` (backups, security, runbook) and `INSTALL.md` (deployment).*
+`docs/OPERATIONS.md` (backups, security, runbook) and `INSTALL.md` / `DOCKER.md`
+(deployment).*

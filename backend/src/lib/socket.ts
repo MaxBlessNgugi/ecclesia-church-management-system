@@ -47,10 +47,34 @@ export function getIO(): Server {
  * @param httpServer - The Node.js HTTP server created by Express.
  * @returns The configured Socket.IO Server instance.
  */
+/**
+ * Resolves the Socket.IO CORS origin policy from environment configuration.
+ *
+ * Allowed origins come from BOTH CLIENT_URL and CORS_ORIGINS (comma-separated).
+ * When neither is set, every origin is allowed — the LAN model, mirroring the
+ * REST CORS default in index.ts: the browser always connects back to the same
+ * origin it was served from (window.location.origin), which may be a hostname,
+ * an IP, or localhost. Operators who need a locked-down deployment set
+ * CLIENT_URL / CORS_ORIGINS to restrict both REST and realtime connections.
+ */
+export function resolveSocketOrigins(): true | string[] {
+  const configured = [
+    ...(process.env.CLIENT_URL || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+    ...(process.env.CORS_ORIGINS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  ];
+  return configured.length > 0 ? configured : true;
+}
+
 export function initSocket(httpServer: import('http').Server): Server {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || true,
+      origin: resolveSocketOrigins(),
       methods: ['GET', 'POST'],
       credentials: true,
     },

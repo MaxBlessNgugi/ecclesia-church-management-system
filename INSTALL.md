@@ -195,7 +195,8 @@ docker compose up -d --build
 # 4. Get admin password
 docker compose logs app | grep -A 10 "SEED ACCOUNTS"
 
-# 5. Open http://localhost:5000
+# 5. Open http://localhost (APP_PORT=80 is the default in .env.example.docker;
+#    add :<APP_PORT> if you set a different APP_PORT in .env)
 ```
 
 See [DOCKER.md](DOCKER.md) for LAN access, backup, troubleshooting, and update

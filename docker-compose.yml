@@ -8,7 +8,8 @@
 #   2. Edit .env → set POSTGRES_PASSWORD + JWT_SECRET
 #   3. docker compose up -d --build
 #   4. Set SUPER_ADMIN_PASSWORD in .env before first start; if omitted, the generated password is shown once in app logs
-#   5. Open http://localhost:5000
+#   5. Open http://localhost — the example .env maps APP_PORT=80, so no :port suffix.
+#      If you set a different APP_PORT in .env, open http://localhost:<APP_PORT>
 # =============================================================================
 
 services:
@@ -42,15 +43,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Host port (APP_PORT, from .env — example default 80 so the app is reached
+    # at the bare host URL) → app port inside the container (always 5000, PORT below).
     ports:
-      - "${APP_PORT:-5000}:5000"
+      - "${APP_PORT:-80}:5000"
     environment:
       NODE_ENV: production
       PORT: "5000"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ecclesia}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-ecclesia}?schema=public"
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:5000}
+      # Origin(s) allowed for real-time Socket.IO. Empty (default) = allow any
+      # origin — the LAN model: realtime works at http://localhost, http://<server-ip>
+      # or http://ecclesia.local alike. Set CLIENT_URL (and/or CORS_ORIGINS) to
+      # restrict when a locked-down deployment needs it.
+      CLIENT_URL: ${CLIENT_URL:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-maxblessngugi@ecclesia.local}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
