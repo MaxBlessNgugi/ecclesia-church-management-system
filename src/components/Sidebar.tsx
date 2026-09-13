@@ -137,14 +137,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {navItems.map((item) => {
             /** Determine if this nav item matches the currently active tab */
             const isActive = currentTab === item.id;
-            /** Communications is the one panel the design gives a terracotta
-             *  active state (soft fill + glow) instead of the dark fill. */
-            const accent = isActive && item.id === 'communications';
-            const activeClass = accent
-              ? 'bg-[#c65d3b]/10 text-[#8c3d22] ring-1 ring-[#c65d3b]/40 shadow-[0_0_14px_rgba(198,93,59,0.30)]'
-              : 'bg-[#1e1e1e] text-[#ffffff] shadow-2xs';
-            /** Material Symbols only accept a colour class, not the pill above. */
-            const iconClass = accent ? 'text-[#a94c2e]' : 'text-[#ffffff]';
             return (
               <button
                 key={item.id}
@@ -153,12 +145,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title={!isOpen ? item.label : undefined}
                 className={`w-full flex items-center rounded-md text-xs font-medium transition-all cursor-pointer ${
                   isOpen ? 'px-3 py-2.5 gap-3' : 'justify-center py-2.5 px-0'
-                } ${isActive ? activeClass : 'text-[#1a1c1c] hover:bg-[#f4f3f3]'}`}
+                } ${isActive ? 'bg-[#1e1e1e] text-[#ffffff] shadow-2xs' : 'text-[#1a1c1c] hover:bg-[#f4f3f3]'}`}
               >
-                {/* Material Symbols icon — white when active (terracotta on
-                    Communications), grey when inactive */}
+                {/* Material Symbols icon — white when active, grey when inactive */}
                 <span
-                  className={`material-symbols-outlined text-xl ${isActive ? iconClass : 'text-[#444748]'}`}
+                  className={`material-symbols-outlined text-xl ${isActive ? 'text-[#ffffff]' : 'text-[#444748]'}`}
                 >
                   {item.icon}
                 </span>

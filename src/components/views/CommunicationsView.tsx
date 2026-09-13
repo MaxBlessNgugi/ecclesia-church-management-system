@@ -10,8 +10,8 @@
 //
 // Every mutation goes through communicationsApi to the /api/communications
 // router — there is no local-only state, so a reload always shows what the
-// database holds. Delivery counters come from the gateway result (email
-// open/click rates are deliberately absent: they would need a tracking pixel).
+// database holds. Delivery counters come from the gateway result; email
+// open/click rates come from the tracking pixel and click redirect.
 // =============================================================================
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -47,8 +47,14 @@ const ANNOUNCEMENT_AUDIENCES = ['Everyone', 'Members only', 'Ministry Leaders', 
 const ANNOUNCEMENT_STATUSES: AnnouncementStatus[] = ['Active', 'Scheduled', 'Expired', 'Draft'];
 
 const EVENT_CATEGORIES = ['Service', 'Conference', 'Retreat', 'Outreach', 'Meeting', 'Wedding', 'Funeral'];
-/** Colour tags offered when creating an event (Warm Ember palette + neutrals). */
-const EVENT_COLORS = ['#c65d3b', '#1e1e1e', '#2f6f4f', '#7a4f9c', '#b07d1a', '#3d6b9c'];
+/** Event colour tags — green hues plus ink, matching the panel's accent. */
+const EVENT_COLORS = [
+  { name: 'Emerald', hex: '#059669' },
+  { name: 'Pine', hex: '#047857' },
+  { name: 'Forest', hex: '#065f46' },
+  { name: 'Ink', hex: '#1e1e1e' },
+  { name: 'Slate', hex: '#444748' },
+];
 
 const PRAYER_CATEGORIES = ['Healing', 'Family', 'Guidance', 'Provision', 'Bereavement', 'Praise', 'Salvation', 'General'];
 const PRAYER_PRIVACIES: PrayerPrivacy[] = ['Public', 'Leaders Only', 'Pastoral Private'];
@@ -108,13 +114,12 @@ function todayIso(): string {
 }
 
 /** Shared badge styling for a status pill. */
-function badgeClass(tone: 'green' | 'amber' | 'red' | 'gray' | 'terracotta'): string {
+function badgeClass(tone: 'green' | 'amber' | 'red' | 'gray'): string {
   const tones = {
     green: 'bg-emerald-50 text-emerald-800 border-emerald-200',
     amber: 'bg-amber-50 text-amber-800 border-amber-200',
     red: 'bg-red-50 text-red-800 border-red-200',
     gray: 'bg-[#f4f3f3] text-[#444748] border-[#e1e3e3]',
-    terracotta: 'bg-[#c65d3b]/10 text-[#8c3d22] border-[#c65d3b]/30',
   };
   return `px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wide ${tones[tone]}`;
 }
@@ -196,7 +201,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
     endAt: '',
     location: '',
     description: '',
-    color: EVENT_COLORS[0],
+    color: EVENT_COLORS[0].hex,
     rsvpRequired: false,
     capacity: '',
   });
@@ -653,7 +658,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-[#444748]">
-          <span className={badgeClass('terracotta')}>{upcomingEvents} upcoming</span>
+          <span className={badgeClass('green')}>{upcomingEvents} upcoming</span>
         </div>
       </div>
 
@@ -665,7 +670,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             onClick={() => setActiveSubTab(tab)}
             className={`pb-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeSubTab === tab
-                ? 'border-b-2 border-[#c65d3b] text-[#1a1c1c]'
+                ? 'border-b-2 border-[#1e1e1e] text-[#1a1c1c]'
                 : 'text-[#444748] hover:text-[#1a1c1c]'
             }`}
           >
@@ -705,7 +710,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {a.pinned && <span className="material-symbols-outlined text-sm text-[#c65d3b]">push_pin</span>}
+                      {a.pinned && <span className="material-symbols-outlined text-sm text-emerald-700">push_pin</span>}
                       <h3 className="text-sm font-bold text-[#1a1c1c]">{a.title}</h3>
                       <span className={badgeClass(AnnouncementTone[a.status])}>{a.status}</span>
                       <span className={badgeClass(a.priority === 'Urgent' ? 'red' : a.priority === 'High' ? 'amber' : 'gray')}>
@@ -980,7 +985,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                 <button
                   onClick={() => void handleQueueBroadcast(true)}
                   disabled={!canEdit}
-                  className={`px-4 py-2 rounded text-xs font-bold text-white bg-[#c65d3b] hover:bg-[#a94c2e] flex items-center gap-1.5 ${
+                  className={`px-4 py-2 rounded text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 flex items-center gap-1.5 ${
                     canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
                   }`}
                 >
@@ -1128,10 +1133,10 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                       <div
                         key={iso}
                         className={`min-h-[64px] rounded border p-1.5 space-y-1 ${
-                          isToday ? 'border-[#c65d3b] bg-[#c65d3b]/5' : 'border-[#e1e3e3] bg-[#ffffff]'
+                          isToday ? 'border-emerald-600 bg-emerald-50' : 'border-[#e1e3e3] bg-[#ffffff]'
                         }`}
                       >
-                        <div className={`text-[10px] font-bold ${isToday ? 'text-[#c65d3b]' : 'text-[#444748]'}`}>{day}</div>
+                        <div className={`text-[10px] font-bold ${isToday ? 'text-emerald-700' : 'text-[#444748]'}`}>{day}</div>
                         {dayEvents.map((ev) => (
                           <div
                             key={ev.id}
@@ -1160,7 +1165,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                     <div
                       key={ev.id}
                       className={`bg-[#ffffff] border rounded-xl p-4 shadow-xs flex items-start gap-4 ${
-                        isUpcoming ? 'border-[#c65d3b]' : 'border-[#e1e3e3]'
+                        isUpcoming ? 'border-emerald-600' : 'border-[#e1e3e3]'
                       }`}
                     >
                       <div className="w-1.5 self-stretch rounded" style={{ backgroundColor: ev.color }} />
@@ -1168,7 +1173,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-sm font-bold text-[#1a1c1c]">{ev.title}</h3>
                           <span className={badgeClass('gray')}>{ev.category}</span>
-                          {isUpcoming && <span className={badgeClass('terracotta')}>Upcoming</span>}
+                          {isUpcoming && <span className={badgeClass('green')}>Upcoming</span>}
                           {ev.rsvpRequired && <span className={badgeClass('amber')}>RSVP</span>}
                         </div>
                         <p className="text-[11px] text-[#444748]">
@@ -1296,13 +1301,13 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             <input className={INPUT_CLASS} placeholder="Location / campus" value={eventForm.location} onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })} />
             <textarea className={`${INPUT_CLASS} h-20`} placeholder="Description" value={eventForm.description} onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })} />
             <div className="flex items-center gap-2 flex-wrap">
-              {EVENT_COLORS.map((c) => (
+              {EVENT_COLORS.map(({ name, hex }) => (
                 <button
-                  key={c}
-                  onClick={() => setEventForm({ ...eventForm, color: c })}
-                  title={c}
-                  className={`w-5 h-5 rounded-full border-2 cursor-pointer ${eventForm.color === c ? 'border-[#1e1e1e]' : 'border-transparent'}`}
-                  style={{ backgroundColor: c }}
+                  key={hex}
+                  onClick={() => setEventForm({ ...eventForm, color: hex })}
+                  title={name}
+                  className={`w-5 h-5 rounded-full border-2 cursor-pointer ${eventForm.color === hex ? 'border-[#1e1e1e]' : 'border-transparent'}`}
+                  style={{ backgroundColor: hex }}
                 />
               ))}
             </div>
@@ -1372,7 +1377,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                       <span className={badgeClass(p.privacy === 'Public' ? 'green' : p.privacy === 'Leaders Only' ? 'amber' : 'red')}>
                         {p.privacy}
                       </span>
-                      <span className={badgeClass(p.status === 'Answered' ? 'green' : p.status === 'Archived' ? 'gray' : 'terracotta')}>
+                      <span className={badgeClass(p.status === 'Answered' ? 'green' : p.status === 'Archived' ? 'gray' : 'amber')}>
                         {p.status}
                       </span>
                     </div>
@@ -1512,7 +1517,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             ] as const).map(([kind, title, entries]) => (
               <div key={kind} className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c] flex items-center gap-2">
-                  <span className="material-symbols-outlined text-base text-[#c65d3b]">
+                  <span className="material-symbols-outlined text-base text-[#1a1c1c]">
                     {kind === 'Birthday' ? 'cake' : 'celebration'}
                   </span>
                   {title}
@@ -1538,7 +1543,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           <button
                             onClick={() => openGreeting(entry.id, entry.name, kind, entry.date)}
                             disabled={!canEdit}
-                            className={`px-2.5 py-1.5 rounded text-[11px] font-bold bg-[#c65d3b] text-white hover:bg-[#a94c2e] ${
+                            className={`px-2.5 py-1.5 rounded text-[11px] font-bold bg-emerald-700 text-white hover:bg-emerald-800 ${
                               canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
                             }`}
                           >
@@ -1554,7 +1559,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
           </div>
 
           {greetingTarget && (
-            <div className="bg-[#ffffff] border border-[#c65d3b] rounded-xl p-5 shadow-xs space-y-3 max-w-2xl">
+            <div className="bg-[#ffffff] border border-emerald-600 rounded-xl p-5 shadow-xs space-y-3 max-w-2xl">
               <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">
                 {greetingTarget.kind} greeting — {greetingTarget.name}
               </h3>
@@ -1584,7 +1589,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               )}
               <textarea className={`${INPUT_CLASS} h-24`} value={greetingMessage} onChange={(e) => setGreetingMessage(e.target.value)} />
               <div className="flex items-center gap-2">
-                <button onClick={() => void handleSendGreeting()} className="flex-1 py-2 rounded text-xs font-bold text-white bg-[#c65d3b] hover:bg-[#a94c2e] cursor-pointer">
+                <button onClick={() => void handleSendGreeting()} className="flex-1 py-2 rounded text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 cursor-pointer">
                   Send greeting
                 </button>
                 <button onClick={() => setGreetingTarget(null)} className="px-3 py-2 rounded text-xs font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] cursor-pointer">
@@ -1625,7 +1630,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           setDobTargetId(m.id);
                           setDobValue('');
                         }}
-                        className="text-[11px] font-bold text-[#c65d3b] hover:underline cursor-pointer"
+                        className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
                       >
                         + Add date of birth
                       </button>
