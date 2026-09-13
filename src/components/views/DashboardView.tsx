@@ -100,6 +100,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, member
       ]
     },
     {
+      id: 'communications' as NavigationTab, // Unique identifier for the Communications panel
+      title: 'Communications Panel', // Display title shown on the card header
+      icon: 'campaign', // Material Symbols icon name for the panel visual
+      desc: 'Announcements, broadcasts, events & prayer', // Brief description of the panel's purpose
+      items: [
+        { label: 'Announcements & Broadcasts', subTab: 'announcements' }, // Quick action to reach the composer
+        { label: 'Events & Prayer Requests', subTab: 'events' } // Quick action to manage the calendar and prayer list
+      ]
+    },
+    {
       id: 'reports' as NavigationTab, // Unique identifier for the Reports panel
       title: 'Reporting Panel', // Display title shown on the card header
       icon: 'analytics', // Material Symbols icon name representing analytics/reports

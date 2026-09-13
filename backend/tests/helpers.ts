@@ -17,6 +17,7 @@ import hrRoutes from '../src/routes/hr.js';
 import adminRoutes from '../src/routes/admin.js';
 import reportsRoutes from '../src/routes/reports.js';
 import dashboardRoutes from '../src/routes/dashboard.js';
+import communicationsRoutes, { communicationsTrackingRouter } from '../src/routes/communications.js';
 
 export async function seedTestUser() {
   const bcrypt = await import('bcryptjs');
@@ -68,6 +69,15 @@ export async function cleanupTestData() {
   await p.recruitment.deleteMany();
   await p.employeeDocument.deleteMany();
   await p.employee.deleteMany();
+  // Communications panel (children before parents: RSVPs reference events and
+  // broadcast recipients reference broadcasts).
+  await p.eventRsvp.deleteMany();
+  await p.churchEvent.deleteMany();
+  await p.announcement.deleteMany();
+  await p.broadcastRecipient.deleteMany();
+  await p.broadcast.deleteMany();
+  await p.prayerRequest.deleteMany();
+  await p.celebrationGreeting.deleteMany();
   await p.auditLog.deleteMany();
   await p.user.deleteMany({ where: { email: { not: 'admin@test.com' } } });
 }
@@ -88,6 +98,10 @@ export function createTestApp(): express.Express {
     }
   });
 
+  // Public tracking first — the root-mounted routers below reject every path
+  // that reaches them without a token (mirrors backend/src/index.ts).
+  app.use('/api/communications', communicationsTrackingRouter);
+
   app.use('/api/auth', authRoutes);
   app.use('/api/christians', christiansRoutes);
   app.use('/api', activitiesRoutes);
@@ -99,6 +113,7 @@ export function createTestApp(): express.Express {
   app.use('/api/admin', adminRoutes);
   app.use('/api/reports', reportsRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/communications', communicationsRoutes);
 
   app.use(errorHandler);
   return app;

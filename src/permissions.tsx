@@ -64,6 +64,7 @@ const FULL_PANELS: PanelPermissions['panels'] = {
   inventory: true,
   reports: true,
   hr: true,
+  communications: true,
   administration: true
 };
 

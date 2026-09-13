@@ -195,7 +195,7 @@ import { UserAccount } from '../types';
 import { InventoryPriceAuditLog } from '../types';
 
 /** Discriminated union of user roles (admin, pastor, accountant, etc.). */
-import { UserRole } from '../types';
+import { UserRole, AnnouncementRecord, AnnouncementInput, BroadcastChannel, BroadcastRecord, BroadcastInput, CelebrationGreetingRecord, ChurchEventRecord, ChurchEventInput, EventRsvpRecord, EventRsvpStatus, PrayerRequestRecord, PrayerRequestInput, CelebrationsResponse } from '../types';
 
 /** Complete data bundle returned by the admin export endpoint. */
 import { ExportBundle } from '../types';
@@ -1763,6 +1763,95 @@ export const settingsApi = {
       method: 'PUT',
       body: JSON.stringify(body)
     })
+};
+
+// ---------- Communications ----------------------------------------------------
+
+/**
+ * Communications API — announcements, bulk broadcasts, events + RSVPs,
+ * prayer requests, and upcoming celebrations.
+ *
+ * All methods target `/api/communications/*` and require the
+ * 'communications' panel permission.
+ */
+export const communicationsApi = {
+  /** Sub-API for internal announcements. */
+  announcements: {
+    list: () => request<AnnouncementRecord[]>('/communications/announcements'),
+    create: (body: AnnouncementInput) =>
+      request<AnnouncementRecord>('/communications/announcements', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Partial<AnnouncementInput>) =>
+      request<AnnouncementRecord>(`/communications/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/communications/announcements/${id}`, { method: 'DELETE' }),
+  },
+
+  /** Sub-API for bulk SMS/Email broadcasts. */
+  broadcasts: {
+    list: () => request<BroadcastRecord[]>('/communications/broadcasts'),
+    create: (body: BroadcastInput) =>
+      request<BroadcastRecord>('/communications/broadcasts', { method: 'POST', body: JSON.stringify(body) }),
+    /** Dispatch now. Throws ApiError when nothing could be delivered. */
+    send: (id: string, customRecipients: string[] = []) =>
+      request<BroadcastRecord>(`/communications/broadcasts/${id}/send`, {
+        method: 'POST',
+        body: JSON.stringify({ customRecipients }),
+      }),
+    remove: (id: string) => request<void>(`/communications/broadcasts/${id}`, { method: 'DELETE' }),
+  },
+
+  /** Sub-API for church events and their RSVPs. */
+  events: {
+    list: () => request<ChurchEventRecord[]>('/communications/events'),
+    create: (body: ChurchEventInput) =>
+      request<ChurchEventRecord>('/communications/events', { method: 'POST', body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/communications/events/${id}`, { method: 'DELETE' }),
+    listRsvps: (id: string) => request<EventRsvpRecord[]>(`/communications/events/${id}/rsvps`),
+    addRsvp: (id: string, body: { name: string; phone?: string; status?: EventRsvpStatus }) =>
+      request<EventRsvpRecord>(`/communications/events/${id}/rsvps`, { method: 'POST', body: JSON.stringify(body) }),
+    removeRsvp: (eventId: string, rsvpId: string) =>
+      request<void>(`/communications/events/${eventId}/rsvps/${rsvpId}`, { method: 'DELETE' }),
+  },
+
+  /** Sub-API for prayer requests (privacy-filtered server-side). */
+  prayerRequests: {
+    list: () => request<PrayerRequestRecord[]>('/communications/prayer-requests'),
+    create: (body: PrayerRequestInput) =>
+      request<PrayerRequestRecord>('/communications/prayer-requests', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: { status?: string; praiseReport?: string; category?: string; privacy?: string }) =>
+      request<PrayerRequestRecord>(`/communications/prayer-requests/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    /** Count one more person praying for this request. */
+    pray: (id: string) =>
+      request<PrayerRequestRecord>(`/communications/prayer-requests/${id}/pray`, { method: 'POST', body: JSON.stringify({}) }),
+    remove: (id: string) => request<void>(`/communications/prayer-requests/${id}`, { method: 'DELETE' }),
+  },
+
+  /** Sub-API for upcoming birthdays and anniversaries. */
+  celebrations: {
+    get: (range: 'week' | 'month' | 'upcoming' = 'week') =>
+      request<CelebrationsResponse>(`/communications/celebrations${buildQuery({ range })}`),
+    /**
+     * Record a member's date of birth as a calendar date (YYYY-MM-DD),
+     * or null to clear it.
+     */
+    setDateOfBirth: (memberId: string, dateOfBirth: string | null) =>
+      request<{ id: string; name: string; dateOfBirth: string | null }>(
+        `/communications/celebrations/members/${memberId}`,
+        { method: 'PATCH', body: JSON.stringify({ dateOfBirth }) },
+      ),
+    /** Send a birthday/anniversary greeting and record it as sent. */
+    sendGreeting: (body: {
+      christianId: string;
+      kind: 'Birthday' | 'Anniversary';
+      occasionDate: string;
+      channel?: BroadcastChannel;
+      message: string;
+      recipient?: string;
+    }) =>
+      request<CelebrationGreetingRecord>('/communications/celebrations/greetings', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
 };
 
 // ---------- Mutation Helper ----------------------------------------------------

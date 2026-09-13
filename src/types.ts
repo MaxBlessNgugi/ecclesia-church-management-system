@@ -70,6 +70,7 @@ export type NavigationTab =
   | 'inventory'
   | 'reports'
   | 'hr'
+  | 'communications'
   | 'administration'
   | 'auth';
 
@@ -142,6 +143,21 @@ export type ReportsSubTab = 'sacraments' | 'contributions' | 'sales' | 'cashiers
 export type HRSubTab = 'directory' | 'onboarding' | 'payroll' | 'leave' | 'recruitment';
 
 /**
+ * Sub-tab identifiers for the Communications panel.
+ * - 'announcements': Internal announcements (targeting, pinning, scheduling)
+ * - 'broadcasts': Bulk SMS/Email composer with delivery reporting
+ * - 'events': Church calendar (list/calendar views) with RSVP tracking
+ * - 'prayer': Prayer requests with privacy levels and praise reports
+ * - 'celebrations': Upcoming birthdays and wedding anniversaries
+ */
+export type CommunicationsSubTab =
+  | 'announcements'
+  | 'broadcasts'
+  | 'events'
+  | 'prayer'
+  | 'celebrations';
+
+/**
  * Sub-tab identifiers for the Administration panel.
  * - 'rights': Permission rights centre (panel/action access control)
  * - 'users': User account management
@@ -191,6 +207,11 @@ export interface ChristianRecord {
   localChurch: string;
   /** Small Christian Community / Jumuiya grouping. */
   scc: string;
+  /**
+   * Date of birth (ISO YYYY-MM-DD). Optional: the registry never captured it,
+   * so it stays undefined until Communications records it for birthday greetings.
+   */
+  dateOfBirth?: string;
   /** Membership status: 'Active' | 'Transferred' | 'Deceased' | 'Inactive'. */
   status: 'Active' | 'Transferred' | 'Deceased' | 'Inactive';
   /** Baptism sacramental record (optional if not yet baptized). */
@@ -891,6 +912,7 @@ export type PanelKey =
   | 'inventory'
   | 'reports'
   | 'hr'
+  | 'communications'
   | 'administration';
 
 /**
@@ -1077,6 +1099,217 @@ export interface DashboardSummary {
   recentDeposits: DepositRecord[];
   /** Most recent expense records (for the dashboard widget). */
   recentExpenses: ExpenseRecord[];
+}
+
+// ---------- Communications ----------
+
+/** Priority level for an announcement — drives the badge colour in the list. */
+export type AnnouncementPriority = 'Normal' | 'High' | 'Urgent';
+
+/**
+ * Announcement lifecycle status. 'Scheduled' / 'Expired' are derived by the
+ * backend from publishAt/expiresAt, so they change on their own with the clock.
+ */
+export type AnnouncementStatus = 'Draft' | 'Scheduled' | 'Active' | 'Expired';
+
+/**
+ * Internal announcement shown to a targeted audience of the congregation.
+ */
+export interface AnnouncementRecord {
+  id: string;
+  title: string;
+  content: string;
+  /** Free-text category (e.g. 'General', 'Service', 'Youth'). */
+  category: string;
+  /** Target audience (e.g. 'Everyone', 'Members only', 'Ministry: Choir'). */
+  audience: string;
+  priority: AnnouncementPriority;
+  status: AnnouncementStatus;
+  pinned: boolean;
+  /** ISO date-time when the announcement goes live (null = immediately). */
+  publishAt: string | null;
+  /** ISO date-time when the announcement stops showing (null = never). */
+  expiresAt: string | null;
+  /** Display name of the author (resolved server-side at creation). */
+  authorName: string;
+  createdAt: string;
+}
+
+/** Create/update payload for an announcement. */
+export interface AnnouncementInput {
+  title: string;
+  content: string;
+  category?: string;
+  audience?: string;
+  priority?: AnnouncementPriority;
+  pinned?: boolean;
+  publishAt?: string | null;
+  expiresAt?: string | null;
+  /** 'Draft' keeps it unpublished; 'Active' publishes it. */
+  status?: 'Draft' | 'Active';
+}
+
+/** Delivery channel for a bulk broadcast. */
+export type BroadcastChannel = 'SMS' | 'Email';
+
+/** Broadcast lifecycle: Draft → Scheduled → Sent | Failed. */
+export type BroadcastStatus = 'Draft' | 'Scheduled' | 'Sent' | 'Failed';
+/**
+ * One bulk SMS/Email send. Delivery counters are the real gateway outcome;
+ * open/click counts come from the tracking pixel and click redirect.
+ */
+export interface BroadcastRecord {
+  id: string;
+  channel: BroadcastChannel;
+  /** Email subject (ignored for SMS). */
+  subject: string;
+  body: string;
+  /** Audience selector value (e.g. 'Everyone', 'Staff', 'Custom list'). */
+  audience: string;
+  status: BroadcastStatus;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  /**
+   * Email engagement, measured by the tracking pixel / click redirect.
+   * Always 0 for SMS — there is nothing to open or click.
+   */
+  openCount: number;
+  clickCount: number;
+  /** Why the send failed — shown in the delivery report. */
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+/** Create payload for a broadcast (sending is a separate call). */
+export interface BroadcastInput {
+  channel: BroadcastChannel;
+  subject?: string;
+  body: string;
+  audience?: string;
+  scheduledAt?: string | null;
+  /** Addresses for the 'Custom list' audience (persisted with the broadcast). */
+  customRecipients?: string[];
+}
+
+/** RSVP response state for an event attendee. */
+export type EventRsvpStatus = 'Going' | 'Maybe' | 'Declined';
+
+/** A church event on the communications calendar. */
+export interface ChurchEventRecord {
+  id: string;
+  title: string;
+  category: string;
+  ministry: string;
+  startAt: string;
+  endAt: string | null;
+  location: string;
+  description: string;
+  /** Hex colour tag used for the calendar chip / list accent. */
+  color: string;
+  rsvpRequired: boolean;
+  /** Maximum 'Going' RSVPs (null = unlimited). */
+  capacity: number | null;
+  rsvpCount: number;
+  goingCount: number;
+}
+
+/** Create/update payload for a church event. */
+export interface ChurchEventInput {
+  title: string;
+  category?: string;
+  ministry?: string;
+  startAt: string;
+  endAt?: string | null;
+  location?: string;
+  description?: string;
+  color?: string;
+  rsvpRequired?: boolean;
+  capacity?: number | null;
+}
+
+/** A single RSVP recorded against an event. */
+export interface EventRsvpRecord {
+  id: string;
+  eventId: string;
+  name: string;
+  phone: string;
+  status: EventRsvpStatus;
+  createdAt: string;
+}
+
+/** Privacy level of a prayer request — enforced server-side on read. */
+export type PrayerPrivacy = 'Public' | 'Leaders Only' | 'Pastoral Private';
+
+/** Prayer request lifecycle. */
+export type PrayerStatus = 'Open' | 'Answered' | 'Archived';
+
+/** A prayer request submitted by a member or member of staff. */
+export interface PrayerRequestRecord {
+  id: string;
+  requesterName: string;
+  request: string;
+  category: string;
+  privacy: PrayerPrivacy;
+  status: PrayerStatus;
+  answeredAt: string | null;
+  praiseReport: string | null;
+  /** How many people have marked themselves as praying for this request. */
+  prayCount: number;
+  createdAt: string;
+}
+
+/** Create payload for a prayer request. */
+export interface PrayerRequestInput {
+  requesterName: string;
+  request: string;
+  category?: string;
+  privacy?: PrayerPrivacy;
+}
+
+/** An upcoming birthday, with the age the member is turning. */
+export interface BirthdayEntry {
+  id: string;
+  name: string;
+  /** ISO date (YYYY-MM-DD) of the upcoming birthday. */
+  date: string;
+  turning: number;
+  phone: string;
+  household: string;
+}
+
+/** An upcoming wedding anniversary, with the milestone year count. */
+export interface AnniversaryEntry {
+  id: string;
+  name: string;
+  /** ISO date (YYYY-MM-DD) of the upcoming anniversary. */
+  date: string;
+  years: number;
+  phone: string;
+  household: string;
+}
+
+/** Payload of GET /api/communications/celebrations. */
+export interface CelebrationsResponse {
+  range: 'week' | 'month' | 'upcoming';
+  birthdays: BirthdayEntry[];
+  anniversaries: AnniversaryEntry[];
+  /** Members with no birthday or marriage date on file (prompt to capture). */
+  unrecorded: Array<{ id: string; name: string; phone: string }>;
+  /** Greetings already sent for the listed occasions. */
+  greetings: CelebrationGreetingRecord[];
+}
+
+/** A greeting recorded as sent to a member for one occasion. */
+export interface CelebrationGreetingRecord {
+  id: string;
+  christianId: string;
+  kind: 'Birthday' | 'Anniversary';
+  /** ISO date (YYYY-MM-DD) of the occasion the greeting was for. */
+  occasionDate: string;
+  channel: BroadcastChannel;
 }
 
 // ---------- Auth ----------

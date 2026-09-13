@@ -75,6 +75,12 @@ export const SOFT_DELETABLE_MODELS: string[] = [
   'Leave', // Leave/vacation requests and records
   'Recruitment', // Recruitment campaigns for hiring
   'RecruitmentApplicant', // Applicants for recruitment positions
+  'Announcement', // Communications: internal announcements
+  'Broadcast', // Communications: bulk SMS/Email sends
+  'ChurchEvent', // Communications: church calendar events
+  'EventRsvp', // Communications: event RSVP responses
+  'PrayerRequest', // Communications: prayer requests & praise reports
+  'CelebrationGreeting', // Communications: sent birthday/anniversary greetings
 ];
 
 /**

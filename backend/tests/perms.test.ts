@@ -58,6 +58,13 @@ beforeEach(async () => {
   });
 });
 
+// Helper: read the effective permissions the client gates its UI on.
+async function effectivePermissions(token: string) {
+  const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+  expect(res.status).toBe(200);
+  return res.body.permissions as { panels: Record<string, boolean>; actions: Record<string, boolean> };
+}
+
 // Helper: create a non-super_admin user with custom panels/actions and sign a token.
 async function createStaffUser(panels: Record<string, boolean>, actions: Record<string, boolean>) {
   const bcrypt = await import('bcryptjs');
@@ -220,6 +227,63 @@ describe('requireModule — Missing authentication', () => {
       .get('/api/christians')
       .set('Authorization', 'Bearer not-a-real-token');
     expect(res.status).toBe(401);
+  });
+});
+
+/**
+ * Both permission JSON columns are snapshots, so a panel added to the app after
+ * they were written is absent from them. requireModule() treats an absent key as
+ * allowed, and the session payload the UI gates on must report the same thing —
+ * otherwise a new panel is enforced-on but hidden from the sidebar forever.
+ */
+describe('loadPermissions — panels added after the stored permissions', () => {
+  /** The global row this suite writes (in beforeEach) has no `communications` key. */
+  it('resolves a panel missing from both the global row and the user overrides', async () => {
+    const { token } = await createStaffUser(
+      { christian: true, activities: true, sacraments: true, finance: true,
+        ledgers: true, inventory: true, reports: true, hr: true, administration: true },
+      { view: true, edit: true, delete: true },
+    );
+
+    const { panels } = await effectivePermissions(token);
+    expect(panels.communications).toBe(true);
+    // …and the set is complete, not just patched for the newest panel.
+    expect(Object.keys(panels).sort()).toEqual([
+      'activities', 'administration', 'christian', 'communications', 'finance',
+      'hr', 'inventory', 'ledgers', 'reports', 'sacraments',
+    ]);
+  });
+
+  it('still reports an explicit denial', async () => {
+    const { token } = await createStaffUser(
+      { christian: true, activities: true, sacraments: true, finance: true,
+        ledgers: true, inventory: true, reports: true, hr: true,
+        communications: false, administration: true },
+      { view: true, edit: true, delete: true },
+    );
+
+    const { panels } = await effectivePermissions(token);
+    expect(panels.communications).toBe(false);
+  });
+
+  /** The Rights Centre must show — and be able to change — the same set. */
+  it('shows the effective set and round-trips a saved change to the session', async () => {
+    const { user, token } = await createStaffUser({}, {});
+    const auth = { Authorization: `Bearer ${superAdminToken}` };
+
+    const shown = await request(app).get(`/api/admin/users/${user.id}/permissions`).set(auth);
+    expect(shown.status).toBe(200);
+    expect(shown.body.panels.communications).toBe(true);
+
+    const saved = await request(app)
+      .put(`/api/admin/users/${user.id}/permissions`)
+      .set(auth)
+      .send({ panels: { communications: false }, actions: { view: true, edit: true, delete: true } });
+    expect(saved.status).toBe(200);
+    expect(saved.body.panels.communications).toBe(false);
+
+    const { panels } = await effectivePermissions(token);
+    expect(panels.communications).toBe(false);
   });
 });
 
