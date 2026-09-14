@@ -329,12 +329,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
       {/* Auth card — constrained width, white background, rounded corners, shadow */}
       <div className="w-full max-w-md bg-[#ffffff] border border-[#e1e3e3] rounded-2xl shadow-xl overflow-hidden p-8 space-y-6">
         {/* Header Logo */}
-        {/* Centred block containing the cross icon and application title */}
+        {/* Centred block containing the brand mark and application title */}
         <div className="text-center space-y-2">
-          {/* Ecclesia arch+E icon inside a rounded dark square — the app's visual brand mark */}
-          <div className="w-12 h-12 mx-auto rounded-xl bg-[#1e1e1e] text-white flex items-center justify-center shadow-xs">
-            <EcclesiaIcon size={32} className="w-8 h-8" />
-          </div>
+          {/* Ecclesia starlight mark — the app's visual brand mark */}
+          <EcclesiaIcon size={48} className="w-12 h-12 mx-auto" />
           {/* Application name in a serif font */}
           <h2 className="text-2xl font-serif font-bold text-[#1a1c1c]">
             Ecclesia CMS
