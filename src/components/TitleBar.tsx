@@ -55,8 +55,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onSelectTab }) => {
         {/* Vertical divider between parish and ECCLESIA brand */}
         <span className="text-slate-300 dark:text-slate-600 text-xs">|</span>
 
-        {/* ECCLESIA brand mark */}
-        <EcclesiaIcon size={28} className="w-7 h-7" />
+        <EcclesiaIcon className="w-7 h-7" />
 
         {/* ECCLESIA app title + subtitle */}
         <div className="flex flex-col">

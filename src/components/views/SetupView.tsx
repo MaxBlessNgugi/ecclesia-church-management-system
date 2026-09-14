@@ -250,7 +250,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
       <div className="w-full max-w-2xl">
         {/* Welcome header */}
         <div className="text-center mb-8">
-          <EcclesiaIcon size={64} className="w-16 h-16 mx-auto mb-4" />
+          <EcclesiaIcon className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-3xl font-serif font-bold text-[#1a1c1c]">
             Welcome to ECCLESIA
           </h1>

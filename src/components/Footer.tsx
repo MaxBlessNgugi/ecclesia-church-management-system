@@ -42,7 +42,7 @@ export const Footer: React.FC = () => {
 
           {/* ECCLESIA starlight mark + app name + subtitle */}
           <div className="flex items-center gap-1.5">
-            <EcclesiaIcon size={20} className="w-5 h-5" />
+            <EcclesiaIcon className="w-5 h-5" />
             <div className="flex flex-col">
               <span className="font-bold text-slate-800 dark:text-slate-200 text-xs leading-tight">ECCLESIA</span>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">Parish ERP</span>

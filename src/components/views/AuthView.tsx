@@ -331,8 +331,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessAuth }) => {
         {/* Header Logo */}
         {/* Centred block containing the brand mark and application title */}
         <div className="text-center space-y-2">
-          {/* Ecclesia starlight mark — the app's visual brand mark */}
-          <EcclesiaIcon size={48} className="w-12 h-12 mx-auto" />
+          <EcclesiaIcon className="w-12 h-12 mx-auto" />
           {/* Application name in a serif font */}
           <h2 className="text-2xl font-serif font-bold text-[#1a1c1c]">
             Ecclesia CMS
