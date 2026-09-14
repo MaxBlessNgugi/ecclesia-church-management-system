@@ -158,16 +158,17 @@ const card = (border = 'border-[#e1e3e3]') => `bg-[#ffffff] border ${border} rou
 const CARD_TITLE = 'text-xs font-bold uppercase tracking-wide text-[#1a1c1c]';
 /** "Nothing here yet" placeholder. */
 const EMPTY_CARD = `${card()} p-6 text-xs text-[#444748]`;
+/** Action buttons dim while `disabled`, which is how a permission-gated
+ *  control renders itself — the same idiom the Admin panel uses. */
+const GATED = 'cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 /** Solid ink action — create / save. */
-const PRIMARY_BTN = 'rounded font-bold text-white bg-[#1e1e1e] hover:bg-[#333333]';
+const PRIMARY_BTN = `rounded font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] ${GATED}`;
 /** Solid green action — send. */
-const SEND_BTN = 'rounded font-bold text-white bg-emerald-700 hover:bg-emerald-800';
+const SEND_BTN = `rounded font-bold text-white bg-emerald-700 hover:bg-emerald-800 ${GATED}`;
 /** Neutral action — cancel / draft. */
-const NEUTRAL_BTN = 'rounded font-bold bg-[#f4f3f3] hover:bg-[#eeeeee]';
+const NEUTRAL_BTN = `rounded font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] ${GATED}`;
 /** Icon-only action inside a record row. */
 const ICON_BTN = 'p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer';
-/** Button state for an action gated on the panel's edit permission. */
-const gated = (allowed: boolean) => (allowed ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed');
 
 /** Segmented switcher — the app's ink pill for the active option. */
 const Segmented = <T extends string>({ options, value, onChange }: {
@@ -274,7 +275,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
 
   // ── Events state ─────────────────────────────────────────────────────────
   const [events, setEvents] = useState<ChurchEventRecord[]>([]);
-  const [eventView, setEventView] = useState<(typeof EVENT_VIEWS)[number]['value']>('list');
+  const [eventView, setEventView] = useState<'list' | 'calendar'>('list');
   const [calendarCursor, setCalendarCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -309,7 +310,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
 
   // ── Celebrations state ───────────────────────────────────────────────────
   const [celebrations, setCelebrations] = useState<CelebrationsResponse | null>(null);
-  const [celebrationRange, setCelebrationRange] = useState<(typeof CELEBRATION_RANGES)[number]['value']>('week');
+  const [celebrationRange, setCelebrationRange] = useState<'week' | 'month' | 'upcoming'>('week');
   const [dobTargetId, setDobTargetId] = useState<string | null>(null);
   const [dobValue, setDobValue] = useState('');
   const [greetingTarget, setGreetingTarget] = useState<{
@@ -932,14 +933,14 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               <button
                 onClick={() => void handleSaveAnnouncement()}
                 disabled={!canEdit}
-                className={`${PRIMARY_BTN} flex-1 py-2 text-xs ${gated(canEdit)}`}
+                className={`${PRIMARY_BTN} flex-1 py-2 text-xs`}
               >
                 {editingAnnouncementId ? 'Save changes' : 'Create announcement'}
               </button>
               {editingAnnouncementId && (
                 <button
                   onClick={resetAnnouncementForm}
-                  className={`${NEUTRAL_BTN} px-3 py-2 text-xs cursor-pointer`}
+                  className={`${NEUTRAL_BTN} px-3 py-2 text-xs`}
                 >
                   Cancel
                 </button>
@@ -1036,14 +1037,14 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                 <button
                   onClick={() => void handleQueueBroadcast(false)}
                   disabled={!canEdit}
-                  className={`${NEUTRAL_BTN} px-3 py-2 text-xs ${gated(canEdit)}`}
+                  className={`${NEUTRAL_BTN} px-3 py-2 text-xs`}
                 >
                   {composer.scheduledAt ? 'Schedule' : 'Save draft'}
                 </button>
                 <button
                   onClick={() => void handleQueueBroadcast(true)}
                   disabled={!canEdit}
-                  className={`${SEND_BTN} px-4 py-2 text-xs flex items-center gap-1.5 ${gated(canEdit)}`}
+                  className={`${SEND_BTN} px-4 py-2 text-xs flex items-center gap-1.5`}
                 >
                   <span className="material-symbols-outlined text-base">send</span>
                   Send now
@@ -1236,7 +1237,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                         <button
                           onClick={() => void handleOpenRsvps(ev)}
                           title="Manage RSVPs"
-                          className={`${NEUTRAL_BTN} px-2.5 py-1.5 text-[11px] cursor-pointer`}
+                          className={`${NEUTRAL_BTN} px-2.5 py-1.5 text-[11px]`}
                         >
                           RSVPs
                         </button>
@@ -1316,7 +1317,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                     <select className={INPUT_CLASS} value={rsvpForm.status} onChange={(e) => setRsvpForm({ ...rsvpForm, status: e.target.value as EventRsvpStatus })}>
                       {(['Going', 'Maybe', 'Declined'] as EventRsvpStatus[]).map((s) => <option key={s}>{s}</option>)}
                     </select>
-                    <button onClick={() => void handleAddRsvp()} className={`${PRIMARY_BTN} py-2 text-xs cursor-pointer`}>
+                    <button onClick={() => void handleAddRsvp()} className={`${PRIMARY_BTN} py-2 text-xs`}>
                       Add RSVP
                     </button>
                   </div>
@@ -1375,7 +1376,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             <button
               onClick={() => void handleSaveEvent()}
               disabled={!canEdit}
-              className={`${PRIMARY_BTN} w-full py-2 text-xs ${gated(canEdit)}`}
+              className={`${PRIMARY_BTN} w-full py-2 text-xs`}
             >
               Create event
             </button>
@@ -1417,7 +1418,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                     <button
                       onClick={() => void handlePray(p)}
                       title="I prayed for this"
-                      className={`${NEUTRAL_BTN} px-2.5 py-1.5 text-[11px] flex items-center gap-1 cursor-pointer`}
+                      className={`${NEUTRAL_BTN} px-2.5 py-1.5 text-[11px] flex items-center gap-1`}
                     >
                       <span className="material-symbols-outlined text-sm">folded_hands</span>
                       Pray · {p.prayCount}
@@ -1490,7 +1491,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               <button
                 onClick={() => void handleSavePrayer()}
                 disabled={!canEdit}
-                className={`${PRIMARY_BTN} w-full py-2 text-xs ${gated(canEdit)}`}
+                className={`${PRIMARY_BTN} w-full py-2 text-xs`}
               >
                 Save request
               </button>
@@ -1508,10 +1509,10 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                   onChange={(e) => setPraiseReport(e.target.value)}
                 />
                 <div className="flex items-center gap-2">
-                  <button onClick={() => void handleMarkAnswered()} className={`${SEND_BTN} flex-1 py-2 text-xs cursor-pointer`}>
+                  <button onClick={() => void handleMarkAnswered()} className={`${SEND_BTN} flex-1 py-2 text-xs`}>
                     Mark answered
                   </button>
-                  <button onClick={() => setAnsweringRequest(null)} className={`${NEUTRAL_BTN} px-3 py-2 text-xs cursor-pointer`}>
+                  <button onClick={() => setAnsweringRequest(null)} className={`${NEUTRAL_BTN} px-3 py-2 text-xs`}>
                     Cancel
                   </button>
                 </div>
@@ -1561,7 +1562,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           <button
                             onClick={() => openGreeting(entry.id, entry.name, kind, entry.date)}
                             disabled={!canEdit}
-                            className={`${SEND_BTN} px-2.5 py-1.5 text-[11px] ${gated(canEdit)}`}
+                            className={`${SEND_BTN} px-2.5 py-1.5 text-[11px]`}
                           >
                             Send greeting
                           </button>
@@ -1595,10 +1596,10 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               )}
               <textarea className={`${INPUT_CLASS} h-24`} value={greetingMessage} onChange={(e) => setGreetingMessage(e.target.value)} />
               <div className="flex items-center gap-2">
-                <button onClick={() => void handleSendGreeting()} className={`${SEND_BTN} flex-1 py-2 text-xs cursor-pointer`}>
+                <button onClick={() => void handleSendGreeting()} className={`${SEND_BTN} flex-1 py-2 text-xs`}>
                   Send greeting
                 </button>
-                <button onClick={() => setGreetingTarget(null)} className={`${NEUTRAL_BTN} px-3 py-2 text-xs cursor-pointer`}>
+                <button onClick={() => setGreetingTarget(null)} className={`${NEUTRAL_BTN} px-3 py-2 text-xs`}>
                   Cancel
                 </button>
               </div>
@@ -1625,7 +1626,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                         value={dobValue}
                         onChange={(e) => setDobValue(e.target.value)}
                       />
-                      <button onClick={() => void handleSaveDateOfBirth()} className={`${PRIMARY_BTN} px-2 py-1.5 text-[11px] cursor-pointer`}>
+                      <button onClick={() => void handleSaveDateOfBirth()} className={`${PRIMARY_BTN} px-2 py-1.5 text-[11px]`}>
                         Save
                       </button>
                     </div>

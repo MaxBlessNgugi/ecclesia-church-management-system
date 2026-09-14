@@ -14,7 +14,7 @@
 // rows regardless of the `isDeleted` filter that appPrisma applies everywhere
 // else, and it must write to AuditLog itself.
 // =============================================================================
-import { prisma } from './prisma.js';
+import { prisma, SOFT_DELETABLE_MODELS } from './prisma.js';
 import { AuditAction } from '@prisma/client';
 
 /**
@@ -48,44 +48,9 @@ export class HttpError extends Error {
 }
 
 /**
- * Models that support soft deletion — PascalCase Prisma delegate names.
- * These correspond to database tables with isDeleted and deletedAt columns.
- * Used by restore() and softDelete() to validate model support.
- */
-export const SOFT_DELETABLE_MODELS: string[] = [
-  'User', // Church users/administrators with role-based access
-  'Christian', // Church members/congregation records
-  'Contribution', // Financial contributions/tithes from members
-  'Transfer', // Financial transfers between accounts or funds
-  'BilledItem', // Items billed to members (e.g., event fees)
-  'Death', // Death records for church members
-  'Deposit', // Bank deposits and financial deposits
-  'Creditor', // Entities owed money by the church
-  'Debtor', // Entities that owe money to the church
-  'Expense', // Church operational expenses
-  'Ledger', // Financial ledger entries
-  'LedgerMovement', // Individual ledger transactions/movements
-  'InventoryItem', // Physical inventory items (equipment, supplies)
-  'Delivery', // Delivery records for inventory items
-  'Sale', // Sales transactions
-  'StockTake', // Inventory stock-take/audit records
-  'StockIssue', // Inventory items issued to departments/staff
-  'Employee', // Church employees/staff records
-  'Payroll', // Payroll records for employees
-  'Leave', // Leave/vacation requests and records
-  'Recruitment', // Recruitment campaigns for hiring
-  'RecruitmentApplicant', // Applicants for recruitment positions
-  'Announcement', // Communications: internal announcements
-  'Broadcast', // Communications: bulk SMS/Email sends
-  'ChurchEvent', // Communications: church calendar events
-  'EventRsvp', // Communications: event RSVP responses
-  'PrayerRequest', // Communications: prayer requests & praise reports
-  'CelebrationGreeting', // Communications: sent birthday/anniversary greetings
-];
-
-/**
  * Set for O(1) lookup performance when checking if a model supports soft deletion.
- * Used by delegate() and loadCurrentRecord() to validate model names.
+ * Used by delegate() and loadCurrentRecord() to validate model names. The list
+ * itself lives in lib/prisma.ts, beside the query extension that applies it.
  */
 const SOFT_DELETABLE: ReadonlySet<string> = new Set(SOFT_DELETABLE_MODELS);
 

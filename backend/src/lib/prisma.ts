@@ -52,8 +52,11 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
  * Models that support soft deletion (added `isDeleted` + `deletedAt`).
  * PascalCase names match the Prisma client model delegates.
  * Settings singletons (PanelPermissions, PushPaymentSettings) and AuditLog are excluded.
+ *
+ * Exported because audit.ts's softDelete()/restore() validate the same list —
+ * one copy, pinned to the schema by tests/soft-delete.test.ts.
  */
-const SOFT_DELETABLE: ReadonlySet<string> = new Set([
+export const SOFT_DELETABLE_MODELS: readonly string[] = [
   'User', // Church users/administrators with role-based access
   'Christian', // Church members/congregation records
   'Contribution', // Financial contributions/tithes from members
@@ -82,7 +85,10 @@ const SOFT_DELETABLE: ReadonlySet<string> = new Set([
   'EventRsvp', // Communications: event RSVP responses
   'PrayerRequest', // Communications: prayer requests
   'CelebrationGreeting', // Communications: sent birthday/anniversary greetings
-]);
+];
+
+/** O(1) membership test used by the query extension below. */
+const SOFT_DELETABLE: ReadonlySet<string> = new Set(SOFT_DELETABLE_MODELS);
 
 /**
  * Injects a soft-delete filter (`isDeleted: false`) into the query arguments.
