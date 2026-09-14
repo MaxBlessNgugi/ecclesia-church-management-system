@@ -1,7 +1,7 @@
 // =============================================================================
 // Footer — presentational bottom bar rendered inside <main> on every panel
 // ---------------------------------------------------------------------------
-// Shows the dual brand lockup: parish logo/name + ECCLESIA cross, centred.
+// Shows the dual brand lockup: parish logo/name + ECCLESIA starlight mark, centred.
 // Displays the parish motto when configured. Uses live data from useParishInfo.
 // =============================================================================
 import React from 'react';
@@ -40,11 +40,9 @@ export const Footer: React.FC = () => {
           {/* Vertical divider */}
           <span className="text-slate-300 dark:text-slate-600">|</span>
 
-          {/* ECCLESIA arch+E icon + app name + subtitle */}
+          {/* ECCLESIA starlight mark + app name + subtitle */}
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center">
-              <EcclesiaIcon size={14} className="w-3.5 h-3.5" />
-            </div>
+            <EcclesiaIcon className="w-5 h-5" />
             <div className="flex flex-col">
               <span className="font-bold text-slate-800 dark:text-slate-200 text-xs leading-tight">ECCLESIA</span>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">Parish ERP</span>

@@ -2,7 +2,7 @@
 // TitleBar — slim brand strip at the top of the application
 // ---------------------------------------------------------------------------
 // Rendered at the very top of the root layout (App.tsx), above the Header nav
-// bar. Displays the dual brand lockup: parish logo/name + ECCLESIA cross icon.
+// bar. Displays the dual brand lockup: parish logo/name + ECCLESIA starlight mark.
 // Uses live parish data from useParishInfo so changes made by an admin update
 // the title bar in real time.
 // =============================================================================
@@ -55,10 +55,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onSelectTab }) => {
         {/* Vertical divider between parish and ECCLESIA brand */}
         <span className="text-slate-300 dark:text-slate-600 text-xs">|</span>
 
-        {/* ECCLESIA brand tile: dark rounded square with canonical arch+E glyph */}
-        <div className="w-6 h-6 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center group-hover:bg-slate-700 dark:group-hover:bg-slate-300 transition-colors">
-          <EcclesiaIcon size={18} className="w-[18px] h-[18px]" />
-        </div>
+        <EcclesiaIcon className="w-7 h-7" />
 
         {/* ECCLESIA app title + subtitle */}
         <div className="flex flex-col">

@@ -31,7 +31,11 @@
 //
 // PANEL KEYS (must stay in sync with PanelKey in src/types.ts)
 //   'christian' | 'activities' | 'sacraments' | 'finance' | 'ledgers' |
-//   'inventory' | 'reports' | 'hr' | 'administration'
+//   'inventory' | 'reports' | 'hr' | 'communications' | 'administration'
+//
+// loadPermissions() is the ONLY place that decides what a user may do. Both the
+// auth session payload and the Rights Centre editor delegate to it, so the
+// client can never be shown a panel the API would answer with 403.
 //
 // PERMISSION RESOLUTION (loadPermissions)
 //   1. Fetch User { role, panels, actions } by userId
@@ -83,6 +87,7 @@ export type PanelKey =
   | 'inventory'      // Church property and inventory tracking
   | 'reports'        // Report generation and analytics dashboards
   | 'hr'             // Human resources and staff management
+  | 'communications' // Announcements, broadcasts, events, prayer & celebrations
   | 'administration'; // System administration and configuration
 
 /**
@@ -94,9 +99,11 @@ type PanelAction = 'view' | 'edit' | 'delete';
 /**
  * Default panel access permissions — all panels enabled by default for new users.
  * This permissive default means new users can access all modules unless explicitly
- * restricted. Used as the fallback when no global defaults or user overrides exist.
+ * restricted. Used as the fallback when no global defaults or user overrides exist,
+ * and to fill keys missing from a stored permission object (a panel added to the
+ * app after that user's permissions were saved).
  */
-const defaultPanels: Record<PanelKey, boolean> = {
+export const defaultPanels: Record<PanelKey, boolean> = {
   christian: true,       // Access to Christian records module
   activities: true,      // Access to activities module
   sacraments: true,      // Access to sacraments module
@@ -105,6 +112,7 @@ const defaultPanels: Record<PanelKey, boolean> = {
   inventory: true,       // Access to inventory module
   reports: true,         // Access to reports module
   hr: true,              // Access to HR module
+  communications: true,  // Access to the communications module
   administration: true,  // Access to administration module
 };
 
@@ -112,7 +120,7 @@ const defaultPanels: Record<PanelKey, boolean> = {
  * Default action permissions — all actions enabled by default for new users.
  * Maps action levels to boolean access flags. view=read, edit=create/update, delete=remove.
  */
-const defaultActions: Record<PanelAction, boolean> = { view: true, edit: true, delete: true };
+export const defaultActions: Record<PanelAction, boolean> = { view: true, edit: true, delete: true };
 
 /**
  * Full access permissions granted to super_admin users.
@@ -149,7 +157,7 @@ const fullActions: Record<PanelAction, boolean> = { view: true, edit: true, dele
  * if (panels.finance === false) return 403; // User can't access finance module
  * if (actions.delete === false) return 403; // User can't delete in any module
  */
-async function loadPermissions(userId: string) {
+export async function loadPermissions(userId: string) {
   // Fetch the user's role and stored permission overrides from the database.
   // panels/actions are native Prisma Json columns — returned as parsed JS objects.
   const user = await appPrisma.user.findUnique({
@@ -167,15 +175,18 @@ async function loadPermissions(userId: string) {
   const defaults = await appPrisma.panelPermissions.findUnique({ where: { id: 'default' } });
 
   // Prisma returns native Json objects — no manual parsing needed.
-  // Use fallback if null/undefined (missing or corrupt database values).
-  const basePanels = (defaults?.panels as Record<PanelKey, boolean>) ?? defaultPanels;
-  const baseActions = (defaults?.actions as Record<PanelAction, boolean>) ?? defaultActions;
+  // A missing/empty row or column contributes nothing (see the merge below).
+  const globalPanels = (defaults?.panels as Record<PanelKey, boolean>) ?? {};
+  const globalActions = (defaults?.actions as Record<PanelAction, boolean>) ?? {};
 
-  // Merge global defaults with user-specific overrides.
-  // User overrides take precedence (spread order matters — user values overwrite base).
+  // Layer stored overrides over the compiled-in defaults so the result always
+  // carries EVERY panel key: both JSON columns are snapshots, so a panel added
+  // afterwards is missing from them, and requireModule treats a missing key as
+  // allowed — defaulting it on keeps this set identical to what the guards do.
+  // Precedence: compiled defaults < global row < per-user overrides.
   return {
-    panels: { ...basePanels, ...(user.panels as Record<PanelKey, boolean> ?? {}) },
-    actions: { ...baseActions, ...(user.actions as Record<PanelAction, boolean> ?? {}) },
+    panels: { ...defaultPanels, ...globalPanels, ...(user.panels as Record<PanelKey, boolean> ?? {}) },
+    actions: { ...defaultActions, ...globalActions, ...(user.actions as Record<PanelAction, boolean> ?? {}) },
   };
 }
 

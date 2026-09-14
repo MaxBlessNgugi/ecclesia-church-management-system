@@ -62,6 +62,7 @@ const PANEL_ITEMS: { key: keyof PanelPermissions['panels']; label: string }[] = 
   { key: 'inventory', label: 'Inventory Vault' },
   { key: 'reports', label: 'Reporting Panel' },
   { key: 'hr', label: 'Human Resources' },
+  { key: 'communications', label: 'Communications' },
   { key: 'administration', label: 'Administration' }
 ];
 
@@ -82,6 +83,7 @@ const ALL_PANELS: PanelPermissions['panels'] = {
   inventory: true,
   reports: true,
   hr: true,
+  communications: true,
   administration: true
 };
 
@@ -107,6 +109,7 @@ const ROLE_BASELINE: Record<UserRole, PanelPermissions> = {
       inventory: true,
       reports: true,
       hr: true,
+      communications: true,
       administration: false
     },
     actions: { view: true, edit: true, delete: false }
@@ -121,6 +124,7 @@ const ROLE_BASELINE: Record<UserRole, PanelPermissions> = {
       inventory: false,
       reports: true,
       hr: false,
+      communications: true,
       administration: false
     },
     actions: { view: true, edit: false, delete: false }
@@ -149,6 +153,12 @@ const ENTITY_LABELS: Record<string, string> = {
   Contribution: 'Contribution',
   Transfer: 'Transfer',
   BilledItem: 'Billed Item',
+  Announcement: 'Announcement',
+  Broadcast: 'Broadcast',
+  ChurchEvent: 'Church Event',
+  EventRsvp: 'Event RSVP',
+  PrayerRequest: 'Prayer Request',
+  CelebrationGreeting: 'Celebration Greeting',
   Death: 'Death Record',
   Deposit: 'Deposit',
   Creditor: 'Creditor',

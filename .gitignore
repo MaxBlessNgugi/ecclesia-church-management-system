@@ -18,6 +18,10 @@ backend/dist/
 backend/.env
 backend/logs/
 
+# Root logs/outbox — the dev mail outbox when the backend is started from the
+# repo root (how the Playwright webServer starts it)
+logs/
+
 # Playwright E2E
 test-results/
 playwright-report/

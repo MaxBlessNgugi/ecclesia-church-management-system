@@ -217,15 +217,19 @@ sudo systemctl enable ecclesia
 sudo systemctl start ecclesia
 ```
 
-### Windows
+### Windows (auto-restarting service)
 
-1. Create `start-ecclesia.bat`:
-   ```batch
-   @echo off
-   cd /d C:\Ecclesia\backend
-   call npm start
-   ```
-2. Place a shortcut in Startup folder (`shell:startup`)
+Install the **EcclesiaServer** Windows service from an **elevated** prompt
+(after `npm install && npm run build` from the repo root):
+
+```bash
+npm run service:install      # creates + starts the service (boot autostart)
+npm run service:uninstall    # stops + removes it
+```
+
+The service supervisor restarts the backend if it crashes (crash-loop guarded)
+and serves the app on port 80 (`http://ecclesia.local`). Output is logged to
+`backend/logs/service.log`.
 
 ### macOS (launchd)
 

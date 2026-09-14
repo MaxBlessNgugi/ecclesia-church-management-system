@@ -35,6 +35,7 @@ const LedgersView = React.lazy(() => import('./components/views/LedgersView').th
 const InventoryView = React.lazy(() => import('./components/views/InventoryView').then(m => ({ default: m.InventoryView })));
 const ReportsView = React.lazy(() => import('./components/views/ReportsView').then(m => ({ default: m.ReportsView })));
 const HRView = React.lazy(() => import('./components/views/HRView').then(m => ({ default: m.HRView })));
+const CommunicationsView = React.lazy(() => import('./components/views/CommunicationsView').then(m => ({ default: m.CommunicationsView })));
 const AdminView = React.lazy(() => import('./components/views/AdminView').then(m => ({ default: m.AdminView })));
 const AuthView = React.lazy(() => import('./components/views/AuthView').then(m => ({ default: m.AuthView })));
 const SetupView = React.lazy(() => import('./components/views/SetupView').then(m => ({ default: m.SetupView })));
@@ -67,27 +68,37 @@ const AppShell: React.FC = () => {
   } = useData();
   const {
     currentTab, christianSubTab, activitiesSubTab, sacramentsSubTab, financeSubTab,
+    communicationsSubTab,
     isSidebarOpen, isSearchOpen, selectedMember, allowedPanels,
     handleNavigate, setIsSidebarOpen, setIsSearchOpen, setSelectedMember,
   } = useNavigation();
 
   // ── Deep-link support: #tab or #tab/subtab ──────────────────────────────
+  // The opening hash is applied once a session exists: on first render the user
+  // is still loading, and handleNavigate refuses without one — which would
+  // silently drop the link. Later hash changes (the user editing the URL) are
+  // handled as they arrive.
+  const hashApplied = React.useRef(false);
   useEffect(() => {
+    if (!isAuthenticated) return;
     const applyHash = () => {
       const { tab, subTab } = parseHashRoute(window.location.hash);
       const tabs: NavigationTab[] = [
         'dashboard', 'christian', 'activities', 'sacraments', 'finance',
-        'ledgers', 'inventory', 'reports', 'hr', 'administration', 'auth',
+        'ledgers', 'inventory', 'reports', 'hr', 'communications', 'administration', 'auth',
       ];
       if (tabs.includes(tab as NavigationTab)) {
         handleNavigate(tab as NavigationTab, subTab);
       }
     };
-    applyHash();
+    if (!hashApplied.current) {
+      hashApplied.current = true;
+      applyHash();
+    }
     window.addEventListener('hashchange', applyHash);
     return () => window.removeEventListener('hashchange', applyHash);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthenticated]);
 
   // ── Gate: loading ────────────────────────────────────────────────────────
   if (isAuthChecking) {
@@ -129,7 +140,8 @@ const AppShell: React.FC = () => {
         currentUser?.permissions ?? {
           panels: {
             christian: true, activities: true, sacraments: true, finance: true,
-            ledgers: true, inventory: true, reports: true, hr: true, administration: true,
+            ledgers: true, inventory: true, reports: true, hr: true,
+            communications: true, administration: true,
           },
           actions: { view: true, edit: true, delete: true },
         }
@@ -144,11 +156,16 @@ const AppShell: React.FC = () => {
           user={currentUser}
         />
         <div className="flex-1 flex overflow-hidden">
+          {/* Nav clicks only auto-collapse the mobile drawer (< md): the
+              desktop rail must survive navigation (users collapse it via the
+              header toggle when they want icon-only mode). */}
           <Sidebar
             currentTab={currentTab}
             onSelectTab={(tab) => handleNavigate(tab)}
             isOpen={isSidebarOpen}
-            onCloseMobile={() => setIsSidebarOpen(false)}
+            onCloseMobile={() => {
+              if (window.matchMedia('(max-width: 767px)').matches) setIsSidebarOpen(false);
+            }}
             allowedPanels={allowedPanels}
           />
           <main className="flex-1 overflow-y-auto">
@@ -211,6 +228,7 @@ const AppShell: React.FC = () => {
             {currentTab === 'inventory' && <InventoryView />}
             {currentTab === 'reports' && <ReportsView />}
             {currentTab === 'hr' && <HRView />}
+            {currentTab === 'communications' && <CommunicationsView initialSubTab={communicationsSubTab} />}
             {currentTab === 'administration' && <AdminView currentUserId={currentUser?.id ?? null} />}
             </Suspense>
             <Footer />

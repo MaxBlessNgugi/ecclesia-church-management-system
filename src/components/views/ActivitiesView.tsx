@@ -241,9 +241,9 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
       ? `${billedMember.baptismalName} ${billedMember.sirName}`
       : walkInName || 'Walk-in Client';
 
-    // Assemble the receipt payload with a client-generated id
-    const receipt: BilledItemReceipt = {
-      id: `REC-${Math.floor(100000 + Math.random() * 900000)}`,
+    // Assemble the receipt payload. No client id: the backend generates the
+    // persisted id (a client-supplied one would be silently discarded).
+    const receipt: Omit<BilledItemReceipt, 'id'> = {
       christianId: billedMember?.id,
       memberName: name,
       isWalkIn: billedClientType === 'walkin',

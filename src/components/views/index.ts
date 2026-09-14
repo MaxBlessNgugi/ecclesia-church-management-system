@@ -38,6 +38,10 @@ export { ReportsView } from './ReportsView';
 // HRView — human resources: employee directory, payroll, and HR management
 export { HRView } from './HRView';
 
+// CommunicationsView — congregation communication: announcements, bulk
+// SMS/Email broadcasts, events with RSVPs, prayer requests, and celebrations
+export { CommunicationsView } from './CommunicationsView';
+
 // AdminView — system access management: user accounts, role permissions,
 // M-Pesa gateway config, and trash/audit log
 export { AdminView } from './AdminView';

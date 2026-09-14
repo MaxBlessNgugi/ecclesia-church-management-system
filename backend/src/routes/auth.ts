@@ -58,6 +58,9 @@ import {
 
 // Import auth middleware and typed request interface for protected routes
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+// Default permissions seed a new account; loadPermissions resolves the effective
+// set for the session payload (the same rule requireModule enforces).
+import { defaultActions, defaultPanels, loadPermissions } from '../middleware/perms.js';
 
 // Import AppError for consistent error handling via the centralized error handler
 import { AppError } from '../middleware/errorHandler.js';
@@ -148,29 +151,17 @@ const registerSchema = z.object({
   role: z.enum(['admin', 'staff', 'viewer']).default('staff'), // Role with default
 });
 
-/** Default panel access: everyone can see every panel unless overridden per user. */
-const defaultPanels = {
-  christian: true,        // Christian management panel
-  activities: true,       // Activities management panel
-  sacraments: true,       // Sacraments management panel
-  finance: true,          // Finance management panel
-  ledgers: true,          // Ledgers management panel
-  inventory: true,        // Inventory management panel
-  reports: true,          // Reports panel
-  hr: true,               // Human resources panel
-  administration: true,   // Administration panel
-};
-
-/** Default CRUD actions granted to every user. */
-const defaultActions = { view: true, edit: true, delete: true };
-
 /**
  * Builds the client-facing session object (never exposes passwordHash).
  *
- * @param {any} user - Raw user object from database (panels/actions are native Json)
- * @returns {object} Safe session object with user info and permissions
+ * Permissions come from loadPermissions() — the same resolver requireModule
+ * enforces with — so the panels the UI offers are exactly the panels the API
+ * accepts, including panels added after the user's permissions were saved.
+ *
+ * @param {any} user - Raw user object from database
+ * @returns {Promise<object>} Safe session object with user info and permissions
  */
-function session(user: any) {
+async function session(user: any) {
   return {
     id: user.id,                                          // User ID
     name: user.name,                                      // User's full name
@@ -178,10 +169,7 @@ function session(user: any) {
     title: user.title ?? null,                            // User's title (e.g., Pastor, Admin)
     role: user.role,                                      // User's role (super_admin, admin, staff, viewer)
     mustChangePassword: user.mustChangePassword ?? false, // Whether user must change password on next login
-    permissions: {
-      panels: (user.panels as Record<string, boolean>) ?? defaultPanels,  // Native Json → object
-      actions: (user.actions as Record<string, boolean>) ?? defaultActions, // Native Json → object
-    },
+    permissions: await loadPermissions(user.id),           // Effective panels + actions
   };
 }
 
@@ -260,7 +248,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     // Generate JWT token with user ID, email, role, and current token version
     const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
     // Return token and sanitized user session (no passwordHash)
-    res.json({ token, user: session(user) });
+    res.json({ token, user: await session(user) });
   } catch (e) {
     // Pass any errors to Express error handler
     next(e);
@@ -306,7 +294,7 @@ router.post('/register', requireAuth, async (req: AuthRequest, res, next) => {
     // Generate JWT token for immediate login after registration
     const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
     // Return 201 Created with token and sanitized user session
-    res.status(201).json({ token, user: session(user) });
+    res.status(201).json({ token, user: await session(user) });
   } catch (e) {
     // Pass any errors to Express error handler
     next(e);
@@ -402,7 +390,7 @@ router.post('/bootstrap', async (req, res, next) => {
 
     // Sign the JWT and return the same shape as /login for immediate entry
     const token = signToken({ id: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion });
-    res.status(201).json({ token, user: session(user) });
+    res.status(201).json({ token, user: await session(user) });
   } catch (e) {
     next(e);
   }
@@ -426,7 +414,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
     // Database query: Update user's last active timestamp
     await appPrisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
     // Return sanitized user session (no passwordHash)
-    res.json(session(user));
+    res.json(await session(user));
   } catch (e) {
     // Pass any errors to Express error handler
     next(e);

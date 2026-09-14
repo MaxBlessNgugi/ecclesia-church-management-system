@@ -96,9 +96,7 @@ export const ServerConnection: React.FC<ServerConnectionProps> = ({ onConnected 
       <div className="w-full max-w-md">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#1e1e1e] rounded-2xl mb-4 text-white">
-            <EcclesiaIcon size={42} className="w-10 h-10" />
-          </div>
+          <EcclesiaIcon className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-[#1a1c1c] font-serif">Ecclesia CMS</h1>
           <p className="text-sm text-[#444748] mt-2">Church Management System</p>
         </div>

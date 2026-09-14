@@ -212,6 +212,9 @@ model Christian {
   parish        String
   localChurch   String
   scc           String
+  // Optional: the registry never captured a date of birth, so the
+  // Communications panel (birthday greetings) is where it gets filled in.
+  dateOfBirth   DateTime?
   status        ChristianStatus @default(Active)
   baptism       Json?
   eucharist     Json?
@@ -228,6 +231,7 @@ model Christian {
 
   @@index([isDeleted, status, createdAt])
   @@index([status, createdAt])  // list endpoint: WHERE status + ORDER BY createdAt DESC
+  @@index([dateOfBirth])        // communications: upcoming-birthday scan
   @@index([scc])
   @@index([localChurch])
   @@map("christians")
@@ -694,4 +698,165 @@ model SmsSettings {
   updatedAt DateTime @updatedAt
 
   @@map("sms_settings")
+}
+
+// ── Communications ───────────────────────────────────────────────────────────
+
+// Internal announcement, optionally scheduled and/or expiring. Status is stored
+// as a plain string (like Expense.paymentMethod) so the four lifecycle values
+// need no enum migration, and is refreshed from publishAt/expiresAt on read.
+model Announcement {
+  id         String    @id @default(uuid())
+  title      String
+  content    String
+  category   String    @default("General")
+  audience   String    @default("Everyone")
+  priority   String    @default("Normal")
+  status     String    @default("Draft")  // Draft | Scheduled | Active | Expired
+  pinned     Boolean   @default(false)
+  publishAt  DateTime?
+  expiresAt  DateTime?
+  authorName String    @default("")
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([isDeleted, status])
+  @@index([publishAt])
+  @@map("announcements")
+}
+
+// One bulk SMS/Email send to a resolved audience. Delivery counters are filled
+// from the real gateway result (never estimated); email open/click counts come
+// from the tracking pixel and click redirect served below.
+model Broadcast {
+  id              String    @id @default(uuid())
+  channel         String    @default("SMS")  // SMS | Email
+  subject         String    @default("")
+  body            String
+  audience        String    @default("All members")
+  status          String    @default("Draft")  // Draft | Scheduled | Sent | Failed
+  scheduledAt     DateTime?
+  // Recipient list for the 'Custom list' audience. Persisted so a SCHEDULED
+  // broadcast can still resolve its recipients when the dispatcher picks it up.
+  customRecipients Json?
+  sentAt          DateTime?
+  totalRecipients Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
+  // Email engagement, counted from the tracking pixel / click redirect. Reset
+  // on every dispatch because they describe the latest attempt.
+  openCount       Int       @default(0)
+  clickCount      Int       @default(0)
+  errorMessage    String?
+  isDeleted       Boolean   @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  recipients      BroadcastRecipient[]
+
+  @@index([isDeleted, status])
+  @@map("broadcasts")
+}
+
+// One row per address a broadcast was sent to. Holds the delivery outcome and,
+// for email, the open/click engagement recorded by the public tracking routes.
+// Keyed by (broadcastId, address) so re-sending refreshes the row instead of
+// duplicating the recipient list.
+model BroadcastRecipient {
+  id          String    @id @default(uuid())
+  broadcastId String
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id])
+  name        String    @default("")
+  address     String
+  status      String    @default("Pending")  // Pending | Sent | Failed
+  error       String?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([broadcastId, address])
+  @@index([broadcastId])
+  @@map("broadcast_recipients")
+}
+
+// Church event with optional RSVP capacity. RSVPs are recorded by staff
+// (there is no member-facing portal), so EventRsvp rows are created from the
+// Communications panel and counted against capacity before the event.
+model ChurchEvent {
+  id           String    @id @default(uuid())
+  title        String
+  category     String    @default("Service")
+  ministry     String    @default("")
+  startAt      DateTime
+  endAt        DateTime?
+  location     String    @default("")
+  description  String    @default("")
+  color        String    @default("#c65d3b")
+  rsvpRequired Boolean   @default(false)
+  capacity     Int?
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  rsvps        EventRsvp[]
+
+  @@index([isDeleted, startAt])
+  @@map("church_events")
+}
+
+model EventRsvp {
+  id        String      @id @default(uuid())
+  eventId   String
+  event     ChurchEvent @relation(fields: [eventId], references: [id])
+  name      String
+  phone     String      @default("")
+  status    String      @default("Going")  // Going | Maybe | Declined
+  isDeleted Boolean     @default(false)
+  deletedAt DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([eventId])
+  @@map("event_rsvps")
+}
+
+// Prayer request with a privacy level that the API enforces on read: only
+// Public requests are returned to callers without edit rights, so
+// 'Leaders Only' / 'Pastoral Private' entries never reach unauthorised users.
+model PrayerRequest {
+  id            String    @id @default(uuid())
+  requesterName String
+  request       String
+  category      String    @default("General")
+  privacy       String    @default("Public")  // Public | Leaders Only | Pastoral Private
+  status        String    @default("Open")    // Open | Answered | Archived
+  answeredAt    DateTime?
+  praiseReport  String?
+  prayCount     Int       @default(0)
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([isDeleted, status])
+  @@map("prayer_requests")
+}
+
+// Record of a birthday/anniversary greeting actually sent to a member, so the
+// Celebrations tab can show "greeted" instead of offering the same greeting
+// twice. The unique key is one greeting per member, per occasion, per kind.
+model CelebrationGreeting {
+  id            String    @id @default(uuid())
+  christianId   String
+  kind          String    // Birthday | Anniversary
+  occasionDate  DateTime  // the occasion being celebrated (midnight, local)
+  channel       String    @default("SMS")  // SMS | Email
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([christianId, kind, occasionDate])
+  @@index([occasionDate])
+  @@map("celebration_greetings")
 }

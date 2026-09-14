@@ -10,20 +10,19 @@
 // RELATED FILES
 //   src/App.tsx          → Consumes NavigationContext for layout + panels
 //   src/types.ts         → NavigationTab, SubTab types
-//   src/services/api.ts  → clearStoredToken (used on logout)
+//   src/context/AuthContext.tsx → logout() (clears token + session)
 // =============================================================================
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useLayoutEffect, useState } from 'react';
 import {
   ActivitiesSubTab,
   ChristianRecord,
   ChristianSubTab,
+  CommunicationsSubTab,
   FinanceSubTab,
   NavigationTab,
   PanelKey,
   SacramentsSubTab,
 } from '../types';
-import { getStoredToken } from '../services/api';
-import { clearStoredToken } from '../services/api';
 import { useAuth } from './AuthContext';
 
 interface NavigationContextValue {
@@ -32,6 +31,7 @@ interface NavigationContextValue {
   activitiesSubTab: ActivitiesSubTab;
   sacramentsSubTab: SacramentsSubTab;
   financeSubTab: FinanceSubTab;
+  communicationsSubTab: CommunicationsSubTab;
   isSidebarOpen: boolean;
   isSearchOpen: boolean;
   selectedMember: ChristianRecord | null;
@@ -47,17 +47,26 @@ const NavigationContext = createContext<NavigationContextValue | null>(null);
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, logout } = useAuth();
 
-  // A restored session lands on the dashboard; only signed-out users start at the auth gate.
-  const [currentTab, setCurrentTab] = useState<NavigationTab>(getStoredToken() ? 'dashboard' : 'auth');
+  // The auth gate is what shows while signed out, so the active tab only
+  // matters for authenticated sessions. Reset to the dashboard on every
+  // signed-out → signed-in transition (fresh login, restore, password change
+  // or setup completion) so the first screen is always the dashboard.
+  // useLayoutEffect keeps a re-login from flashing the previously visited panel.
+  const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
+  const wasSignedIn = React.useRef(false);
+  useLayoutEffect(() => {
+    const signedIn = !!currentUser;
+    if (signedIn && !wasSignedIn.current) setCurrentTab('dashboard');
+    wasSignedIn.current = signedIn;
+  }, [currentUser]);
   const [christianSubTab, setChristianSubTab] = useState<ChristianSubTab>('add');
   const [activitiesSubTab, setActivitiesSubTab] = useState<ActivitiesSubTab>('receive_payment');
   const [sacramentsSubTab, setSacramentsSubTab] = useState<SacramentsSubTab>('update_card');
   const [financeSubTab, setFinanceSubTab] = useState<FinanceSubTab>('make_deposit');
+  const [communicationsSubTab, setCommunicationsSubTab] = useState<CommunicationsSubTab>('announcements');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<ChristianRecord | null>(null);
-  // Last non-auth panel visited — the fallback when the signed-out auth gate shows.
-  const [lastPanel, setLastPanel] = useState<NavigationTab>('dashboard');
 
   /** Whether the signed-in user may open the given panel. */
   const canAccessTab = useCallback((tab: NavigationTab): boolean => {
@@ -67,24 +76,24 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return currentUser.permissions.panels[key] !== false;
   }, [currentUser]);
 
-  const allowedPanels: PanelKey[] = (Object.keys(currentUser?.permissions.panels ?? {}) as PanelKey[]).filter(
-    k => currentUser?.permissions.panels[k]
-  );
+  // The session payload carries every panel key (see loadPermissions on the
+  // backend), so this is simply the denied ones filtered out.
+  const allowedPanels: PanelKey[] = (Object.keys(currentUser?.permissions.panels ?? {}) as PanelKey[])
+    .filter(k => currentUser?.permissions.panels[k] !== false);
 
   const handleNavigate = useCallback((tab: NavigationTab, subTab?: string) => {
     if (tab === 'auth') {
       logout();
-      setCurrentTab(lastPanel);
       return;
     }
     if (tab !== 'dashboard' && !canAccessTab(tab)) return;
     setCurrentTab(tab);
-    setLastPanel(tab);
     if (subTab) {
       if (tab === 'christian') setChristianSubTab(subTab as ChristianSubTab);
       if (tab === 'activities') setActivitiesSubTab(subTab as ActivitiesSubTab);
       if (tab === 'sacraments') setSacramentsSubTab(subTab as SacramentsSubTab);
       if (tab === 'finance') setFinanceSubTab(subTab as FinanceSubTab);
+      if (tab === 'communications') setCommunicationsSubTab(subTab as CommunicationsSubTab);
     }
   }, [canAccessTab, logout]);
 
@@ -92,6 +101,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     <NavigationContext.Provider
       value={{
         currentTab, christianSubTab, activitiesSubTab, sacramentsSubTab, financeSubTab,
+        communicationsSubTab,
         isSidebarOpen, isSearchOpen, selectedMember, allowedPanels,
         handleNavigate, setIsSidebarOpen, setIsSearchOpen, setSelectedMember,
       }}

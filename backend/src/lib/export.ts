@@ -69,6 +69,13 @@ const TABLE_ORDER: readonly string[] = [
   'recruitment',                   // Recruitment campaign records
   'recruitmentApplicant',          // Applicants to recruitment campaigns
   'inventoryPriceAuditLog',        // Audit trail for inventory price changes
+  'announcement',                  // Communications: announcements
+  'broadcast',                     // Communications: bulk SMS/Email sends
+  'broadcastRecipient',            // Communications: per-address send outcome + engagement
+  'churchEvent',                   // Communications: church calendar events
+  'eventRsvp',                     // Communications: event RSVP responses
+  'prayerRequest',                 // Communications: prayer requests
+  'celebrationGreeting',           // Communications: sent greetings
   'auditLog',                      // General application audit log
 ];
 

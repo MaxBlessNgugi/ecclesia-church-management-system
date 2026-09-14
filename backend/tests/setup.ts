@@ -8,6 +8,16 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-testing-
 process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES || '1h';
 process.env.NODE_ENV = 'test';
 process.env.BACKUP_DISABLED = 'true';
+// The dev SMS outbox is a local-demo convenience loaded from backend/.env via
+// dotenv when the routes import; tests that exercise the "gateway unconfigured"
+// failures depend on it being OFF. Pin it to an empty string (dotenv never
+// overrides an existing variable, and '' is falsy in isSmsDevOutbox). Tests
+// that want the outbox set the flag to 'true' themselves.
+process.env.SMS_DEV_OUTBOX = '';
+// Same hermeticity for the E2E_TESTING rate-limit opt-out (local backend/.env
+// may set it for Playwright runs): the security suite asserts the default
+// 10-per-window login limiter, so the suite always runs with it unset.
+process.env.E2E_TESTING = '';
 
 // Push schema to the ephemeral test database.
 // Tests use `db push` (not `migrate deploy`) because the test database is

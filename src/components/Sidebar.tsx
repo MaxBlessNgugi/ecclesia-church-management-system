@@ -5,9 +5,11 @@
 //   expanded (w-60, labels) on desktop / open mobile drawer
 //   icon-only (w-16) when isOpen is false
 // Panel items are filtered by allowedPanels (the current user's permissions).
-// Clicking an item navigates AND calls onCloseMobile — note this means any nav
-// click collapses the drawer on mobile, and the icon-only title attribute is
-// what deep-link/test scripts use to identify nav buttons.
+// Clicking an item navigates AND calls onCloseMobile — the parent only honors
+// that on small screens (closing the mobile drawer), so a desktop nav click
+// keeps the expanded rail open. The icon-only title attribute is what
+// deep-link/test scripts use to identify nav buttons when the rail is
+// collapsed.
 // =============================================================================
 import React from 'react';
 /** React core library — used here only for JSX type-checking support */
@@ -71,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'activities', label: 'Activities', icon: 'payments' },
     { id: 'sacraments', label: 'Sacraments', icon: 'church' },
     { id: 'finance', label: 'Finance', icon: 'account_balance' },
+    { id: 'communications', label: 'Communications', icon: 'campaign' },
     { id: 'ledgers', label: 'Ledgers', icon: 'book_4' },
     { id: 'inventory', label: 'Inventory', icon: 'inventory_2' },
     { id: 'reports', label: 'Reports', icon: 'analytics' },
@@ -142,17 +145,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title={!isOpen ? item.label : undefined}
                 className={`w-full flex items-center rounded-md text-xs font-medium transition-all cursor-pointer ${
                   isOpen ? 'px-3 py-2.5 gap-3' : 'justify-center py-2.5 px-0'
-                } ${
-                  isActive
-                    ? 'bg-[#1e1e1e] text-[#ffffff] shadow-2xs'
-                    : 'text-[#1a1c1c] hover:bg-[#f4f3f3]'
-                }`}
+                } ${isActive ? 'bg-[#1e1e1e] text-[#ffffff] shadow-2xs' : 'text-[#1a1c1c] hover:bg-[#f4f3f3]'}`}
               >
                 {/* Material Symbols icon — white when active, grey when inactive */}
                 <span
-                  className={`material-symbols-outlined text-xl ${
-                    isActive ? 'text-[#ffffff]' : 'text-[#444748]'
-                  }`}
+                  className={`material-symbols-outlined text-xl ${isActive ? 'text-[#ffffff]' : 'text-[#444748]'}`}
                 >
                   {item.icon}
                 </span>

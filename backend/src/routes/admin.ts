@@ -90,7 +90,7 @@ import { requireAdmin, requireAuth, requireSuperAdmin, AuthRequest } from '../mi
 
 // Import AppError for consistent error handling via the centralized error handler
 import { AppError } from '../middleware/errorHandler.js';
-import { requireModule } from '../middleware/perms.js';
+import { defaultActions, defaultPanels, loadPermissions, requireModule } from '../middleware/perms.js';
 import { encryptString, decryptString } from '../lib/crypto.js';
 
 // Audit utilities: softDelete for marking records deleted, restoreFromLog for restoring, listAuditLogs for querying audit trail, resolveActor for user info, loadCurrentRecord for current state, restoreMany for bulk restore, HttpError for custom errors
@@ -123,21 +123,6 @@ router.use(requireModule('administration'));
 // Password reset token time-to-live: 30 minutes in milliseconds (30 * 60 * 1000)
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 
-// Default panel permissions: all modules enabled by default for new users
-const defaultPanels = {
-  christian: true,    // Christian member management panel
-  activities: true,   // Activities/events panel
-  sacraments: true,   // Sacraments tracking panel
-  finance: true,      // Finance management panel
-  ledgers: true,      // Ledger/cashier panel
-  inventory: true,    // Inventory management panel
-  reports: true,      // Reports generation panel
-  hr: true,           // Human resources panel
-  administration: true, // Administration panel (this module)
-};
-
-// Default action permissions: view, edit, and delete actions enabled by default
-const defaultActions = { view: true, edit: true, delete: true };
 
 // User role constants: defines valid roles in hierarchy order from highest to lowest privileges
 const USER_ROLES = ['super_admin', 'admin', 'staff', 'viewer'] as const;
@@ -358,22 +343,16 @@ router.post('/users/:id/reset-password', async (req: AuthRequest, res, next) => 
 
 // ---------- Per-user Permissions ----------
 
-// Helper function to extract user permissions with defaults for missing values
-function getUserPermissions(user: any) {
-  return {
-    panels: (user.panels as Record<string, boolean>) ?? defaultPanels,   // Native Json → object
-    actions: (user.actions as Record<string, boolean>) ?? defaultActions, // Native Json → object
-  };
-}
-
-// GET /users/:id/permissions — Fetch a user's effective panel and action permissions
+// GET /users/:id/permissions — Fetch a user's effective panel and action permissions.
+// Resolved through loadPermissions() so the Rights Centre shows (and therefore
+// saves) the access the API actually enforces, including panels added after the
+// user's permission JSON was written.
 router.get('/users/:id/permissions', async (req, res, next) => {
   try {
-    // Fetch user to verify existence and retrieve permission data
+    // Fetch user to verify existence
     const user = await appPrisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) return next(new AppError('User not found', 404, 'NOT_FOUND'));
-    // Return parsed permissions with defaults applied
-    res.json(getUserPermissions(user));
+    res.json(await loadPermissions(user.id));
   } catch (e) { next(e); } // Pass errors to error handler
 });
 
@@ -390,16 +369,16 @@ router.put('/users/:id/permissions', async (req, res, next) => {
       }),
     }).parse(req.body);
 
-    // Update user's permissions in database (Prisma handles Json serialization)
-    const user = await appPrisma.user.update({
+    // Persist the overrides (Prisma handles Json serialization)
+    await appPrisma.user.update({
       where: { id: req.params.id },
       data: {
         panels: data.panels,
         actions: data.actions,
       },
     });
-    // Return updated permissions with defaults applied
-    res.json(getUserPermissions(user));
+    // Echo back the effective permissions the user now has
+    res.json(await loadPermissions(req.params.id));
   } catch (e) { next(e); } // Pass errors to error handler
 });
 

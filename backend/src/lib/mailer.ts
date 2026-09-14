@@ -95,14 +95,22 @@ export async function resolveMailConfig(): Promise<MailConfig> {
   return { mode: 'dev-outbox', from: process.env.MAIL_FROM || 'ECCLESIA <no-reply@ecclesia.local>' };
 }
 
+/** Outcome of one send attempt — callers that report delivery (e.g. the
+ * communications broadcasts) need to know whether the message actually left. */
+interface MailResult {
+  sent: boolean;
+  error?: string;
+}
+
 /**
- * Send an email. Never throws — failures are logged; callers fire-and-forget.
+ * Send an email. Never throws — failures are returned as { sent: false, error }
+ * (and logged) so callers can record honest delivery outcomes.
  *
  * With a real SMTP config (DB or env) the message is sent via SMTP; otherwise
  * it is written to backend/logs/outbox/<timestamp>-<sanitized-to>.txt and
  * printed to the backend console (dev fallback — no SMTP server needed locally).
  */
-export async function sendMail(to: string, subject: string, text: string, html?: string): Promise<void> {
+export async function sendMail(to: string, subject: string, text: string, html?: string): Promise<MailResult> {
   const cfg = await resolveMailConfig();
   try {
     if (cfg.mode === 'dev-outbox') {
@@ -123,14 +131,16 @@ export async function sendMail(to: string, subject: string, text: string, html?:
       await fs.mkdir(DEV_OUTBOX_DIR, { recursive: true });
       await fs.writeFile(file, content, 'utf8');
       console.log(`[mailer] SMTP not configured — email written to ${file}`);
-      return;
+      return { sent: true };
     }
     // Real SMTP send.
     await getTransporter(cfg).sendMail({ from: cfg.from, to, subject, text, html });
     console.log(`[mailer] Sent "${subject}" to ${to} via ${cfg.host}:${cfg.port}`);
+    return { sent: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[mailer] Failed to send "${subject}" to ${to}: ${message}`);
+    return { sent: false, error: message };
   }
 }
 

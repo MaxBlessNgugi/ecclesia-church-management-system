@@ -38,6 +38,10 @@
 
 ## Change-log since the previous audit
 
+- ✅ ~~Windows watchdog~~ → `scripts/windows-service/` (node-windows supervisor + orphan-watch):
+  auto-restarting EcclesiaServer service on port 80 with crash-loop guard and
+  orphan protection; install with `npm run service:install` (elevated). Linux
+  keeps the systemd unit (`Restart=always`).
 - ✅ ~~JWT sessions not revocable~~ → tokenVersion rotation on every credential change, 5 dedicated tests
 - ✅ ~~npm vulnerabilities (4)~~ → 0 in both projects (qs override in `backend/package.json` until express/body-parser ship ≥ 6.16.0 — remove it then)
 - ✅ ~~SMTP not zero-config~~ → MailSettings singleton + two-step setup wizard + verification email, 6 dedicated tests

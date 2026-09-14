@@ -16,7 +16,11 @@
     "lint": "tsc --noEmit",
     "test:e2e": "cd e2e && npx playwright test --project=fast",
     "tour": "cd e2e && npx playwright test --project=tour",
-    "test:report": "npx playwright show-report playwright-report"
+    "test:report": "npx playwright show-report playwright-report",
+    "service:install": "node scripts/windows-service/install.cjs",
+    "service:uninstall": "node scripts/windows-service/uninstall.cjs",
+    "service:supervisor": "node scripts/windows-service/supervisor.cjs",
+    "preview:dist": "node server.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -36,6 +40,7 @@
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "esbuild": "^0.25.0",
+    "node-windows": "^1.0.0-beta.8",
     "subset-font": "^2.7.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",

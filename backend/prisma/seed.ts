@@ -91,6 +91,7 @@ async function main() {
         inventory: true,
         reports: true,
         hr: true,
+        communications: true,
         administration: true,
       },
       actions: { view: true, edit: true, delete: true },

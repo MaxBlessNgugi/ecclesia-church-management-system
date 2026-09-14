@@ -119,6 +119,9 @@ import { logger } from './lib/logger.js';
 // Socket.IO initializer — creates the real-time WebSocket server on the HTTP server.
 import { initSocket } from './lib/socket.js';
 
+// Sends bulk SMS/Email broadcasts once their scheduled time arrives.
+import { startBroadcastScheduler } from './lib/broadcastScheduler.js';
+
 // ── Startup: fail-fast checks ──────────────────────────────────────────────
 
 // Validate that JWT_SECRET is present; throws in production if missing.
@@ -164,6 +167,11 @@ import settingsRoutes from './routes/settings.js';
 
 // SMS routes: Africa's Talking configuration & message sending.
 import smsRoutes from './routes/sms.js';
+
+// Communications routes: announcements, broadcasts, events, prayer requests,
+// and upcoming celebrations. The tracking router is public (email clients have
+// no token) so it is mounted separately, before every root-mounted router.
+import communicationsRoutes, { communicationsTrackingRouter } from './routes/communications.js';
 
 // Support bundle route: ZIP download of diagnostics + sanitized export.
 import supportRoutes from './routes/support.js';
@@ -294,6 +302,11 @@ app.get('/api/health', async (_req, res) => {
 
 // ── Feature router mounting ────────────────────────────────────────────────
 
+// Public email tracking MUST come first: the routers below are mounted at the
+// '/api' root and their requireAuth middleware runs for every path that reaches
+// them, so a public route mounted later would be rejected with 401.
+app.use('/api/communications', communicationsTrackingRouter);
+
 // Auth routes: /api/auth/login, /api/auth/me, /api/auth/change-pw
 app.use('/api/auth', authRoutes);
 
@@ -333,6 +346,10 @@ app.use('/api/settings', settingsRoutes);
 
 // SMS: /api/sms/settings + /api/sms/send (Africa's Talking integration).
 app.use('/api/sms', smsRoutes);
+
+// Communications: /api/communications/* (announcements, broadcasts, events,
+// prayer requests, celebrations).
+app.use('/api/communications', communicationsRoutes);
 
 // Support: /api/support/bundle (diagnostics + sanitized data ZIP download).
 app.use('/api/support', supportRoutes);
@@ -382,6 +399,9 @@ const httpServer = http.createServer(app);
 // Initialize Socket.IO on the HTTP server — sets up JWT auth and connection handling.
 // The io instance is accessible via getIO() from any route handler.
 initSocket(httpServer);
+
+// Start the scheduled-broadcast dispatcher (unref'd timer — never blocks exit).
+startBroadcastScheduler();
 
 // ── Start the HTTP server ──────────────────────────────────────────────────
 
