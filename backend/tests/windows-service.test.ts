@@ -27,8 +27,13 @@ import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import net from 'node:net';
 import http from 'node:http';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(__dirname, '..', '..');
+// Repo root, derived from this file's real location (import.meta.url → path)
+// instead of __dirname: vitest/tsx shim __dirname for ESM today, but plain ESM
+// does not define it — the module-URL form works under any runner, so the
+// suite finds scripts/ and dist/ on any machine and from any cwd.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ORPHAN_MODULE = path.join(ROOT, 'scripts', 'windows-service', 'orphan-watch.cjs');
 const SUPERVISOR = path.join(ROOT, 'scripts', 'windows-service', 'supervisor.cjs');
 const STATIC_SERVER = path.join(ROOT, 'server.cjs');
