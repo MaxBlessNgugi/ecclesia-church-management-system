@@ -719,6 +719,34 @@ describe('communications - celebrations', () => {
     expect(res.status).toBe(400);
     expect(res.body.message ?? res.body.error).toMatch(/no phone number/i);
   });
+
+  it('returns a helpful error for an SMS greeting when no gateway is configured', async () => {
+    // The dev outbox is an explicit opt-in; make sure it is off so this test
+    // exercises the unconfigured-gateway path (it is off by default in CI).
+    delete process.env.SMS_DEV_OUTBOX;
+    const member = await createMember({ phone: '+254700000999' });
+
+    const res = await request(app)
+      .post('/api/communications/celebrations/greetings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        christianId: member.id,
+        kind: 'Birthday',
+        occasionDate: '2026-06-10',
+        channel: 'SMS',
+        message: 'Happy birthday!',
+      });
+
+    // 400, not 500: the missing gateway is a configuration problem the
+    // operator can fix, not a server fault.
+    expect(res.status).toBe(400);
+    // The reason must name the feature and where to enable it, so whoever
+    // hits this during a demo can self-serve instead of filing a bug.
+    expect(res.body.message ?? res.body.error).toMatch(/SMS is not configured/i);
+    expect(res.body.message ?? res.body.error).toMatch(/SMS Settings/i);
+    // Nothing may be recorded as sent for a failed dispatch.
+    expect(await prisma.celebrationGreeting.count()).toBe(0);
+  });
 });
 
 // ── Permission gating ──────────────────────────────────────────────────────
