@@ -45,6 +45,7 @@ const SUB_TAB_LABELS: Record<CommunicationsSubTab, string> = {
 const ANNOUNCEMENT_CATEGORIES = ['General', 'Service', 'Event', 'Youth', 'Ministry', 'Urgent'];
 const ANNOUNCEMENT_AUDIENCES = ['Everyone', 'Members only', 'Ministry Leaders', 'Youth', 'Elders/Board'];
 const ANNOUNCEMENT_STATUSES: AnnouncementStatus[] = ['Active', 'Scheduled', 'Expired', 'Draft'];
+const ANNOUNCEMENT_FILTERS: Array<'All' | AnnouncementStatus> = ['All', ...ANNOUNCEMENT_STATUSES];
 
 const EVENT_CATEGORIES = ['Service', 'Conference', 'Retreat', 'Outreach', 'Meeting', 'Wedding', 'Funeral'];
 /** Event colour tags — green hues plus ink, matching the panel's accent. */
@@ -55,9 +56,28 @@ const EVENT_COLORS = [
   { name: 'Ink', hex: '#1e1e1e' },
   { name: 'Slate', hex: '#444748' },
 ];
+/** List vs month grid for the events tab. */
+const EVENT_VIEWS = [
+  { value: 'list', label: 'List' },
+  { value: 'calendar', label: 'Calendar' },
+] as const;
 
 const PRAYER_CATEGORIES = ['Healing', 'Family', 'Guidance', 'Provision', 'Bereavement', 'Praise', 'Salvation', 'General'];
 const PRAYER_PRIVACIES: PrayerPrivacy[] = ['Public', 'Leaders Only', 'Pastoral Private'];
+const PRAYER_FILTERS: Array<'All' | PrayerStatus> = ['All', 'Open', 'Answered', 'Archived'];
+
+/** Bulk sends go out over SMS or email. */
+const BROADCAST_CHANNELS: Array<{ value: BroadcastChannel; label: string }> = [
+  { value: 'SMS', label: 'SMS' },
+  { value: 'Email', label: 'Email' },
+];
+
+/** Upcoming-celebration window. */
+const CELEBRATION_RANGES = [
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+  { value: 'upcoming', label: 'Upcoming' },
+] as const;
 
 /** Message templates offered by the broadcast composer. */
 const BROADCAST_TEMPLATES: Array<{ name: string; body: string }> = [
@@ -127,6 +147,72 @@ function badgeClass(tone: 'green' | 'amber' | 'red' | 'gray'): string {
 const INPUT_CLASS =
   'w-full px-3 py-2 text-xs border border-[#c4c7c7] rounded bg-[#ffffff] focus:outline-none focus:border-[#1e1e1e]';
 
+// ── Shared styling ────────────────────────────────────────────────────────
+// Each visual role is defined once. The panel's palette therefore lives in a
+// handful of lines instead of being repeated — and drifting — across five
+// sub-tabs.
+
+/** Card surface. Pass a border colour for the accent-framed cards. */
+const card = (border = 'border-[#e1e3e3]') => `bg-[#ffffff] border ${border} rounded-xl shadow-xs`;
+/** Heading inside a card. */
+const CARD_TITLE = 'text-xs font-bold uppercase tracking-wide text-[#1a1c1c]';
+/** "Nothing here yet" placeholder. */
+const EMPTY_CARD = `${card()} p-6 text-xs text-[#444748]`;
+/** Solid ink action — create / save. */
+const PRIMARY_BTN = 'rounded font-bold text-white bg-[#1e1e1e] hover:bg-[#333333]';
+/** Solid green action — send. */
+const SEND_BTN = 'rounded font-bold text-white bg-emerald-700 hover:bg-emerald-800';
+/** Neutral action — cancel / draft. */
+const NEUTRAL_BTN = 'rounded font-bold bg-[#f4f3f3] hover:bg-[#eeeeee]';
+/** Icon-only action inside a record row. */
+const ICON_BTN = 'p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer';
+/** Button state for an action gated on the panel's edit permission. */
+const gated = (allowed: boolean) => (allowed ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed');
+
+/** Segmented switcher — the app's ink pill for the active option. */
+const Segmented = <T extends string>({ options, value, onChange }: {
+  options: ReadonlyArray<{ value: T; label: string }>;
+  value: T;
+  onChange: (value: T) => void;
+}) => (
+  <>
+    {options.map((option) => (
+      <button
+        key={option.value}
+        onClick={() => onChange(option.value)}
+        className={`rounded px-3 py-1.5 text-xs font-bold cursor-pointer ${
+          value === option.value ? 'bg-[#1e1e1e] text-white' : 'bg-[#f4f3f3] text-[#1a1c1c] hover:bg-[#eeeeee]'
+        }`}
+      >
+        {option.label}
+      </button>
+    ))}
+  </>
+);
+
+/** Status filter pills above a record list. */
+const FilterPills = <T extends string>({ options, value, onChange }: {
+  options: readonly T[];
+  value: T;
+  onChange: (value: T) => void;
+}) => (
+  <>
+    {options.map((option) => (
+      <button
+        key={option}
+        onClick={() => onChange(option)}
+        className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
+          value === option
+            ? 'bg-[#1e1e1e] text-white border-[#1e1e1e]'
+            : 'bg-[#ffffff] text-[#444748] border-[#e1e3e3] hover:border-[#1e1e1e]'
+        }`}
+      >
+        {option}
+      </button>
+    ))}
+  </>
+);
+
 const AnnouncementTone: Record<AnnouncementStatus, 'green' | 'amber' | 'red' | 'gray'> = {
   Active: 'green',
   Scheduled: 'amber',
@@ -188,7 +274,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
 
   // ── Events state ─────────────────────────────────────────────────────────
   const [events, setEvents] = useState<ChurchEventRecord[]>([]);
-  const [eventView, setEventView] = useState<'list' | 'calendar'>('list');
+  const [eventView, setEventView] = useState<(typeof EVENT_VIEWS)[number]['value']>('list');
   const [calendarCursor, setCalendarCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -223,7 +309,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
 
   // ── Celebrations state ───────────────────────────────────────────────────
   const [celebrations, setCelebrations] = useState<CelebrationsResponse | null>(null);
-  const [celebrationRange, setCelebrationRange] = useState<'week' | 'month' | 'upcoming'>('week');
+  const [celebrationRange, setCelebrationRange] = useState<(typeof CELEBRATION_RANGES)[number]['value']>('week');
   const [dobTargetId, setDobTargetId] = useState<string | null>(null);
   const [dobValue, setDobValue] = useState('');
   const [greetingTarget, setGreetingTarget] = useState<{
@@ -280,7 +366,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
     }
   }, [celebrationRange, showError]);
 
-  // Fetch the active sub-tab's data whenever it becomes active.
+  // Fetch the active sub-tab's data whenever it becomes active. loadCelebrations
+  // changes identity with the range filter, so switching range re-fetches it.
   useEffect(() => {
     if (activeSubTab === 'announcements') void loadAnnouncements();
     if (activeSubTab === 'broadcasts') void loadBroadcasts();
@@ -288,11 +375,6 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
     if (activeSubTab === 'prayer') void loadPrayers();
     if (activeSubTab === 'celebrations') void loadCelebrations();
   }, [activeSubTab, loadAnnouncements, loadBroadcasts, loadEvents, loadPrayers, loadCelebrations]);
-
-  // Re-fetch celebrations when the range filter changes while that tab is open.
-  useEffect(() => {
-    if (activeSubTab === 'celebrations') void loadCelebrations();
-  }, [celebrationRange, activeSubTab, loadCelebrations]);
 
   // ── Announcement actions ─────────────────────────────────────────────────
 
@@ -684,29 +766,15 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
-              {(['All', ...ANNOUNCEMENT_STATUSES] as Array<'All' | AnnouncementStatus>).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setAnnouncementFilter(s)}
-                  className={`px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
-                    announcementFilter === s
-                      ? 'bg-[#1e1e1e] text-white border-[#1e1e1e]'
-                      : 'bg-[#ffffff] text-[#444748] border-[#e1e3e3] hover:border-[#1e1e1e]'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+              <FilterPills options={ANNOUNCEMENT_FILTERS} value={announcementFilter} onChange={setAnnouncementFilter} />
             </div>
 
             {visibleAnnouncements.length === 0 && (
-              <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 text-xs text-[#444748]">
-                No announcements in this filter yet.
-              </div>
+              <div className={EMPTY_CARD}>No announcements in this filter yet.</div>
             )}
 
             {visibleAnnouncements.map((a) => (
-              <div key={a.id} className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
+              <div key={a.id} className={`${card()} p-5 space-y-3`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -726,7 +794,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                       <button
                         onClick={() => void handleTogglePin(a)}
                         title={a.pinned ? 'Unpin' : 'Pin'}
-                        className="p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                        className={ICON_BTN}
                       >
                         <span className="material-symbols-outlined text-base text-[#444748]">push_pin</span>
                       </button>
@@ -735,7 +803,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                       <button
                         onClick={() => void handlePublishAnnouncement(a)}
                         title="Publish"
-                        className="p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                        className={ICON_BTN}
                       >
                         <span className="material-symbols-outlined text-base text-emerald-700">publish</span>
                       </button>
@@ -756,7 +824,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           });
                         }}
                         title="Edit"
-                        className="p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                        className={ICON_BTN}
                       >
                         <span className="material-symbols-outlined text-base text-[#444748]">edit</span>
                       </button>
@@ -773,7 +841,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           })
                         }
                         title="Delete"
-                        className="p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                        className={ICON_BTN}
                       >
                         <span className="material-symbols-outlined text-base text-[#ba1a1a]">delete</span>
                       </button>
@@ -792,8 +860,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             ))}
           </div>
 
-          <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3 h-fit">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">
+          <div className={`${card()} p-5 space-y-3 h-fit`}>
+            <h3 className={CARD_TITLE}>
               {editingAnnouncementId ? 'Edit announcement' : 'New announcement'}
             </h3>
             <input
@@ -864,16 +932,14 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               <button
                 onClick={() => void handleSaveAnnouncement()}
                 disabled={!canEdit}
-                className={`flex-1 py-2 rounded text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] ${
-                  canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                }`}
+                className={`${PRIMARY_BTN} flex-1 py-2 text-xs ${gated(canEdit)}`}
               >
                 {editingAnnouncementId ? 'Save changes' : 'Create announcement'}
               </button>
               {editingAnnouncementId && (
                 <button
                   onClick={resetAnnouncementForm}
-                  className="px-3 py-2 rounded text-xs font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] cursor-pointer"
+                  className={`${NEUTRAL_BTN} px-3 py-2 text-xs cursor-pointer`}
                 >
                   Cancel
                 </button>
@@ -886,19 +952,13 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
       {/* ── 2. Broadcasts ─────────────────────────────────────────────────── */}
       {activeSubTab === 'broadcasts' && (
         <div className="space-y-6">
-          <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-4">
+          <div className={`${card()} p-5 space-y-4`}>
             <div className="flex items-center gap-2">
-              {(['SMS', 'Email'] as BroadcastChannel[]).map((ch) => (
-                <button
-                  key={ch}
-                  onClick={() => setComposer((c) => ({ ...c, channel: ch, audience: ch === 'Email' ? 'Staff' : 'Everyone' }))}
-                  className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer ${
-                    composer.channel === ch ? 'bg-[#1e1e1e] text-white' : 'bg-[#f4f3f3] text-[#1a1c1c] hover:bg-[#eeeeee]'
-                  }`}
-                >
-                  {ch}
-                </button>
-              ))}
+              <Segmented
+                options={BROADCAST_CHANNELS}
+                value={composer.channel}
+                onChange={(channel) => setComposer((c) => ({ ...c, channel, audience: channel === 'Email' ? 'Staff' : 'Everyone' }))}
+              />
               <span className="text-[11px] text-[#444748]">
                 {composer.channel === 'SMS'
                   ? 'Members are addressed by the phone number on their registry record.'
@@ -976,18 +1036,14 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                 <button
                   onClick={() => void handleQueueBroadcast(false)}
                   disabled={!canEdit}
-                  className={`px-3 py-2 rounded text-xs font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] ${
-                    canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                  }`}
+                  className={`${NEUTRAL_BTN} px-3 py-2 text-xs ${gated(canEdit)}`}
                 >
                   {composer.scheduledAt ? 'Schedule' : 'Save draft'}
                 </button>
                 <button
                   onClick={() => void handleQueueBroadcast(true)}
                   disabled={!canEdit}
-                  className={`px-4 py-2 rounded text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 flex items-center gap-1.5 ${
-                    canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                  }`}
+                  className={`${SEND_BTN} px-4 py-2 text-xs flex items-center gap-1.5 ${gated(canEdit)}`}
                 >
                   <span className="material-symbols-outlined text-base">send</span>
                   Send now
@@ -996,8 +1052,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             </div>
           </div>
 
-          <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c] mb-1">Delivery reports</h3>
+          <div className={`${card()} p-5`}>
+            <h3 className={`${CARD_TITLE} mb-1`}>Delivery reports</h3>
             <p className="text-[11px] text-[#444748] mb-3">
               Opens and clicks come from a tracking pixel and link redirects in the email itself, so they
               only apply to Email sends.
@@ -1048,7 +1104,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                       <td className="py-2">
                         <div className="flex items-center gap-1 justify-end">
                           {canEdit && (
-                            <button onClick={() => void handleResendBroadcast(b)} title="Send again" className="p-1 rounded hover:bg-[#f4f3f3] cursor-pointer">
+                            <button onClick={() => void handleResendBroadcast(b)} title="Send again" className={ICON_BTN}>
                               <span className="material-symbols-outlined text-base text-[#444748]">refresh</span>
                             </button>
                           )}
@@ -1062,7 +1118,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                                 },
                               })}
                               title="Delete"
-                              className="p-1 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                              className={ICON_BTN}
                             >
                               <span className="material-symbols-outlined text-base text-[#ba1a1a]">delete</span>
                             </button>
@@ -1085,23 +1141,13 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {(['list', 'calendar'] as const).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setEventView(v)}
-                    className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer ${
-                      eventView === v ? 'bg-[#1e1e1e] text-white' : 'bg-[#f4f3f3] text-[#1a1c1c] hover:bg-[#eeeeee]'
-                    }`}
-                  >
-                    {v === 'list' ? 'List' : 'Calendar'}
-                  </button>
-                ))}
+                <Segmented options={EVENT_VIEWS} value={eventView} onChange={setEventView} />
               </div>
               {eventView === 'calendar' && (
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     onClick={() => setCalendarCursor(({ year, month }) => (month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 }))}
-                    className="p-1 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                    className={ICON_BTN}
                   >
                     <span className="material-symbols-outlined text-base">chevron_left</span>
                   </button>
@@ -1110,7 +1156,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                   </span>
                   <button
                     onClick={() => setCalendarCursor(({ year, month }) => (month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 }))}
-                    className="p-1 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                    className={ICON_BTN}
                   >
                     <span className="material-symbols-outlined text-base">chevron_right</span>
                   </button>
@@ -1119,7 +1165,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             </div>
 
             {eventView === 'calendar' && (
-              <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 shadow-xs">
+              <div className={`${card()} p-4`}>
                 <div className="grid grid-cols-7 gap-1 text-[10px] font-bold uppercase tracking-wide text-[#444748] mb-2">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d} className="text-center">{d}</div>)}
                 </div>
@@ -1157,16 +1203,14 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             {eventView === 'list' && (
               <div className="space-y-3">
                 {events.length === 0 && (
-                  <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 text-xs text-[#444748]">No events yet.</div>
+                  <div className={EMPTY_CARD}>No events yet.</div>
                 )}
                 {events.map((ev) => {
                   const isUpcoming = new Date(ev.startAt).getTime() >= Date.now();
                   return (
                     <div
                       key={ev.id}
-                      className={`bg-[#ffffff] border rounded-xl p-4 shadow-xs flex items-start gap-4 ${
-                        isUpcoming ? 'border-emerald-600' : 'border-[#e1e3e3]'
-                      }`}
+                      className={`${card(isUpcoming ? 'border-emerald-600' : 'border-[#e1e3e3]')} p-4 flex items-start gap-4`}
                     >
                       <div className="w-1.5 self-stretch rounded" style={{ backgroundColor: ev.color }} />
                       <div className="flex-1 space-y-1">
@@ -1192,7 +1236,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                         <button
                           onClick={() => void handleOpenRsvps(ev)}
                           title="Manage RSVPs"
-                          className="px-2.5 py-1.5 rounded text-[11px] font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] cursor-pointer"
+                          className={`${NEUTRAL_BTN} px-2.5 py-1.5 text-[11px] cursor-pointer`}
                         >
                           RSVPs
                         </button>
@@ -1206,7 +1250,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                               },
                             })}
                             title="Delete"
-                            className="p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                            className={ICON_BTN}
                           >
                             <span className="material-symbols-outlined text-base text-[#ba1a1a]">delete</span>
                           </button>
@@ -1219,9 +1263,9 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             )}
 
             {rsvpEvent && (
-              <div className="bg-[#ffffff] border border-[#1e1e1e] rounded-xl p-5 shadow-xs space-y-3">
+              <div className={`${card('border-[#1e1e1e]')} p-5 space-y-3`}>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">
+                  <h3 className={CARD_TITLE}>
                     RSVPs — {rsvpEvent.title}
                   </h3>
                   <button onClick={() => setRsvpEvent(null)} className="text-xs text-[#444748] hover:text-[#1a1c1c] cursor-pointer">
@@ -1256,7 +1300,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                               }
                             }}
                             title="Remove RSVP"
-                            className="p-1 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                            className={ICON_BTN}
                           >
                             <span className="material-symbols-outlined text-sm text-[#ba1a1a]">close</span>
                           </button>
@@ -1272,7 +1316,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                     <select className={INPUT_CLASS} value={rsvpForm.status} onChange={(e) => setRsvpForm({ ...rsvpForm, status: e.target.value as EventRsvpStatus })}>
                       {(['Going', 'Maybe', 'Declined'] as EventRsvpStatus[]).map((s) => <option key={s}>{s}</option>)}
                     </select>
-                    <button onClick={() => void handleAddRsvp()} className="py-2 rounded text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] cursor-pointer">
+                    <button onClick={() => void handleAddRsvp()} className={`${PRIMARY_BTN} py-2 text-xs cursor-pointer`}>
                       Add RSVP
                     </button>
                   </div>
@@ -1281,8 +1325,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             )}
           </div>
 
-          <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3 h-fit">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">New event</h3>
+          <div className={`${card()} p-5 space-y-3 h-fit`}>
+            <h3 className={CARD_TITLE}>New event</h3>
             <input className={INPUT_CLASS} placeholder="Title" value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} />
             <div className="grid grid-cols-2 gap-2">
               <select className={INPUT_CLASS} value={eventForm.category} onChange={(e) => setEventForm({ ...eventForm, category: e.target.value })}>
@@ -1331,9 +1375,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
             <button
               onClick={() => void handleSaveEvent()}
               disabled={!canEdit}
-              className={`w-full py-2 rounded text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] ${
-                canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-              }`}
+              className={`${PRIMARY_BTN} w-full py-2 text-xs ${gated(canEdit)}`}
             >
               Create event
             </button>
@@ -1346,29 +1388,17 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
-              {(['All', 'Open', 'Answered', 'Archived'] as Array<'All' | PrayerStatus>).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setPrayerFilter(s)}
-                  className={`px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
-                    prayerFilter === s
-                      ? 'bg-[#1e1e1e] text-white border-[#1e1e1e]'
-                      : 'bg-[#ffffff] text-[#444748] border-[#e1e3e3] hover:border-[#1e1e1e]'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+              <FilterPills options={PRAYER_FILTERS} value={prayerFilter} onChange={setPrayerFilter} />
             </div>
 
             {visiblePrayers.length === 0 && (
-              <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 text-xs text-[#444748]">
+              <div className={EMPTY_CARD}>
                 No prayer requests in this filter. Private requests are only visible to users who can edit this panel.
               </div>
             )}
 
             {visiblePrayers.map((p) => (
-              <div key={p.id} className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
+              <div key={p.id} className={`${card()} p-5 space-y-3`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1387,7 +1417,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                     <button
                       onClick={() => void handlePray(p)}
                       title="I prayed for this"
-                      className="px-2.5 py-1.5 rounded text-[11px] font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] flex items-center gap-1 cursor-pointer"
+                      className={`${NEUTRAL_BTN} px-2.5 py-1.5 text-[11px] flex items-center gap-1 cursor-pointer`}
                     >
                       <span className="material-symbols-outlined text-sm">folded_hands</span>
                       Pray · {p.prayCount}
@@ -1399,7 +1429,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           setPraiseReport(p.praiseReport ?? '');
                         }}
                         title="Mark as answered"
-                        className="p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                        className={ICON_BTN}
                       >
                         <span className="material-symbols-outlined text-base text-emerald-700">check_circle</span>
                       </button>
@@ -1414,7 +1444,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           },
                         })}
                         title="Delete"
-                        className="p-1.5 rounded hover:bg-[#f4f3f3] cursor-pointer"
+                        className={ICON_BTN}
                       >
                         <span className="material-symbols-outlined text-base text-[#ba1a1a]">delete</span>
                       </button>
@@ -1435,8 +1465,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
           </div>
 
           <div className="space-y-4 h-fit">
-            <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">Record a request</h3>
+            <div className={`${card()} p-5 space-y-3`}>
+              <h3 className={CARD_TITLE}>Record a request</h3>
               <input
                 className={INPUT_CLASS}
                 placeholder="Requester name"
@@ -1460,17 +1490,15 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               <button
                 onClick={() => void handleSavePrayer()}
                 disabled={!canEdit}
-                className={`w-full py-2 rounded text-xs font-bold text-white bg-[#1e1e1e] hover:bg-[#333333] ${
-                  canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                }`}
+                className={`${PRIMARY_BTN} w-full py-2 text-xs ${gated(canEdit)}`}
               >
                 Save request
               </button>
             </div>
 
             {answeringRequest && (
-              <div className="bg-[#ffffff] border border-emerald-300 rounded-xl p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">
+              <div className={`${card('border-emerald-300')} p-5 space-y-3`}>
+                <h3 className={CARD_TITLE}>
                   Praise report — {answeringRequest.requesterName}
                 </h3>
                 <textarea
@@ -1480,10 +1508,10 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                   onChange={(e) => setPraiseReport(e.target.value)}
                 />
                 <div className="flex items-center gap-2">
-                  <button onClick={() => void handleMarkAnswered()} className="flex-1 py-2 rounded text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 cursor-pointer">
+                  <button onClick={() => void handleMarkAnswered()} className={`${SEND_BTN} flex-1 py-2 text-xs cursor-pointer`}>
                     Mark answered
                   </button>
-                  <button onClick={() => setAnsweringRequest(null)} className="px-3 py-2 rounded text-xs font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] cursor-pointer">
+                  <button onClick={() => setAnsweringRequest(null)} className={`${NEUTRAL_BTN} px-3 py-2 text-xs cursor-pointer`}>
                     Cancel
                   </button>
                 </div>
@@ -1497,17 +1525,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
       {activeSubTab === 'celebrations' && (
         <div className="space-y-5">
           <div className="flex items-center gap-2">
-            {([['week', 'This Week'], ['month', 'This Month'], ['upcoming', 'Upcoming']] as const).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setCelebrationRange(value)}
-                className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer ${
-                  celebrationRange === value ? 'bg-[#1e1e1e] text-white' : 'bg-[#f4f3f3] text-[#1a1c1c] hover:bg-[#eeeeee]'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            <Segmented options={CELEBRATION_RANGES} value={celebrationRange} onChange={setCelebrationRange} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1515,8 +1533,8 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               ['Birthday', 'Birthdays', celebrations?.birthdays ?? []],
               ['Anniversary', 'Anniversaries', celebrations?.anniversaries ?? []],
             ] as const).map(([kind, title, entries]) => (
-              <div key={kind} className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c] flex items-center gap-2">
+              <div key={kind} className={`${card()} p-5 space-y-3`}>
+                <h3 className={`${CARD_TITLE} flex items-center gap-2`}>
                   <span className="material-symbols-outlined text-base text-[#1a1c1c]">
                     {kind === 'Birthday' ? 'cake' : 'celebration'}
                   </span>
@@ -1543,9 +1561,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                           <button
                             onClick={() => openGreeting(entry.id, entry.name, kind, entry.date)}
                             disabled={!canEdit}
-                            className={`px-2.5 py-1.5 rounded text-[11px] font-bold bg-emerald-700 text-white hover:bg-emerald-800 ${
-                              canEdit ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                            }`}
+                            className={`${SEND_BTN} px-2.5 py-1.5 text-[11px] ${gated(canEdit)}`}
                           >
                             Send greeting
                           </button>
@@ -1559,22 +1575,12 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
           </div>
 
           {greetingTarget && (
-            <div className="bg-[#ffffff] border border-emerald-600 rounded-xl p-5 shadow-xs space-y-3 max-w-2xl">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">
+            <div className={`${card('border-emerald-600')} p-5 space-y-3 max-w-2xl`}>
+              <h3 className={CARD_TITLE}>
                 {greetingTarget.kind} greeting — {greetingTarget.name}
               </h3>
               <div className="flex items-center gap-2">
-                {(['SMS', 'Email'] as BroadcastChannel[]).map((ch) => (
-                  <button
-                    key={ch}
-                    onClick={() => setGreetingChannel(ch)}
-                    className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer ${
-                      greetingChannel === ch ? 'bg-[#1e1e1e] text-white' : 'bg-[#f4f3f3] text-[#1a1c1c] hover:bg-[#eeeeee]'
-                    }`}
-                  >
-                    {ch}
-                  </button>
-                ))}
+                <Segmented options={BROADCAST_CHANNELS} value={greetingChannel} onChange={setGreetingChannel} />
                 <span className="text-[11px] text-[#444748]">
                   {greetingChannel === 'SMS' ? 'Sent to the phone on the registry record.' : 'The registry stores no member email — enter one below.'}
                 </span>
@@ -1589,18 +1595,18 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
               )}
               <textarea className={`${INPUT_CLASS} h-24`} value={greetingMessage} onChange={(e) => setGreetingMessage(e.target.value)} />
               <div className="flex items-center gap-2">
-                <button onClick={() => void handleSendGreeting()} className="flex-1 py-2 rounded text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 cursor-pointer">
+                <button onClick={() => void handleSendGreeting()} className={`${SEND_BTN} flex-1 py-2 text-xs cursor-pointer`}>
                   Send greeting
                 </button>
-                <button onClick={() => setGreetingTarget(null)} className="px-3 py-2 rounded text-xs font-bold bg-[#f4f3f3] hover:bg-[#eeeeee] cursor-pointer">
+                <button onClick={() => setGreetingTarget(null)} className={`${NEUTRAL_BTN} px-3 py-2 text-xs cursor-pointer`}>
                   Cancel
                 </button>
               </div>
             </div>
           )}
 
-          <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-5 shadow-xs space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-[#1a1c1c]">
+          <div className={`${card()} p-5 space-y-3`}>
+            <h3 className={CARD_TITLE}>
               No date on file ({celebrations?.unrecorded.length ?? 0})
             </h3>
             <p className="text-[11px] text-[#444748]">
@@ -1619,7 +1625,7 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
                         value={dobValue}
                         onChange={(e) => setDobValue(e.target.value)}
                       />
-                      <button onClick={() => void handleSaveDateOfBirth()} className="px-2 py-1.5 rounded text-[11px] font-bold text-white bg-[#1e1e1e] cursor-pointer">
+                      <button onClick={() => void handleSaveDateOfBirth()} className={`${PRIMARY_BTN} px-2 py-1.5 text-[11px] cursor-pointer`}>
                         Save
                       </button>
                     </div>
