@@ -83,7 +83,13 @@ function createOrphanWatcher(options = {}) {
 function startFromEnv(env = process.env) {
   const marker = env[MARKER_ENV];
   if (!marker) return null;
-  return createOrphanWatcher({ parentPid: Number(marker) });
+  // The supervisor's log contract (ECCLESIA_SERVICE_LOG_FILE) covers supervisor
+  // AND server output, so the orphan's exit line lands in the same file the
+  // service operator (and the tests) read. Undefined falls back to the default.
+  return createOrphanWatcher({
+    parentPid: Number(marker),
+    logFile: env.ECCLESIA_SERVICE_LOG_FILE,
+  });
 }
 
 // Preload: run when the supervisor launched us (require.main here is the
