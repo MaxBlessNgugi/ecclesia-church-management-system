@@ -24,9 +24,9 @@
 //   SMS_DEV_OUTBOX           — "true" enables the dev outbox (no gateway needed).
 // =============================================================================
 import AfricasTalking from 'africastalking';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { appPrisma } from '../lib/prisma.js';
+import { writeOutboxMessage } from './devOutbox.js';
 
 /** Where dev-outbox SMS messages are dropped (relative to the backend folder). */
 const DEV_SMS_OUTBOX_DIR = path.resolve(process.cwd(), 'logs', 'sms-outbox');
@@ -81,32 +81,26 @@ export async function sendSms(
 /**
  * DEV OUTBOX — persist the message instead of sending it. Never throws; a
  * filesystem failure is reported as a failed send so callers record the truth.
+ * The message id is the outbox filename, so an operator can match the two.
  */
 async function writeToDevOutbox(
   recipients: string[],
   message: string,
   settings: { senderId: string | null; username: string | null } | null,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   try {
-    const safeTo = recipients.join(',').replace(/[^a-zA-Z0-9._@+,-]/g, '_');
-    const file = path.join(DEV_SMS_OUTBOX_DIR, `${stamp}-${safeTo}.txt`);
-    const content = [
-      `To:      ${recipients.join(', ')}`,
-      `From:    ${settings?.senderId || settings?.username || process.env.AT_USERNAME || 'ECCLESIA (dev outbox)'}`,
-      `Sent at: ${new Date().toISOString()}`,
-      `Note:    SMS_DEV_OUTBOX is enabled — no gateway configured, nothing was sent.`,
-      '',
-      message,
-    ].join('\n');
-    await fs.mkdir(DEV_SMS_OUTBOX_DIR, { recursive: true });
-    await fs.writeFile(file, content, 'utf8');
-    console.log(`[sms] SMS_DEV_OUTBOX — message for ${recipients.join(', ')} written to ${file}`);
-    return { success: true, messageId: `dev-outbox-${stamp}` };
+    const file = await writeOutboxMessage(DEV_SMS_OUTBOX_DIR, {
+      to: recipients.join(', '),
+      from: settings?.senderId || settings?.username || process.env.AT_USERNAME || 'ECCLESIA (dev outbox)',
+      body: message,
+      note: 'SMS_DEV_OUTBOX is enabled — no gateway configured, nothing was sent.',
+      consoleTag: '[sms]',
+    });
+    return { success: true, messageId: `dev-outbox-${path.basename(file, '.txt')}` };
   } catch (err) {
-    const message0 = err instanceof Error ? err.message : String(err);
-    console.error(`[sms] Failed to write dev outbox message: ${message0}`);
-    return { success: false, error: `Dev outbox write failed: ${message0}` };
+    const error = err instanceof Error ? err.message : String(err);
+    console.error(`[sms] Failed to write dev outbox message: ${error}`);
+    return { success: false, error: `Dev outbox write failed: ${error}` };
   }
 }
 

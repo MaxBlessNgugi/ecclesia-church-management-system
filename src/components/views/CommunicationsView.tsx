@@ -239,7 +239,7 @@ interface CommunicationsViewProps {
  * celebrations. Owns its own data loading — each sub-tab fetches on activation.
  */
 export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialSubTab }) => {
-  const { showSuccess, showError, toastEl } = useToast();
+  const { showSuccess, showError } = useToast();
   const perms = usePermissions();
   const canEdit = perms.canEdit('communications');
   const canDelete = perms.canDelete('communications');
@@ -732,7 +732,6 @@ export const CommunicationsView: React.FC<CommunicationsViewProps> = ({ initialS
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {toastEl}
       {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-4">
         <div>

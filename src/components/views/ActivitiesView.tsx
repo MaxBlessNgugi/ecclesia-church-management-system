@@ -68,7 +68,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   // Permission instance — checked before every submit to gate mutation buttons
   const perms = usePermissions();
   // Toast notifications
-  const { showSuccess, showError, toastEl } = useToast();
+  const { showSuccess, showError } = useToast();
 
   // Configured parish identity — used on receipts instead of a hardcoded name
   const parish = useParishInfo();
@@ -281,7 +281,6 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {toastEl}
       {/* Title & Sub-tabs Header */}
       <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

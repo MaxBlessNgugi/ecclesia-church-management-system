@@ -65,7 +65,7 @@ export const InventoryView: React.FC = () => {
   }, [items, inventorySearch]);
 
   // Toast notifications
-  const { showSuccess, showError, toastEl } = useToast();
+  const { showSuccess, showError } = useToast();
 
   // Low-stock alerts: items whose current stock is at or below their reorder
   // threshold (a reorder level of 0 with 0 stock is also flagged as "out").
@@ -391,7 +391,6 @@ export const InventoryView: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {toastEl}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-4">
         <div>
