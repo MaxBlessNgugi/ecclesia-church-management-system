@@ -130,7 +130,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   const [deleteTarget, setDeleteTarget] = useState<{ type: string; id: string; label: string; details: string[] } | null>(null);
 
   // Toast notifications
-  const { showSuccess, showError, toastEl } = useToast();
+  const { showSuccess, showError } = useToast();
 
   // 4. Expense Form State
   // Date of the expense, defaults to today in ISO format (YYYY-MM-DD)
@@ -269,7 +269,6 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {toastEl}
       {/* Title & Navigation Sub-Tabs */}
       {/* Header card with title and tab switcher */}
       <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

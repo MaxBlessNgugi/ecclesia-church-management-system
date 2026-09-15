@@ -378,7 +378,7 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
   const [diffCurrent, setDiffCurrent] = useState<Record<string, unknown> | null | undefined>(undefined);
 
   // Toast notifications
-  const { showSuccess, showError, toastEl } = useToast();
+  const { showSuccess, showError } = useToast();
 
   // Derived lookup of the account selected in the Rights Centre dropdown.
   const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
@@ -826,7 +826,6 @@ export const AdminView: React.FC<{ currentUserId: string | null }> = ({ currentU
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {toastEl}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e1e3e3] pb-4">
         <div>

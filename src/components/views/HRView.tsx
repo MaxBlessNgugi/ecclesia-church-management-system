@@ -119,7 +119,7 @@ export const HRView: React.FC = () => {
   const [nokPhone, setNokPhone] = useState('');
 
   // Toast notifications
-  const { showSuccess, showError, toastEl } = useToast();
+  const { showSuccess, showError } = useToast();
 
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<EmployeeRecord | null>(null);
@@ -325,7 +325,6 @@ export const HRView: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {toastEl}
       {/* Page Header */}
       {/* Header bar with title and the "+ New Employee" quick-action button; flexbox
           rows on mobile, side-by-side on md+ screens; bottom border separator. */}

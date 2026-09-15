@@ -29,10 +29,10 @@
 
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { appPrisma } from './prisma.js';
 import { decryptString } from './crypto.js';
+import { writeOutboxMessage } from './devOutbox.js';
 
 /** Where dev-fallback emails are dropped (relative to the backend folder). */
 const DEV_OUTBOX_DIR = path.resolve(process.cwd(), 'logs', 'outbox');
@@ -118,19 +118,14 @@ export async function sendMail(to: string, subject: string, text: string, html?:
       // DEV FALLBACK — no SMTP configured. Persist the message so the code
       // is easy to find locally and log it to the backend console.
       // ------------------------------------------------------------------
-      const safeTo = to.replace(/[^a-zA-Z0-9._@-]/g, '_');
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const file = path.join(DEV_OUTBOX_DIR, `${stamp}-${safeTo}.txt`);
-      const content = [
-        `To:      ${to}`,
-        `From:    ${cfg.from}`,
-        `Subject: ${subject}`,
-        `Sent at: ${new Date().toISOString()}`,
-        '', text,
-      ].join('\n');
-      await fs.mkdir(DEV_OUTBOX_DIR, { recursive: true });
-      await fs.writeFile(file, content, 'utf8');
-      console.log(`[mailer] SMTP not configured — email written to ${file}`);
+      await writeOutboxMessage(DEV_OUTBOX_DIR, {
+        to,
+        from: cfg.from,
+        headers: [`Subject: ${subject}`],
+        body: text,
+        note: 'SMTP not configured — nothing was sent.',
+        consoleTag: '[mailer]',
+      });
       return { sent: true };
     }
     // Real SMTP send.

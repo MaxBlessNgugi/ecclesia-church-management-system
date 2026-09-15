@@ -43,6 +43,7 @@ import { getServerUrl, setServerUrl } from './services/api';
 import { parseHashRoute } from './utils/url';
 import { ChristianRecord, NavigationTab } from './types';
 import { PermissionsProvider } from './permissions';
+import { ToastProvider } from './components/Toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChristiansProvider, useChristians } from './context/ChristiansContext';
 import { DataProvider, useData } from './context/DataContext';
@@ -291,15 +292,17 @@ export const App: React.FC = () => {
   }
 
   return (
-    <AuthProvider>
-      <NavigationProvider>
-        <DataProvider>
-          <ChristiansProvider>
-            <AppShell />
-          </ChristiansProvider>
-        </DataProvider>
-      </NavigationProvider>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <NavigationProvider>
+          <DataProvider>
+            <ChristiansProvider>
+              <AppShell />
+            </ChristiansProvider>
+          </DataProvider>
+        </NavigationProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 

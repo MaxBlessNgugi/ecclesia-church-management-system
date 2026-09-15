@@ -22,7 +22,7 @@ import { resizeImage } from '../../lib/image';
 import { useToast } from '../Toast';
 
 export const ParishIdentitySection: React.FC = () => {
-  const { showSuccess, toastEl } = useToast();
+  const { showSuccess } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -120,7 +120,6 @@ export const ParishIdentitySection: React.FC = () => {
 
   return (
     <div className="bg-[#ffffff] border border-[#e1e3e3] rounded-xl p-6 shadow-xs space-y-6 max-w-3xl">
-      {toastEl}
       <div>
         <h3 className="text-xl font-serif font-bold text-[#1a1c1c]">Parish Identity</h3>
         <p className="text-xs text-[#444748] mt-1">

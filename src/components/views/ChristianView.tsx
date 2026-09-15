@@ -57,7 +57,7 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
   // lacks the required privilege.
   const perms = usePermissions();
   // Toast notifications
-  const { showSuccess, showError, toastEl } = useToast();
+  const { showSuccess, showError } = useToast();
 
   // Active sub-panel: 'add' | 'find' | 'delete'. Switching tabs mounts/unmounts
   // the matching block below; find/delete filters re-evaluate every render.
@@ -177,7 +177,6 @@ export const ChristianView: React.FC<ChristianViewProps> = ({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {toastEl}
       {/* Title & Navigation Sub-Tabs */}
       {/* Header bar — flexbox layout that stacks vertically on mobile, horizontal on sm+;
           contains the section title/description on the left and the sub-tab pill buttons
