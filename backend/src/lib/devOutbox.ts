@@ -10,12 +10,13 @@
 // failed send) to callers instead of a fabricated success.
 // =============================================================================
 
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const sanitizeAddress = (value: string) => value.replace(/[^a-zA-Z0-9._@+,-]/g, '_');
 
-export interface OutboxWrite {
+export interface OutboxMessage {
   to: string;
   from: string;
   /** Channel-specific header lines between From: and Sent at: (e.g. Subject:). */
@@ -32,20 +33,22 @@ export interface OutboxWrite {
  * Persist one message to the outbox directory and echo the path to the
  * console. Returns the written file's path; throws if the write fails.
  */
-export async function writeOutboxMessage(dir: string, write: OutboxWrite): Promise<string> {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const file = path.join(dir, `${stamp}-${sanitizeAddress(write.to)}.txt`);
+export async function writeOutboxMessage(dir: string, message: OutboxMessage): Promise<string> {
+  const sentAt = new Date().toISOString();
+  const stamp = sentAt.replace(/[:.]/g, '-');
+  // Random suffix so same-millisecond sends to the same address can't overwrite each other.
+  const file = path.join(dir, `${stamp}-${sanitizeAddress(message.to)}-${randomBytes(4).toString('hex')}.txt`);
   const content = [
-    `To:      ${write.to}`,
-    `From:    ${write.from}`,
-    ...(write.headers ?? []),
-    `Sent at: ${new Date().toISOString()}`,
-    `Note:    ${write.note}`,
+    `To:      ${message.to}`,
+    `From:    ${message.from}`,
+    ...(message.headers ?? []),
+    `Sent at: ${sentAt}`,
+    `Note:    ${message.note}`,
     '',
-    write.body,
+    message.body,
   ].join('\n');
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(file, content, 'utf8');
-  console.log(`${write.consoleTag} Outbox — message for ${write.to} written to ${file}`);
+  console.log(`${message.consoleTag} Outbox — message for ${message.to} written to ${file}`);
   return file;
 }
