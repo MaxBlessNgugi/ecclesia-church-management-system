@@ -172,11 +172,14 @@ describe('DateTime - Leave dates', () => {
 
 describe('DateTime - Date range filtering', () => {
   it('GET /api/reports/sales - filters by date using DateTime range', async () => {
-    // Create inventory item first
+    // Create inventory item first. stock: 5 because POST /sales now enforces
+    // availability (422 when out of stock) — a fixture fix, not a behavior
+    // change to tolerate failures: this test is about date filtering, and a
+    // real sale requires stock on hand.
     await request(app)
       .post('/api/inventory/items')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Test Item', sku: 'TST-001', category: 'Test', cost: 100, price: 200 });
+      .send({ name: 'Test Item', sku: 'TST-001', category: 'Test', cost: 100, price: 200, stock: 5 });
 
     // Create sales on different dates
     await request(app)

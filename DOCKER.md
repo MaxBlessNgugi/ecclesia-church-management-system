@@ -125,6 +125,16 @@ Database data persists in the Docker volume. Migrations run automatically.
 
 ## Backup & Restore
 
+> **No automatic backups in Docker.** Unlike a native install, the Docker
+> deployment ships with the app's built-in backup scheduler disabled
+> (`BACKUP_DISABLED=true` in `docker-compose.yml`). Schedule the `pg_dump`
+> command below yourself (cron / Task Scheduler), or remove that flag and
+> re-create the containers to enable automatic daily dumps.
+>
+> Backups are interchangeable: a dump taken from a native (non-Docker)
+> install can be restored here, and a dump taken here can be restored into a
+> native install — both paths use the same PostgreSQL format.
+
 **Backup:**
 ```bash
 docker compose exec db pg_dump -U ecclesia ecclesia > backup-$(date +%Y%m%d).sql

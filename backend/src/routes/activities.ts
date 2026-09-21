@@ -59,6 +59,7 @@ import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
 import { softDelete, resolveActor } from '../lib/audit.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { requireIdempotencyKey } from '../middleware/idempotency.js';
 
 // Create a new Express router for all activity-related routes.
 const router = Router();
@@ -127,7 +128,9 @@ router.get('/contributions', async (req, res, next) => {
 // POST /api/contributions — Record a new contribution
 // Body: validated inline with Zod schema.
 // Response: 201 with the newly created contribution object.
-router.post('/contributions', async (req, res, next) => {
+// Idempotency: an X-Idempotency-Key header deduplicates retries/double-clicks
+// so a retried contribution can never be recorded twice.
+router.post('/contributions', requireIdempotencyKey, async (req, res, next) => {
   try {
     // Validate request body against the contribution schema.
     const data = z

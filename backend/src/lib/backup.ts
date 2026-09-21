@@ -55,28 +55,81 @@ const BACKUP_INTERVAL_MS =
  */
 const BACKUP_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
+export interface PgConnectionConfig {
+  host: string;
+  port: string;
+  database: string;
+  user: string;
+  password: string;
+}
+
 /**
  * Parses a PostgreSQL connection URL into its component parts.
- * Format: postgresql://user:password@host:port/database
+ * Formats accepted:
+ *   postgresql://user:password@host:port/database?schema=public   (Prisma-style)
+ *   postgres://user:password@host:port/database
+ *
+ * Uses the WHATWG URL parser so that query strings (?schema=public, sslmode=…)
+ * are ignored rather than leaking into the database name, and so that
+ * percent-encoded credentials (e.g. "p%40ss") are decoded correctly.
  *
  * @returns Object with host, port, database, user, password
+ * @throws Error when the URL cannot be parsed at all.
  */
-function parsePgUrl(url: string): { host: string; port: string; database: string; user: string; password: string } {
-  // Strip the scheme prefix
-  const withoutScheme = url.replace(/^postgresql:\/\//, '');
-  // Extract auth, host:port, and database
-  const [authAndHost, database] = withoutScheme.split('/');
-  const [auth, hostPort] = authAndHost.split('@');
-  const [user, password] = auth.split(':');
-  const [host, port] = hostPort.split(':');
+// @internal exported for tests
+export function parsePgUrl(url: string): PgConnectionConfig {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid DATABASE_URL — could not parse "${redactUrl(url)}"`);
+  }
+
+  if (parsed.protocol !== 'postgresql:' && parsed.protocol !== 'postgres:') {
+    throw new Error(`Invalid DATABASE_URL — expected a postgresql:// URL, got "${redactUrl(url)}"`);
+  }
+
+  // pathname is "/dbname"; strip the leading slash. Prisma's "?schema=public"
+  // and other query parameters live in searchParams, not in the database name.
+  const database = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
 
   return {
-    host: host || 'localhost',
-    port: port || '5432',
+    host: parsed.hostname || 'localhost',
+    port: parsed.port || '5432',
     database,
-    user: user || 'postgres',
-    password: password || '',
+    user: decodeURIComponent(parsed.username) || 'postgres',
+    password: decodeURIComponent(parsed.password) || '',
   };
+}
+
+/** Masks credentials in a connection URL for error messages. */
+function redactUrl(url: string): string {
+  return url.replace(/:\/\/[^@/]+@/, '://***@');
+}
+
+/**
+ * Builds the argument list for restoring a plain-SQL dump with psql.
+ *
+ * NOTE: pg_dump-only flags such as --no-owner / --no-privileges are NOT valid
+ * psql options — passing them makes psql exit with "illegal option" and the
+ * restore never happens. Ownership/privilege statements are already excluded
+ * at dump time (pg_dump --no-owner --no-privileges), so psql needs none.
+ *
+ * -w never prompts for a password (unattended safety); PGPASSWORD supplies it.
+ * ON_ERROR_STOP=1 makes a failed restore abort loudly instead of limping on.
+ *
+ * @internal exported for tests
+ */
+export function buildPsqlRestoreArgs(pg: PgConnectionConfig, file: string): string[] {
+  return [
+    '-w',                       // never prompt — fail fast when PGPASSWORD is wrong
+    '-h', pg.host,
+    '-p', pg.port,
+    '-U', pg.user,
+    '-d', pg.database,
+    '-v', 'ON_ERROR_STOP=1',    // abort on the first SQL error, not after it
+    '-f', file,
+  ];
 }
 
 /**
@@ -107,6 +160,7 @@ export async function backupDatabase(): Promise<{ file: string; size: number; at
 
   // Run pg_dump to create a SQL backup
   await execFileAsync('pg_dump', [
+    '-w',            // never prompt for a password — PGPASSWORD supplies it
     '-h', pg.host,
     '-p', pg.port,
     '-U', pg.user,

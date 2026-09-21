@@ -9,6 +9,9 @@
 // next sign-in. Safe to run for any account; never deletes or creates users.
 // =============================================================================
 
+// Load backend/.env FIRST — the documented command must work without the
+// operator exporting DATABASE_URL manually.
+import 'dotenv/config';
 import { resetAdminPassword } from '../src/lib/adminRecovery.js';
 
 const email = process.argv[2]?.trim();

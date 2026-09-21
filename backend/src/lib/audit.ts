@@ -15,7 +15,7 @@
 // else, and it must write to AuditLog itself.
 // =============================================================================
 import { prisma, SOFT_DELETABLE_MODELS } from './prisma.js';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 
 /**
  * Custom HTTP error class for typed error responses.
@@ -130,16 +130,21 @@ function snapshot(record: any): string {
  * @param input.snapshotData - JSON snapshot of the record state
  * @param input.createdAt - Timestamp of the action
  */
-async function writeAuditLog(input: {
-  entityName: string;
-  entityId: string;
-  action: AuditAction;
-  actor?: AuditActor;
-  snapshotData: string;
-  createdAt: Date;
-}) {
+async function writeAuditLog(
+  // Accepts either the raw client or a transaction client — callers that must
+  // keep the flag flip and its audit entry atomic pass the transaction client.
+  db: Prisma.TransactionClient,
+  input: {
+    entityName: string;
+    entityId: string;
+    action: AuditAction;
+    actor?: AuditActor;
+    snapshotData: string;
+    createdAt: Date;
+  },
+) {
   // Create a new audit log entry in the database
-  await prisma.auditLog.create({
+  await db.auditLog.create({
     data: {
       entityName: input.entityName, // Model name (e.g., 'User')
       entityId: input.entityId, // Record's primary key
@@ -156,6 +161,14 @@ async function writeAuditLog(input: {
  * Soft-delete a record: flips isDeleted = true + deletedAt = now, and writes a
  * historical JSON snapshot into audit_logs. The row is never removed from the DB.
  *
+ * ATOMIC: the flag flip is a guarded `WHERE id = … AND isDeleted = false`
+ * single statement inside the same transaction that writes the audit entry.
+ * A concurrent (double) DELETE therefore cannot sneak between the check and
+ * the flip — exactly one of the two transactions flips the flag; the loser
+ * finds nothing to flip and 404s. Previously the check-then-update window
+ * allowed two deletes to both proceed and the second one rewound the first's
+ * snapshot timestamp.
+ *
  * @param model - PascalCase model name (e.g., 'User', 'Contribution')
  * @param id - Record's primary key
  * @param actor - Optional user performing the deletion
@@ -164,24 +177,41 @@ async function writeAuditLog(input: {
 export async function softDelete(model: string, id: string, actor?: AuditActor): Promise<void> {
   // Get the Prisma delegate for this model (validates it supports soft deletion)
   const d = delegate(model);
-  // Find the record by primary key (bypasses appPrisma's isDeleted filter)
-  const record = await d.findFirst({ where: { id } });
-  // Validate: record must exist and not already be soft-deleted
-  if (!record || record.isDeleted) throw new HttpError(404, 'Record not found');
 
   // Capture current timestamp for consistency between update and audit log
   const now = new Date();
-  // Mark the record as soft-deleted (set isDeleted=true and deletedAt=now)
-  // This doesn't remove the row from the database — it just flags it
-  await d.update({ where: { id }, data: { isDeleted: true, deletedAt: now } });
-  // Write an audit log entry capturing the pre-delete state
-  await writeAuditLog({
-    entityName: model, // Model name for audit trail
-    entityId: id, // Record ID for restoration later
-    action: 'DELETE', // Action type (DELETE or RESTORE)
-    actor, // User who performed the deletion
-    snapshotData: snapshot(record), // JSON snapshot of pre-delete state
-    createdAt: now, // Timestamp matches the update
+
+  // Flag flip + audit entry commit or roll back together.
+  await prisma.$transaction(async (tx) => {
+    const txDelegate = (tx as unknown as Record<string, any>)[model];
+
+    // Guarded flip: only succeeds when the row exists AND is not yet deleted.
+    // The WHERE clause is the existence + not-deleted check — no separate
+    // read step, so no check-then-act window under concurrency.
+    const flipped = await txDelegate.updateMany({
+      where: { id, isDeleted: false },
+      data: { isDeleted: true, deletedAt: now },
+    });
+
+    // Nothing flipped: the record does not exist, or is already soft-deleted.
+    // Both map to 404 (matches the previous contract).
+    if (flipped.count === 0) {
+      throw new HttpError(404, 'Record not found');
+    }
+
+    // Re-read the now-deleted row for the pre-delete snapshot.
+    const record = await txDelegate.findUnique({ where: { id } });
+    if (!record) throw new HttpError(404, 'Record not found'); // unreachable
+
+    // Write an audit log entry capturing the pre-delete state.
+    await writeAuditLog(tx, {
+      entityName: model, // Model name for audit trail
+      entityId: id, // Record ID for restoration later
+      action: 'DELETE', // Action type (DELETE or RESTORE)
+      actor, // User who performed the deletion
+      snapshotData: snapshot(record), // JSON snapshot of pre-delete state
+      createdAt: now, // Timestamp matches the update
+    });
   });
 }
 
@@ -207,7 +237,7 @@ async function restore(model: string, id: string, actor?: AuditActor): Promise<v
   // Clear the soft-delete flags (set isDeleted=false and deletedAt=null)
   await d.update({ where: { id }, data: { isDeleted: false, deletedAt: null } });
   // Write an audit log entry capturing the restored state
-  await writeAuditLog({
+  await writeAuditLog(prisma, {
     entityName: model, // Model name for audit trail
     entityId: id, // Record ID that was restored
     action: 'RESTORE', // Action type (RESTORE)

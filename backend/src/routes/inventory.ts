@@ -62,6 +62,14 @@
 //   - Known limitation: name-based join can match wrong item if names collide
 //   - Documented at call site; acceptable for current parish scale
 //
+// SALE CONCURRENCY (atomically safe since the deadlock remediation)
+//   - POST /sales runs in ONE transaction: guarded atomic decrement, then the
+//     sale insert. The guard `stock >= 1` lives in the UPDATE's WHERE clause
+//     (single-statement check-and-set) so overselling is impossible without
+//     SERIALIZABLE; failures are 404 (unknown item) / 422 (out of stock)
+//     business rules, never deadlocks. A DB CHECK (inventory_items_stock_check)
+//     backstops stock >= 0 for every other code path.
+//
 // SOFT DELETE
 //   - DELETE /items/:id calls audit.softDelete('InventoryItem', id, actor)
 //   - Sets isDeleted=true, deletedAt=now, writes AuditLog entry
@@ -83,6 +91,8 @@ import { requireModule } from '../middleware/perms.js';
 import { softDelete, resolveActor, HttpError } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
 import { toNum, toNumOrNull } from '../lib/decimal.js';
+import { retryOnTransient } from '../lib/transient.js';
+import { requireIdempotencyKey } from '../middleware/idempotency.js';
 
 // Create a new Express router for all inventory-related routes.
 const router = Router();
@@ -188,8 +198,8 @@ router.post('/items', async (req, res, next) => {
       cost: z.number(),
       // Retail/selling price in KES (what the parish charges).
       price: z.number(),
-      // Current stock quantity. Defaults to 0 for new items.
-      stock: z.number().int().default(0),
+      // Current stock quantity. Defaults to 0 for new items. Never negative.
+      stock: z.number().int().min(0).default(0),
       // Reorder threshold — alerts when stock falls below this level.
       reorder: z.number().int().default(0),
     }).parse(req.body);
@@ -227,8 +237,8 @@ router.put('/items/:id', async (req, res, next) => {
       cost: z.number().optional(),
       // Retail price in KES (optional — only update if provided).
       price: z.number().optional(),
-      // Stock quantity (optional — only update if provided).
-      stock: z.number().int().optional(),
+      // Stock quantity (optional — only update if provided). Never negative.
+      stock: z.number().int().min(0).optional(),
       // Reorder threshold (optional — only update if provided).
       reorder: z.number().int().optional(),
     }).parse(req.body);
@@ -418,7 +428,9 @@ router.get('/sales', async (_req, res, next) => {
 // Body: validated inline with Zod schema.
 // Response: 201 with the newly created Sale object.
 // Side effect: Decrements stock of matching inventory item by 1 (name-based match).
-router.post('/sales', async (req, res, next) => {
+// Idempotency: an X-Idempotency-Key header deduplicates retries/double-clicks
+// so a retried sale can never double-deduct stock.
+router.post('/sales', requireIdempotencyKey, async (req, res, next) => {
   try {
     // Validate request body against the sale schema.
     const data = z.object({
@@ -430,21 +442,42 @@ router.post('/sales', async (req, res, next) => {
       amount: z.number(),
     }).parse(req.body);
 
-    // Create the sale record in the database.
-    const created = await appPrisma.sale.create({ data });
+    // Resolve the target item FIRST (read), then decrement exactly that row
+    // with a guarded single-statement update. updateMany on { id } can only
+    // ever touch one row, and the `stock: { gte: 1 }` guard is evaluated
+    // while holding the row lock — so two concurrent sales serialize and the
+    // loser sees stock 0, never goes negative, and never deadlocks (each
+    // transaction locks exactly one row, in the same order: item → sale).
+    const target = await appPrisma.inventoryItem.findFirst({ where: { name: data.item }, select: { id: true } });
 
-    // Reduce stock if item matches by name
-    // Find the inventory item by name (case-sensitive exact match).
-    // Known limitation: name-based join can match wrong item if names collide.
-    const inv = await appPrisma.inventoryItem.findFirst({ where: { name: data.item } });
+    // Unknown item is a client error — 404, no partial write happened.
+    if (!target) throw new HttpError(404, `Unknown inventory item: ${data.item}`);
 
-    // If the item exists and has stock available, decrement by 1.
-    if (inv && inv.stock > 0) {
-      await appPrisma.inventoryItem.update({
-        where: { id: inv.id },
-        data: { stock: { decrement: 1 } },  // Atomic decrement operation
-      });
-    }
+    // The sale row and the stock decrement commit or roll back together:
+    // a crash can never leave a sale recorded without the deduction (or
+    // stock deducted without a sale). Transient conflicts retry (bounded);
+    // HttpError business rejections propagate untouched.
+    const created = await retryOnTransient(
+      () =>
+        appPrisma.$transaction(async (tx) => {
+          // Guarded atomic decrement: WHERE id = … AND stock >= 1.
+          const decremented = await tx.inventoryItem.updateMany({
+            where: { id: target.id, stock: { gte: 1 } },
+            data: { stock: { decrement: 1 } },
+          });
+
+          // Guard failed: re-classify under the same transaction's snapshot.
+          if (decremented.count === 0) {
+            const current = await tx.inventoryItem.findUnique({ where: { id: target.id }, select: { stock: true } });
+            if (!current) throw new HttpError(404, `Unknown inventory item: ${data.item}`);
+            throw new HttpError(422, `Out of stock: ${data.item} (${current.stock} left)`);
+          }
+
+          // Create the sale record AFTER stock is reserved in the same tx.
+          return tx.sale.create({ data });
+        }),
+      { label: 'sale create' },
+    );
 
     // Return 201 Created with the sale record.
     res.status(201).json(created);

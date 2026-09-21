@@ -19,7 +19,8 @@
  *   npm run test:e2e            — full headless run (CI)
  *   npx playwright test tests/money-path.spec.ts --project=fast
  */
-import { test, expect, Page, APIRequestContext, request as pwRequest } from '@playwright/test';
+import { test, expect } from '../console-capture';
+import { Page, APIRequestContext, request as pwRequest } from '@playwright/test';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

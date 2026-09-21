@@ -309,28 +309,31 @@ router.patch('/:id/sacraments', async (req, res, next) => {
 
 // DELETE /api/christians/:id — Soft-delete a Christian record
 // Sets status to 'Inactive', then calls audit.softDelete() to mark isDeleted=true.
-// Response: 204 No Content on success.
+// Response: 204 No Content on success; 404 for unknown AND already-deleted rows
+// (Policy A: trashed records are not editable until restored — including by
+// re-DELETE, which used to silently rewrite the trashed row's status first).
 router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    // Mark the member Inactive first (raw client: the row is about to be
-    // soft-deleted) so the audit snapshot and the API contract (DELETE ->
-    // status "Inactive") agree; then soft-delete + audit-log the record.
+    // Step 1: Soft-delete FIRST — audit.softDelete() is the existence check:
+    // it 404s on unknown ids AND on already-deleted rows BEFORE any other
+    // write happens. (The previous ordering updated status via the raw client
+    // first, so a double-DELETE silently rewrote a trashed record before 404.)
+    // On success the row is guaranteed to exist with isDeleted=true.
+    const actor = await resolveActor(req.user!.id);
+    await softDelete('Christian', req.params.id, actor);
 
-    // Step 1: Set status to 'Inactive' using the raw Prisma client
-    // (bypasses soft-delete filter so we can update the row before marking deleted).
+    // Step 2: Mark the member Inactive using the raw Prisma client — safe
+    // now that softDelete() has proven the row exists (no P2025 risk), and
+    // the raw client is required because appPrisma filters deleted rows.
+    // The snapshot in audit_logs keeps the pre-delete status, while the API
+    // contract (DELETE → status "Inactive") is still honoured for the
+    // restored state.
     await prisma.christian.update({
       where: { id: req.params.id },
       data: { status: 'Inactive' },
     });
 
-    // Step 2: Resolve the authenticated user to an actor name for the audit log.
-    const actor = await resolveActor(req.user!.id);
-
-    // Step 3: Soft-delete the record — sets isDeleted=true, deletedAt=now,
-    // and writes an entry to the audit_logs table.
-    await softDelete('Christian', req.params.id, actor);
-
-    // Step 4: Return 204 No Content (successful deletion, no response body).
+    // Step 3: Return 204 No Content (successful deletion, no response body).
     res.status(204).send();
 
     // Broadcast real-time event to all connected clients.
