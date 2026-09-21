@@ -142,6 +142,19 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 ### Step 4: Install and Setup
 
+**Create the database first** (Prisma migrations do not create it on every
+PostgreSQL setup):
+
+```bash
+createdb -U postgres ecclesia        # or: psql -U postgres -c "CREATE DATABASE ecclesia;"
+```
+
+> On Windows, if `psql`/`createdb` are not recognized, use the full path:
+> `"C:\Program Files\PostgreSQL\18\bin\createdb" -U postgres ecclesia`
+> (adjust `18` to your installed version).
+
+Then install and initialize:
+
 ```bash
 npm install
 cd backend
@@ -305,8 +318,11 @@ npm install
 cd backend && npm install && npx prisma generate && npx prisma migrate deploy
 cd ..
 npm run build
-cd backend && npm restart
 ```
+
+Then restart the server: stop it (Ctrl+C in its terminal, or
+`npm run service:uninstall && npm run service:install` when running as the
+EcclesiaServer service) and start it again with `cd backend && npm start`.
 
 ---
 
@@ -316,9 +332,11 @@ cd backend && npm restart
 |---------|-----|
 | "ecclesia.local" doesn't work | Try the IP address directly, or add a hosts file entry |
 | "Cannot connect to server" | Check firewall (port 5000), verify server is running |
-| "Port 5000 already in use" | Change PORT in backend/.env |
+| "Port 5000 already in use" | Change PORT in backend/.env. Note: an environment variable named PORT (if one exists on the host) overrides backend/.env — run `printenv PORT` / `echo %PORT%` to check |
 | "Database connection refused" | Check PostgreSQL is running, verify DATABASE_URL |
-| Forgot the admin password | Use **Forgot Password?** on login — the reset code is emailed. No SMTP configured? Read `backend/logs/outbox/` |
+| "Database 'ecclesia' does not exist" / P1003 | Create it: `createdb -U postgres ecclesia` (see Step 4) |
+| "psql is not installed" but PostgreSQL IS installed | PostgreSQL's bin folder is not on PATH (common on Windows) — the installer now probes `C:\Program Files\PostgreSQL\*\bin`; for manual commands use the full path |
+| Forgot the admin password | Run `cd backend && npm run admin:reset -- <email>` on the server (prints a one-time temporary password). Reset codes by email are only for non-admin accounts |
 | Reset code email never arrives | Set SMTP in the first-run wizard (or `SMTP_HOST` etc. in `backend/.env`, see `.env.example`), then retry; check spam folder |
 
 ---

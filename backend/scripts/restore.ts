@@ -5,23 +5,9 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { parsePgUrl, buildPsqlRestoreArgs } from '../src/lib/backup.js';
 
 const execFileAsync = promisify(execFile);
-
-function parsePgUrl(url: string) {
-  const withoutScheme = url.replace(/^postgresql:\/\//, '');
-  const [authAndHost, database] = withoutScheme.split('/');
-  const [auth, hostPort] = authAndHost.split('@');
-  const [user, password] = auth.split(':');
-  const [host, port] = hostPort.split(':');
-  return {
-    host: host || 'localhost',
-    port: port || '5432',
-    database: database || 'ecclesia',
-    user: user || 'postgres',
-    password: password || '',
-  };
-}
 
 async function main() {
   const fileArg = process.argv.find((a) => a.startsWith('--file='));
@@ -42,19 +28,15 @@ async function main() {
     process.exit(1);
   }
 
+  // Shared parser — strips Prisma's "?schema=public" and decodes credentials.
   const pg = parsePgUrl(url);
   const env = { ...process.env, PGPASSWORD: pg.password };
 
   console.log(`Restoring ${file} into PostgreSQL (${pg.database}@${pg.host}:${pg.port})...`);
-  await execFileAsync('psql', [
-    '-h', pg.host,
-    '-p', pg.port,
-    '-U', pg.user,
-    '-d', pg.database,
-    '-f', file,
-    '--no-owner',
-    '--no-privileges',
-  ], { env });
+  // psql flags come from the shared builder: -w (never prompt) and
+  // ON_ERROR_STOP=1 (abort on the first error). pg_dump-only flags such as
+  // --no-owner are NOT valid psql options and made every restore fail.
+  await execFileAsync('psql', buildPsqlRestoreArgs(pg, file), { env });
 
   console.log('Restore complete. Start the server again to use the restored data.');
 }

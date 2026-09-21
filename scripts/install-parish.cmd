@@ -83,6 +83,17 @@ for /f "tokens=*" %%a in ('npm -v') do set "NPM_VERSION=%%a"
 echo  [OK] npm %NPM_VERSION%
 
 REM ── PostgreSQL ───────────────────────────────────────────────────────────────
+REM Windows PostgreSQL installers do NOT add the bin folder to PATH. Probe the
+REM standard install location before failing, and prepend the newest client.
+where psql >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    set "PG_PROBE="
+    for /d %%D in ("C:\Program Files\PostgreSQL\*") do set "PG_PROBE=%%~fD\bin"
+    if defined PG_PROBE (
+        set "PATH=!PG_PROBE!;%PATH%"
+        echo  [OK] Found PostgreSQL client at !PG_PROBE!
+    )
+)
 where psql >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo  [ERROR] PostgreSQL client ^(psql^) is not installed.
@@ -138,6 +149,12 @@ if exist "%ENV_FILE%" (
         goto :skip_env
     )
 )
+
+REM Step 2 writes DATABASE_URL for the database named "ecclesia".
+REM The database itself is created by prisma migrate deploy on most setups
+REM (Prisma auto-creates it); on managed/locked-down PostgreSQL it may not be
+REM able to — if migrations fail with P1003, create it manually first:
+REM   "C:\Program Files\PostgreSQL\<version>\bin\createdb" -U postgres ecclesia
 
 REM Generate a random JWT secret using Node.js
 for /f "tokens=*" %%a in ('node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"') do set "JWT_SECRET=%%a"

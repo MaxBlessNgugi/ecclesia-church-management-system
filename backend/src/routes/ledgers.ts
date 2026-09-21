@@ -26,8 +26,12 @@
 //   POST /api/ledgers/transfer performs the following atomically inside
 //   a single database transaction:
 //     1. Verify both source and destination ledgers exist (404 if not)
-//     2. Check source ledger has sufficient balance (422 if insufficient)
-//     3. Decrement source ledger balance
+//     2. Lock BOTH ledger rows in one GLOBAL order (ascending ledger id),
+//        regardless of transfer direction — the A→B vs B→A lock-order cycle
+//        that deadlocked concurrent transfers is structurally impossible
+//     3. Guarded atomic decrement of the source balance (WHERE balance >=
+//        amount) — sufficiency is re-checked while holding the row lock,
+//        so concurrent transfers can never overspend (422 if insufficient)
 //     4. Increment destination ledger balance
 //     5. Record the movement in ledger_movements table
 //   If any step fails, ALL changes are rolled back — no half-applied balances.
@@ -62,6 +66,7 @@ import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
 
 import { requireIdempotencyKey } from '../middleware/idempotency.js';
+import { retryOnTransient } from '../lib/transient.js';
 
 // Create a new Express router for all ledger-related routes.
 const router = Router();
@@ -161,41 +166,73 @@ router.post('/transfer', requireIdempotencyKey, async (req, res, next) => {
     // Everything — existence, balance check, both balance writes, the movement —
     // runs inside ONE transaction so a crash or concurrent request can never
     // leave balances half-applied or overspend.
-    const movement = await appPrisma.$transaction(async (tx) => {
-      // Step 1: Fetch the source ledger to verify it exists.
-      const from = await tx.ledger.findUnique({ where: { id: fromLedgerId } });
+    //
+    // DEADLOCK REMEDIATION: both ledger rows are written in a single GLOBAL
+    // order (ascending ledger id), independent of transfer direction. Two
+    // opposite transfers A→B and B→A therefore acquire their row locks in the
+    // SAME sequence — the classic wait-for cycle is structurally impossible,
+    // without SERIALIZABLE. Sufficiency is enforced by a guarded atomic
+    // decrement (WHERE balance >= amount) evaluated while holding the row
+    // lock, so the balance can never go negative under concurrency.
+    const movement = await retryOnTransient(
+      () =>
+        appPrisma.$transaction(async (tx) => {
+          // Step 1: Fetch both ledgers to verify existence and capture names.
+          const from = await tx.ledger.findUnique({ where: { id: fromLedgerId } });
+          const to = await tx.ledger.findUnique({ where: { id: toLedgerId } });
 
-      // Step 2: Fetch the destination ledger to verify it exists.
-      const to = await tx.ledger.findUnique({ where: { id: toLedgerId } });
+          // Step 2: If either ledger doesn't exist, throw 404 and roll back.
+          if (!from || !to) throw new HttpError(404, 'Ledger not found');
 
-      // Step 3: If either ledger doesn't exist, throw 404 and roll back.
-      if (!from || !to) throw new HttpError(404, 'Ledger not found');
+          // Fast-path sufficiency check (no contention): keeps the 422
+          // deterministic when nothing races us. The guarded decrement in
+          // Step 3 re-enforces this while holding the row lock.
+          if (toNum(from.balance) < amount) {
+            throw new HttpError(422, 'Insufficient balance in source ledger');
+          }
 
-      // Step 4: Check if the source ledger has sufficient balance.
-      if (toNum(from.balance) < amount) {
-        throw new HttpError(422, 'Insufficient balance in source ledger');
-      }
+          // Step 3: Apply the two balance writes in GLOBAL id order — the
+          // source decrement (guarded) and the destination increment. Each
+          // row is written exactly once; the UPDATE itself takes the row lock.
+          const ops = (
+            [
+              { id: fromLedgerId, kind: 'source' as const },
+              { id: toLedgerId, kind: 'dest' as const },
+            ]
+          ).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
-      // Capture the current timestamp for the movement record.
-      const time = new Date();
+          for (const op of ops) {
+            if (op.kind === 'source') {
+              // Guarded atomic decrement: WHERE id = … AND balance >= amount.
+              // Evaluated while holding the row lock — concurrent transfers
+              // serialize here and the balance can never go negative.
+              const applied = await tx.ledger.updateMany({
+                where: { id: op.id, balance: { gte: amount } },
+                data: { balance: { decrement: amount } },
+              });
 
-      // Step 5: Decrement the source ledger balance by the transfer amount.
-      await tx.ledger.update({
-        where: { id: fromLedgerId },
-        data: { balance: { decrement: amount } },
-      });
+              if (applied.count === 0) {
+                // Re-classify under the same transaction: missing vs drained.
+                const cur = await tx.ledger.findUnique({ where: { id: op.id }, select: { balance: true } });
+                if (!cur) throw new HttpError(404, 'Ledger not found');
+                throw new HttpError(422, 'Insufficient balance in source ledger');
+              }
+            } else {
+              // Destination: plain atomic increment (locks the row in turn).
+              await tx.ledger.update({
+                where: { id: op.id },
+                data: { balance: { increment: amount } },
+              });
+            }
+          }
 
-      // Step 6: Increment the destination ledger balance by the transfer amount.
-      await tx.ledger.update({
-        where: { id: toLedgerId },
-        data: { balance: { increment: amount } },
-      });
-
-      // Step 7: Record the movement in the ledger_movements audit table.
-      return tx.ledgerMovement.create({
-        data: { amount, time, from: from.name, to: to.name, notes: notes ?? null },
-      });
-    });
+          // Step 4: Record the movement in the ledger_movements audit table.
+          return tx.ledgerMovement.create({
+            data: { amount, time: new Date(), from: from.name, to: to.name, notes: notes ?? null },
+          });
+        }),
+      { label: 'ledger transfer' },
+    );
 
     // Return 201 Created with the movement record.
     res.status(201).json(movement);

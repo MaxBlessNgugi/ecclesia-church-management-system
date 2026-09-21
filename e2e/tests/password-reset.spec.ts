@@ -23,7 +23,8 @@
  *
  *   npm run test:e2e   — full headless run (CI)
  */
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '../console-capture';
+import { Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -7,7 +7,8 @@
  *   npm run tour            — headed Chrome, slow motion
  *   npm run test:e2e        — headless CI
  */
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '../console-capture';
+import { Page } from '@playwright/test';
 const USERS = {
   // Deterministic accounts created by backend/scripts/seed-e2e.ts. Override
   // with E2E_EMAIL / E2E_PASSWORD when running against another deployment.

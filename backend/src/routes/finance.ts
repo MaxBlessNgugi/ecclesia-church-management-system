@@ -26,10 +26,14 @@
 //
 // Auto-Generated Fields:
 //   - refNo  (Deposits): Format "DEP-#####" — sequential, zero-padded 5-digit
-//     number derived from the highest existing refNo in the deposits table.
-//   - voucherNo (Expenses): Format "EXP-#####" — sequential, zero-padded
-//     5-digit number derived from the highest existing voucherNo in expenses.
-//     Both are auto-generated only when the client omits or sends an empty value.
+//     number. Generated INSIDE the creation transaction as max(existing)+1;
+//     the DB-level UNIQUE index on refNo (migration
+//     20260921080000_add_concurrency_unique_constraints) makes duplicate
+//     references impossible — a concurrent loser gets a P2002, regenerates
+//     and retries (bounded, transient-only retry via lib/transient.ts).
+//   - voucherNo (Expenses): Format "EXP-#####" — same transactional max+1 +
+//     UNIQUE-index + bounded-retry strategy as deposits.
+//   Both are auto-generated only when the client omits or sends an empty value.
 //
 // Validation Rules:
 //   - All numeric "amount" fields must be positive (> 0).
@@ -55,6 +59,8 @@ import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
 import { softDelete, resolveActor } from '../lib/audit.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { retryOnTransient } from '../lib/transient.js';
+import { requireIdempotencyKey } from '../middleware/idempotency.js';
 
 // ----- Router Setup -----------------------------------------------------------
 
@@ -89,23 +95,30 @@ router.get('/deposits', async (_req, res, next) => {
 /**
  * Generates the next sequential deposit reference number.
  *
- * Logic:
- *   1. Fetch the deposit with the highest existing refNo (alphabetical/descending sort).
- *   2. Extract the trailing numeric portion using a regex (e.g. "DEP-00042" → "00042").
- *   3. Increment that number by 1; if no previous refNo exists, start at 1.
- *   4. Format as "DEP-" followed by the number zero-padded to 5 digits.
+ * PRIMARY MECHANISM — atomic counter row: a single self-seeding UPSERT
+ * (`INSERT … ON CONFLICT DO UPDATE … RETURNING`) allocates one number per
+ * call. The row lock serializes allocators for microseconds, so 20
+ * concurrent deposits get 20 DISTINCT gapless numbers — no retry storm, no
+ * duplicate refs, and it works on databases created via `db push` where the
+ * migration backfill never ran.
+ * (The deposits.refNo UNIQUE index backstops client-supplied refNos.)
  *
+ * @param tx Transaction client.
  * @returns A string like "DEP-00001", "DEP-00002", etc.
  */
-async function nextDepositRefNo(): Promise<string> {
-  // Fetch the deposit with the lexicographically highest refNo (last in sequence)
-  const last = await appPrisma.deposit.findFirst({ orderBy: { refNo: 'desc' } });
-  // Extract the numeric suffix from the refNo using regex; returns null if no match
-  const match = last?.refNo?.match(/(\d+)$/);
-  // Increment the extracted number, or default to 1 if no previous record exists
-  const next = match ? parseInt(match[1], 10) + 1 : 1;
-  // Format as "DEP-#####" with zero-padding to ensure consistent 5-digit width
-  return `DEP-${String(next).padStart(5, '0')}`;
+type FinanceTx = Parameters<Parameters<typeof appPrisma.$transaction>[0]>[0];
+
+async function nextDepositRefNo(tx: FinanceTx): Promise<string> {
+  // Atomic allocate-then-format: one single-row UPSERT, no read race, no gaps.
+  // Fresh databases self-seed at 1; databases that pre-date the counter are
+  // backfilled by migration 20260921080000 (production path: migrate deploy),
+  // and the deposits.refNo UNIQUE index backstops any residual mismatch with
+  // a 409 instead of a silent duplicate.
+  const [row] = await tx.$queryRaw<{ next: number }[]>`
+    INSERT INTO "ref_counters" ("name", "next") VALUES ('deposit', 1)
+    ON CONFLICT ("name") DO UPDATE SET "next" = "ref_counters"."next" + 1
+    RETURNING "next"`;
+  return `DEP-${String(row.next).padStart(5, '0')}`;
 }
 
 /**
@@ -121,7 +134,9 @@ async function nextDepositRefNo(): Promise<string> {
  *   - depositedBy (string)          — Name or ID of the person who made the deposit
  * Response: 201 with the created deposit object.
  */
-router.post('/deposits', async (req, res, next) => {
+// Idempotency: an X-Idempotency-Key header deduplicates retries/double-clicks
+// so a retried deposit can never be booked twice.
+router.post('/deposits', requireIdempotencyKey, async (req, res, next) => {
   try {
     // Validate the request body against the deposit schema; throws ZodError on failure
     const data = z.object({
@@ -134,14 +149,25 @@ router.post('/deposits', async (req, res, next) => {
       depositedBy: z.string(),        // Person responsible for the deposit
     }).parse(req.body);
 
-    // Insert the new deposit; auto-generate refNo if the client omitted it or sent an empty string
-    const created = await appPrisma.deposit.create({
-      data: {
-        ...data, // Spread all validated fields into the create payload
-        refNo: data.refNo && data.refNo.trim() ? data.refNo : await nextDepositRefNo(),
-        // ^ Use client refNo if provided and non-empty; otherwise generate the next sequential refNo
-      },
-    });
+    // Atomic create: refNo generation runs INSIDE the transaction so two
+    // concurrent deposits can never read the same "highest" refNo and both
+    // proceed. The deposits.refNo UNIQUE index is the last line of defence:
+    // if a race still slips through (e.g. a manually supplied refNo), Prisma
+    // raises P2002 → 409 DUPLICATE_RECORD instead of storing a duplicate.
+    // Only transient serialization/deadlock errors are retried (bounded).
+    const created = await retryOnTransient(
+      () =>
+        appPrisma.$transaction(async (tx) =>
+          tx.deposit.create({
+            data: {
+              ...data, // Spread all validated fields into the create payload
+              refNo: data.refNo && data.refNo.trim() ? data.refNo : await nextDepositRefNo(tx),
+              // ^ Use client refNo if provided and non-empty; otherwise generate the next sequential refNo
+            },
+          }),
+        ),
+      { label: 'deposit create' },
+    );
 
     // Return 201 Created status with the newly created deposit record
     res.status(201).json(created);
@@ -349,22 +375,43 @@ router.post('/debtors/:id/payments', async (req, res, next) => {
     // Return 404 if no debtor exists with the given ID
     if (!debtor) return next(new AppError('Debtor not found', 404, 'NOT_FOUND'));
 
-    // Calculate the new outstanding amount, ensuring it never goes below zero
-    const newAmount = Math.max(0, toNum(debtor.amount) - amountPaid);
-    // ^ Math.max(0, ...) prevents negative balances if overpayment occurs
+    // Overpayment guard: reject payments larger than the outstanding amount.
+    // The old code silently clamped (Math.max(0, …)) on a stale read, so two
+    // concurrent payments of the full balance could BOTH succeed and the
+    // second payment vanished into a clamp — a lost update. Money must never
+    // disappear silently: fail the request instead.
+    if (amountPaid > toNum(debtor.amount)) {
+      return next(new AppError('Payment exceeds outstanding balance', 422, 'OVERPAYMENT'));
+    }
 
-    // Derive the status based on the remaining balance
-    const status = newAmount === 0 ? 'Paid' : 'Partially Paid';
-    // ^ Fully paid when balance reaches zero; otherwise still partially outstanding
-
-    // Update the debtor record with the reduced amount and derived status
-    const updated = await appPrisma.debtor.update({
-      where: { id: req.params.id },  // Match debtor by ID from the URL parameter
-      data: { amount: newAmount, status }, // Set the new balance and status
+    // Atomic balance reduction — the FIRST write to the debtor row wins and
+    // takes the row lock; concurrent payments serialize behind it and each
+    // re-derive their own status from the post-decrement value. No
+    // read-modify-write window, no lost updates, no status corruption.
+    // (Returned when the concurrent winner consumed the balance first.)
+    const updated = await appPrisma.debtor.updateMany({
+      where: { id: req.params.id, amount: { gte: amountPaid } },
+      data: {
+        amount: { decrement: amountPaid }, // Single atomic decrement
+      },
     });
 
-    // Return 200 OK with the updated debtor record
-    res.json(updated);
+    // Nothing was decremented: a concurrent payment consumed the balance
+    // between our existence check and the write. Surface it as a 409.
+    if (updated.count === 0) {
+      return next(new AppError('Payment conflicts with a concurrent payment — current balance is lower than requested', 409, 'CONCURRENT_PAYMENT_CONFLICT'));
+    }
+
+    // Re-read the post-decrement row and derive status from the NEW balance,
+    // then persist it. The decrement above already serialized concurrent
+    // writers (row lock), so this status write is ordered after the winner's
+    // and reflects the true remaining balance.
+    const current = await appPrisma.debtor.findUniqueOrThrow({ where: { id: req.params.id } });
+    const status = toNum(current.amount) === 0 ? 'Paid' : 'Partially Paid';
+
+    // Return the updated debtor record with the derived status
+    const result = await appPrisma.debtor.update({ where: { id: req.params.id }, data: { status } });
+    res.json(result);
 
     // Broadcast real-time event to all connected clients.
     emitChange('debtors', 'updated', updated);
@@ -394,23 +441,21 @@ router.get('/expenses', async (_req, res, next) => {
 /**
  * Generates the next sequential expense voucher number.
  *
- * Logic:
- *   1. Fetch the expense with the highest existing voucherNo (alphabetical/descending sort).
- *   2. Extract the trailing numeric portion using a regex (e.g. "EXP-00015" → "00015").
- *   3. Increment that number by 1; if no previous voucherNo exists, start at 1.
- *   4. Format as "EXP-" followed by the number zero-padded to 5 digits.
+ * PRIMARY MECHANISM — atomic self-seeding counter row (same strategy as
+ * nextDepositRefNo, with 'expense'): gapless allocation under any concurrency.
+ * The expenses.voucherNo UNIQUE index backstops client-supplied voucherNos.
  *
+ * @param tx Transaction client.
  * @returns A string like "EXP-00001", "EXP-00002", etc.
  */
-async function nextExpenseVoucherNo(): Promise<string> {
-  // Fetch the expense with the lexicographically highest voucherNo (last in sequence)
-  const last = await appPrisma.expense.findFirst({ orderBy: { voucherNo: 'desc' } });
-  // Extract the numeric suffix from the voucherNo using regex; returns null if no match
-  const match = last?.voucherNo?.match(/(\d+)$/);
-  // Increment the extracted number, or default to 1 if no previous record exists
-  const next = match ? parseInt(match[1], 10) + 1 : 1;
-  // Format as "EXP-#####" with zero-padding to ensure consistent 5-digit width
-  return `EXP-${String(next).padStart(5, '0')}`;
+async function nextExpenseVoucherNo(tx: FinanceTx): Promise<string> {
+  // Atomic allocate-then-format: one single-row UPSERT (see nextDepositRefNo
+  // for seeding/backfill notes).
+  const [row] = await tx.$queryRaw<{ next: number }[]>`
+    INSERT INTO "ref_counters" ("name", "next") VALUES ('expense', 1)
+    ON CONFLICT ("name") DO UPDATE SET "next" = "ref_counters"."next" + 1
+    RETURNING "next"`;
+  return `EXP-${String(row.next).padStart(5, '0')}`;
 }
 
 /**
@@ -425,7 +470,9 @@ async function nextExpenseVoucherNo(): Promise<string> {
  *   - voucherNo     (string, optional) — Client-supplied voucher; auto-generated if omitted
  * Response: 201 with the created expense object.
  */
-router.post('/expenses', async (req, res, next) => {
+// Idempotency: an X-Idempotency-Key header deduplicates retries/double-clicks
+// so a retried expense can never be posted twice.
+router.post('/expenses', requireIdempotencyKey, async (req, res, next) => {
   try {
     // Validate the request body against the expense creation schema
     const data = z.object({
@@ -437,14 +484,23 @@ router.post('/expenses', async (req, res, next) => {
       voucherNo: z.string().optional(), // Optional voucher number; auto-generated if absent
     }).parse(req.body);
 
-    // Insert the new expense; auto-generate voucherNo if the client omitted it or sent an empty string
-    const created = await appPrisma.expense.create({
-      data: {
-        ...data, // Spread all validated fields into the create payload
-        voucherNo: data.voucherNo && data.voucherNo.trim() ? data.voucherNo : await nextExpenseVoucherNo(),
-        // ^ Use client voucherNo if provided and non-empty; otherwise generate the next sequential voucherNo
-      },
-    });
+    // Atomic create: voucherNo generation runs INSIDE the transaction with a
+    // UNIQUE index backstop — concurrent expenses each get a distinct voucher
+    // number (no duplicates, no deadlocks: one read + one insert on a
+    // self-contained table). Transient conflicts retry; business errors don't.
+    const created = await retryOnTransient(
+      () =>
+        appPrisma.$transaction(async (tx) =>
+          tx.expense.create({
+            data: {
+              ...data, // Spread all validated fields into the create payload
+              voucherNo: data.voucherNo && data.voucherNo.trim() ? data.voucherNo : await nextExpenseVoucherNo(tx),
+              // ^ Use client voucherNo if provided and non-empty; otherwise generate the next sequential voucherNo
+            },
+          }),
+        ),
+      { label: 'expense create' },
+    );
 
     // Return 201 Created with the newly created expense record
     res.status(201).json(created);

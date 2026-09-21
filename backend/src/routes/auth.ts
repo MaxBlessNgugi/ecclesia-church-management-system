@@ -85,16 +85,18 @@ const MAX_LOGIN_ATTEMPTS = 5;
 // Duration of account lockout after too many failed attempts: 15 minutes in milliseconds
 const LOGIN_LOCK_MS = 15 * 60 * 1000;
 
+// The e2e visual tour performs ~15 sequential UI logins from a single IP,
+// which the default limit would 429 midway. Automated test runs may opt out
+// via E2E_TESTING=1 — explicitly ignored when NODE_ENV is production.
+const authTestMax = (base: number): number =>
+  process.env.E2E_TESTING === '1' && process.env.NODE_ENV !== 'production'
+    ? 10_000
+    : base;
+
 // Rate limiter for login endpoint: max 10 requests per 15-minute window per IP
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15-minute sliding window
-  // The e2e visual tour performs ~15 sequential UI logins from a single IP,
-  // which the default limit would 429 midway. Automated test runs may opt out
-  // via E2E_TESTING=1 — explicitly ignored when NODE_ENV is production.
-  max:
-    process.env.E2E_TESTING === '1' && process.env.NODE_ENV !== 'production'
-      ? 10_000
-      : 10,
+  max: authTestMax(10),
   standardHeaders: true,      // Return rate limit info in headers (RateLimit-*)
   legacyHeaders: false,       // Disable X-RateLimit-* headers (deprecated)
   message: { error: 'Too many sign-in attempts. Please try again later.' }, // Error response
@@ -103,7 +105,7 @@ export const loginLimiter = rateLimit({
 // Rate limiter for forgot-password endpoint: max 5 requests per 15-minute window per IP
 export const forgotPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15-minute sliding window
-  max: 5,                     // Max 5 requests per window
+  max: authTestMax(5),        // E2E runs call this twice per round trip (request + restore)
   standardHeaders: true,      // Return rate limit info in headers
   legacyHeaders: false,       // Disable legacy headers
   message: { error: 'Too many password reset requests. Please try again later.' }, // Error response
@@ -112,7 +114,7 @@ export const forgotPasswordLimiter = rateLimit({
 // Rate limiter for reset-password endpoint: max 5 requests per 15-minute window per IP
 export const resetPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15-minute sliding window
-  max: 5,                     // Max 5 requests per window
+  max: authTestMax(5),        // E2E runs consume several reset attempts per window
   standardHeaders: true,      // Return rate limit info in headers
   legacyHeaders: false,       // Disable legacy headers
   message: { error: 'Too many reset attempts. Please try again later.' }, // Error response
