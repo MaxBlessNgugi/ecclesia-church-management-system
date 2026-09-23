@@ -74,7 +74,8 @@ export async function collectDiagnostics(): Promise<DiagnosticsInfo> {
 
   let backupCount = 0;
   try {
-    backupCount = fs.readdirSync(backupDirPath()).filter((f) => f.endsWith('.sql')).length;
+    // Count this engine's artifacts in any pipeline shape (.sql/.gz/.enc).
+    backupCount = fs.readdirSync(backupDirPath()).filter((f) => f.startsWith('ecclesia-backup-') && !f.endsWith('.meta.json')).length;
   } catch {
     backupCount = 0;
   }

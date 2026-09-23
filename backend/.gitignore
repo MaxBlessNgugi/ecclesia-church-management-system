@@ -6,3 +6,10 @@ dist/
 .idea/
 .vscode/
 *.tsbuildinfo
+
+# Runtime artifacts — never commit
+backups/*.db
+backups/*.sql.gz
+backups/*.sql.gz.meta.json
+uploads/
+.phase5-*/

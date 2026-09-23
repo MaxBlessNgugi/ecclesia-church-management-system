@@ -135,6 +135,8 @@ const fullPanels: Record<PanelKey, boolean> = { ...defaultPanels };
  */
 const fullActions: Record<PanelAction, boolean> = { view: true, edit: true, delete: true };
 
+
+
 /**
  * Loads the effective permissions (panels and actions) for a specific user.
  *
@@ -178,6 +180,19 @@ export async function loadPermissions(userId: string) {
   // A missing/empty row or column contributes nothing (see the merge below).
   const globalPanels = (defaults?.panels as Record<PanelKey, boolean>) ?? {};
   const globalActions = (defaults?.actions as Record<PanelAction, boolean>) ?? {};
+
+  // Phase-4: the 'viewer' role is READ-ONLY at the server, regardless of any
+  // panel/action overrides (which previously defaulted to allow-all). The role
+  // exists precisely for the priest/auditor use-case: every panel viewable,
+  // nothing editable or deletable. A viewer may still be granted narrower
+  // panel visibility via overrides, but can never gain edit/delete rights —
+  // the server is authoritative; frontend visibility is not authorization.
+  if (user.role === 'viewer') {
+    return {
+      panels: { ...defaultPanels, ...globalPanels, ...(user.panels as Record<PanelKey, boolean> ?? {}) },
+      actions: { view: true, edit: false, delete: false },
+    };
+  }
 
   // Layer stored overrides over the compiled-in defaults so the result always
   // carries EVERY panel key: both JSON columns are snapshots, so a panel added

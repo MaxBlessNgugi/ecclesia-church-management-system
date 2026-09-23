@@ -21,6 +21,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 // Prisma client instance for database operations (reads/writes to all tables)
 import { prisma } from './prisma.js';
+// Prisma types (TransactionClient used by the import transaction)
+import { Prisma } from '@prisma/client';
 // Password hashing utility used during import to generate placeholder hashes for restored users
 import { hashPassword } from './auth.js';
 
@@ -253,35 +255,43 @@ export async function importAllData(bundle: ExportBundle, currentUserId?: string
 
   /**
    * Inserts rows for a single table, handling user-specific preparation.
+   * Must be called with a TRANSACTION client so every insert participates in
+   * the import transaction — using the global client here would autocommit and
+   * break atomicity (the Phase-3 FIN-06 defect).
    * Returns the number of rows inserted.
    */
-  const insert = async (table: string) => {
+  const insert = async (tx: Prisma.TransactionClient, table: string) => {
     let rows = tables[table];
     // Skip tables with no data in the bundle
     if (!Array.isArray(rows) || rows.length === 0) return 0;
     // Apply user-specific sanitization for the user table
     if (table === 'user') rows = await prepareUserRows(rows as Record<string, any>[]);
-    // Bulk insert all rows for this table
-    const res = await (prisma as any)[table].createMany({ data: rows });
+    // Bulk insert all rows for this table THROUGH THE TRANSACTION CLIENT
+    const res = await (tx as any)[table].createMany({ data: rows });
     return res.count ?? rows.length;
   };
 
-  // Execute the entire import inside a single transaction for atomicity
-  const total = await prisma.$transaction(async () => {
+  // Execute the entire import inside a single transaction for atomicity.
+  // Phase-3 (FIN-06) fix: the callback receives the transaction client `tx`
+  // and EVERY read/write below goes through it. Previously the body used the
+  // global `prisma` client, so deletes/inserts autocommitted and a mid-import
+  // failure left the database partially wiped — the exact defect the register
+  // documents. With `tx`, any failure rolls back to the pre-import state.
+  const total = await prisma.$transaction(async (tx) => {
     let count = 0;
 
     // First pass: delete all data from every table in reverse FK order
     for (const table of TABLE_ORDER) {
-      await (prisma as any)[table].deleteMany();
+      await (tx as any)[table].deleteMany();
     }
 
     // Second pass: insert all data in FK-safe order
     for (const table of TABLE_ORDER) {
-      count += await insert(table);
+      count += await insert(tx, table);
     }
 
     return count;
-  });
+  }, { maxWait: 10000, timeout: 120000 }); // full-DB import can exceed the 5 s default
 
   // Return total number of rows inserted across all tables
   return total;

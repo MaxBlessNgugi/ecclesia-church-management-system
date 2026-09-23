@@ -227,23 +227,41 @@ export async function softDelete(model: string, id: string, actor?: AuditActor):
 async function restore(model: string, id: string, actor?: AuditActor): Promise<void> {
   // Get the Prisma delegate for this model
   const d = delegate(model);
-  // Find the record by primary key (bypasses appPrisma's isDeleted filter)
-  const record = await d.findFirst({ where: { id } });
-  // Validate: record must exist AND be soft-deleted (isDeleted=true)
-  if (!record || !record.isDeleted) {
-    throw new HttpError(404, 'Deleted record not found or not soft-deleted');
-  }
 
-  // Clear the soft-delete flags (set isDeleted=false and deletedAt=null)
-  await d.update({ where: { id }, data: { isDeleted: false, deletedAt: null } });
-  // Write an audit log entry capturing the restored state
-  await writeAuditLog(prisma, {
-    entityName: model, // Model name for audit trail
-    entityId: id, // Record ID that was restored
-    action: 'RESTORE', // Action type (RESTORE)
-    actor, // User who performed the restore
-    snapshotData: snapshot(record), // JSON snapshot of pre-restore state
-    createdAt: new Date(), // New timestamp for the restore action
+  // Phase-3 atomicity fix: the guarded un-delete flip and the RESTORE audit
+  // entry now commit or roll back TOGETHER in one transaction. Previously the
+  // flip and the audit write were separate autocommit statements — a crash (or
+  // concurrent double-restore) between them left the record restored with NO
+  // audit trail, or two RESTORE entries for one flip.
+  //
+  // Guarded flip: only succeeds while the row is actually soft-deleted, so a
+  // concurrent double-restore cannot both proceed (the loser finds 0 rows and
+  // 404s — mirroring the softDelete() pattern).
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    const txDelegate = (tx as unknown as Record<string, any>)[model];
+
+    const flipped = await txDelegate.updateMany({
+      where: { id, isDeleted: true },
+      data: { isDeleted: false, deletedAt: null },
+    });
+    if (flipped.count === 0) {
+      throw new HttpError(404, 'Deleted record not found or not soft-deleted');
+    }
+
+    // Re-read the restored row for the snapshot (pre-restore state was the
+    // soft-deleted row; capture its business fields for the trail).
+    const record = await txDelegate.findUnique({ where: { id } });
+    if (!record) throw new HttpError(404, 'Deleted record not found or not soft-deleted'); // unreachable
+
+    await writeAuditLog(tx, {
+      entityName: model,
+      entityId: id,
+      action: 'RESTORE',
+      actor,
+      snapshotData: snapshot(record),
+      createdAt: now,
+    });
   });
 }
 

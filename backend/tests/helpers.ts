@@ -69,6 +69,11 @@ export async function cleanupTestData() {
   await p.recruitment.deleteMany();
   await p.employeeDocument.deleteMany();
   await p.employee.deleteMany();
+  // Employee codes are allocated from the atomic ref_counters row (Phase-3
+  // HR-01 fix) and must never be reused in a live database. Tests start from a
+  // clean slate, so reset the series alongside the hard delete of employees —
+  // this mirrors a fresh database (code uniqueness is per-database).
+  await p.$executeRaw`DELETE FROM "ref_counters" WHERE "name" = 'employee_code'`;
   // Communications panel (children before parents: RSVPs reference events and
   // broadcast recipients reference broadcasts).
   await p.eventRsvp.deleteMany();

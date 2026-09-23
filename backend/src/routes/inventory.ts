@@ -331,11 +331,17 @@ router.post('/items/batch-update', async (req, res, next) => {
     const actorName = await currentActorName(req);
 
     // Execute all updates inside a single transaction for atomicity.
+    // Phase-3 deadlock fix: updates are applied in GLOBAL id order (ascending),
+    // not in the caller-supplied array order. Two admins batch-updating the
+    // same overlapping items in opposite orders would otherwise lock rows in
+    // opposite sequences — a classic lock-order deadlock (SQLSTATE 40P01).
+    // Sorting by id makes the wait-for cycle structurally impossible.
+    const orderedUpdates = [...data.updates].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const updated = await appPrisma.$transaction(async (tx) => {
       const results: any[] = [];
 
-      // Process each update sequentially within the transaction.
-      for (const u of data.updates) {
+      // Process each update sequentially within the transaction (id order).
+      for (const u of orderedUpdates) {
         // Destructure the id and separate the update fields.
         const { id, ...fields } = u;
 
@@ -438,8 +444,8 @@ router.post('/sales', requireIdempotencyKey, async (req, res, next) => {
       item: z.string(),
       // Time of the sale (ISO datetime string).
       time: z.string(),
-      // Sale amount in KES.
-      amount: z.number(),
+      // Sale amount in KES. Phase-4 (FIN-07): must be positive.
+      amount: z.number().positive(),
     }).parse(req.body);
 
     // Resolve the target item FIRST (read), then decrement exactly that row

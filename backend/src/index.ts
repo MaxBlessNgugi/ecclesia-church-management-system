@@ -122,6 +122,11 @@ import { initSocket } from './lib/socket.js';
 // Sends bulk SMS/Email broadcasts once their scheduled time arrives.
 import { startBroadcastScheduler } from './lib/broadcastScheduler.js';
 
+// Automatic PostgreSQL backups: on-boot-if-due + 6h re-check (see lib/backup.ts).
+// BACKUP_DISABLED=true turns this off entirely (the Docker default — compose
+// mounts ./backups and documents a manual pg_dump command instead).
+import { startBackupScheduler } from './lib/backup.js';
+
 // ── Startup: fail-fast checks ──────────────────────────────────────────────
 
 // Validate that JWT_SECRET is present; throws in production if missing.
@@ -402,6 +407,10 @@ initSocket(httpServer);
 
 // Start the scheduled-broadcast dispatcher (unref'd timer — never blocks exit).
 startBroadcastScheduler();
+
+// Start the automatic backup scheduler (DEF-OPS-01). A failed scheduled backup
+// is logged and retried at the next check — it is never treated as a success.
+startBackupScheduler();
 
 // ── Start the HTTP server ──────────────────────────────────────────────────
 

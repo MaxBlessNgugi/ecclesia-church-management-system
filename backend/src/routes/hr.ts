@@ -72,6 +72,7 @@ import { requireModule } from '../middleware/perms.js';
 import { softDelete, resolveActor } from '../lib/audit.js';
 import { emitChange } from '../lib/events.js';
 import { toNum } from '../lib/decimal.js';
+import { retryOnTransient } from '../lib/transient.js';
 
 // =============================================================================
 // ROUTER INITIALIZATION
@@ -202,28 +203,35 @@ router.post('/employees', async (req, res, next) => {
     // `.filter(Boolean)` removes any undefined/empty middle name parts.
     const name = [data.firstName, data.middleName, data.surname].filter(Boolean).join(' ');
 
-    // Generate the next employee code from the raw client: soft-deleted rows
-    // are excluded from `count()` but still occupy their unique `code`, so the
-    // new code must not collide with them.
-    const [row] = await prisma.$queryRawUnsafe<Array<{ max_code: number | null }>>(
-      `SELECT MAX(NULLIF(SUBSTRING(code FROM '[0-9]+$'), '')::int) AS max_code FROM employees`
+    // Phase-3 (DEF-HR-01) fix: employee codes are allocated by an atomic
+    // self-seeding counter row (same pattern as deposit refNos / expense
+    // vouchers) INSIDE the create transaction. Previously the code came from a
+    // bare `SELECT MAX(code)` outside any transaction, so two concurrent
+    // creates read the same max, both computed EMP-000N+1 and the loser hit a
+    // unique-violation 500. The employees.code UNIQUE index remains as the
+    // backstop; only transient conflicts are retried (bounded).
+    const created = await retryOnTransient(
+      () =>
+        appPrisma.$transaction(async (tx) => {
+          const [row] = await tx.$queryRaw<{ next: number }[]>`
+            INSERT INTO "ref_counters" ("name", "next") VALUES ('employee_code', 1)
+            ON CONFLICT ("name") DO UPDATE SET "next" = "ref_counters"."next" + 1
+            RETURNING "next"`;
+          const code = `EMP-${String(row.next).padStart(4, '0')}`;
+
+          return tx.employee.create({
+            data: {
+              code,          // Unique employee identifier
+              name,          // Composite display name
+              role: data.designation,  // Job title stored as 'role' column
+              phone: data.phone,       // Contact phone
+              email: data.email,       // Contact email
+              hireDate: data.hireDate, // Employment start date
+            },
+          });
+        }),
+      { label: 'employee create' },
     );
-    const nextNumber = row?.max_code ? Number(row.max_code) + 1 : 1;
-
-    // Generate a zero-padded employee code: EMP-0001, EMP-0002, etc.
-    const code = `EMP-${String(nextNumber).padStart(4, '0')}`;
-
-    // Insert the new employee into the database with the generated code and name.
-    const created = await appPrisma.employee.create({
-      data: {
-        code,          // Unique employee identifier
-        name,          // Composite display name
-        role: data.designation,  // Job title stored as 'role' column
-        phone: data.phone,       // Contact phone
-        email: data.email,       // Contact email
-        hireDate: data.hireDate, // Employment start date
-      },
-    });
     // Return 201 Created with the new employee record.
     res.status(201).json(created);
 

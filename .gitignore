@@ -28,6 +28,18 @@ playwright-report/
 
 # Runtime artifacts (backups, dev databases)
 backend/backups/*.db
+backend/backups/*.sql.gz
+backend/backups/*.sql.gz.meta.json
 backend/prisma/dev.db
 backend/prisma/test.db
 backend/prisma/prisma/
+
+# Runtime uploads (HR documents and other parish files) — never commit
+backend/uploads/
+
+# Temp migration scratch dirs (e.g. backend/.phase5-mig-*)
+backend/.phase5-*/
+
+# Generated review/training artifacts
+architecture-review.html
+tutorial-screenshots/

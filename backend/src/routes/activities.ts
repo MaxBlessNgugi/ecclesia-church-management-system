@@ -147,8 +147,9 @@ router.post('/contributions', requireIdempotencyKey, async (req, res, next) => {
         otherCategory: z.string().optional(),
         // Monthly tracker: maps month keys to booleans (e.g., { "Jan": true, "Feb": false }).
         monthlyTracker: z.record(z.boolean()),
-        // Contribution amount in Kenyan Shillings.
-        amountKES: z.number(),
+        // Contribution amount in Kenyan Shillings. Phase-4 (FIN-07): must be
+        // positive — the API is the boundary; the UI cannot send negatives.
+        amountKES: z.number().positive(),
         // Date of the contribution (ISO date string).
         date: z.coerce.date(),
       })
@@ -313,12 +314,13 @@ router.post('/billed-items', async (req, res, next) => {
         category: z.string(),
         // Specific item or service name.
         item: z.string(),
-        // Price per unit in KES.
-        unitFee: z.number(),
+        // Price per unit in KES. Phase-4 (FIN-07): must be positive.
+        unitFee: z.number().positive(),
         // Number of units (must be a positive integer).
         quantity: z.number().int().positive(),
         // Total amount: unitFee × quantity (computed by client).
-        totalAmount: z.number(),
+        // Phase-4 (FIN-07): must be positive.
+        totalAmount: z.number().positive(),
         // Date of the service (ISO date string).
         date: z.coerce.date(),
       })

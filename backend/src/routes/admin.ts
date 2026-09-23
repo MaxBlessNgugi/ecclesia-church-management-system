@@ -710,8 +710,10 @@ router.post('/audit-logs/:id/restore', async (req: AuthRequest, res, next) => {
 
 // ---------- Backup, Export & Diagnostics ----------
 
-// POST /backup — Manual backup trigger — support / admin can snapshot on demand.
-router.post('/backup', async (_req, res, next) => {
+// POST /backup — Manual backup trigger. Phase-4 (DEF-OPS-08): super_admin only —
+// a full pg_dump of the parish database (all members, finances) must not be
+// available to every admin with the Administration panel, matching /import.
+router.post('/backup', requireSuperAdmin, async (_req, res, next) => {
   try {
     // Execute database backup (creates PostgreSQL dump file)
     const info = await backupDatabase();
@@ -721,8 +723,9 @@ router.post('/backup', async (_req, res, next) => {
 });
 
 // GET /export — Full parish data export (the exit path): every table as one JSON document,
-// secrets stripped and M-Pesa credentials masked.
-router.get('/export', async (_req, res, next) => {
+// secrets stripped and M-Pesa credentials masked. Phase-4 (DEF-OPS-08): super_admin only,
+// consistent with /import (the destructive inverse of this export).
+router.get('/export', requireSuperAdmin, async (_req, res, next) => {
   try {
     // Export all parish data: bundles every table into single JSON document
     // Secrets stripped, M-Pesa credentials masked for security

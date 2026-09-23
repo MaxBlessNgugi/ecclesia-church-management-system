@@ -124,6 +124,20 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     });
   }
 
+  // ── Prisma invalid-argument / malformed input (Phase-4 hardening) ──────
+  // Malformed IDs ("…/users/../../../../etc" or "not-a-uuid") reach Prisma as
+  // invalid arguments (P2023) or engine errors. These are CLIENT errors and
+  // must surface as 400 — previously they fell through to the 500 fallback,
+  // which both misclassified the failure and logged noisy server errors for
+  // what is essentially a probing attempt. No internals leak in either case.
+  if (err && typeof err === 'object' && ('code' in err && err.code === 'P2023' || err?.name === 'PrismaClientValidationError')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid request parameters',
+      code: 'INVALID_REQUEST',
+    });
+  }
+
   // ── Fallback: 500 ───────────────────────────────────────────────────────
   // Never leak raw internals to the client in production.
   // Prisma connection/initialization errors indicate the DB is unreachable

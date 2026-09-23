@@ -375,46 +375,56 @@ router.post('/debtors/:id/payments', async (req, res, next) => {
     // Return 404 if no debtor exists with the given ID
     if (!debtor) return next(new AppError('Debtor not found', 404, 'NOT_FOUND'));
 
-    // Overpayment guard: reject payments larger than the outstanding amount.
-    // The old code silently clamped (Math.max(0, …)) on a stale read, so two
-    // concurrent payments of the full balance could BOTH succeed and the
-    // second payment vanished into a clamp — a lost update. Money must never
-    // disappear silently: fail the request instead.
+    // Fast-path existence + overpayment guard: reject payments larger than
+    // the outstanding amount. The old code silently clamped (Math.max(0, …))
+    // on a stale read, so two concurrent payments of the full balance could
+    // BOTH succeed and the second payment vanished into a clamp — a lost
+    // update. Money must never disappear silently: fail the request instead.
+    // (Re-enforced inside the transaction below against the live row.)
     if (amountPaid > toNum(debtor.amount)) {
       return next(new AppError('Payment exceeds outstanding balance', 422, 'OVERPAYMENT'));
     }
 
-    // Atomic balance reduction — the FIRST write to the debtor row wins and
-    // takes the row lock; concurrent payments serialize behind it and each
-    // re-derive their own status from the post-decrement value. No
-    // read-modify-write window, no lost updates, no status corruption.
-    // (Returned when the concurrent winner consumed the balance first.)
-    const updated = await appPrisma.debtor.updateMany({
-      where: { id: req.params.id, amount: { gte: amountPaid } },
-      data: {
-        amount: { decrement: amountPaid }, // Single atomic decrement
-      },
-    });
+    // Phase-3 fix: the guarded decrement, the post-decrement re-read and the
+    // status derivation/persist now run in ONE transaction. Previously they
+    // were three separate autocommit statements, so a concurrent payment could
+    // commit its own decrement + status between this request's decrement and
+    // status write — the last writer's STALE status (e.g. 'Partially Paid')
+    // overwrote the winner's correct 'Paid' with balance already 0. Holding
+    // the row lock across decrement → derive → persist closes that window.
+    const result = await retryOnTransient(
+      () =>
+        appPrisma.$transaction(async (tx) => {
+          // Atomic guarded reduction — re-enforces sufficiency while holding
+          // the row lock; concurrent payments serialize behind it.
+          const decremented = await tx.debtor.updateMany({
+            where: { id: req.params.id, amount: { gte: amountPaid } },
+            data: {
+              amount: { decrement: amountPaid }, // Single atomic decrement
+            },
+          });
 
-    // Nothing was decremented: a concurrent payment consumed the balance
-    // between our existence check and the write. Surface it as a 409.
-    if (updated.count === 0) {
-      return next(new AppError('Payment conflicts with a concurrent payment — current balance is lower than requested', 409, 'CONCURRENT_PAYMENT_CONFLICT'));
-    }
+          // Nothing was decremented: a concurrent payment consumed the balance
+          // between our fast-path check and the write. Surface it as a 409.
+          if (decremented.count === 0) {
+            throw new AppError('Payment conflicts with a concurrent payment — current balance is lower than requested', 409, 'CONCURRENT_PAYMENT_CONFLICT');
+          }
 
-    // Re-read the post-decrement row and derive status from the NEW balance,
-    // then persist it. The decrement above already serialized concurrent
-    // writers (row lock), so this status write is ordered after the winner's
-    // and reflects the true remaining balance.
-    const current = await appPrisma.debtor.findUniqueOrThrow({ where: { id: req.params.id } });
-    const status = toNum(current.amount) === 0 ? 'Paid' : 'Partially Paid';
+          // Re-read the post-decrement row and derive status from the NEW
+          // balance, then persist it — all before the transaction commits, so
+          // no concurrent writer can interleave and overwrite with a stale
+          // status. The row lock taken by the decrement is held to commit.
+          const current = await tx.debtor.findUniqueOrThrow({ where: { id: req.params.id } });
+          const status = toNum(current.amount) === 0 ? 'Paid' : 'Partially Paid';
+          return tx.debtor.update({ where: { id: req.params.id }, data: { status } });
+        }),
+      { label: 'debtor payment' },
+    );
 
-    // Return the updated debtor record with the derived status
-    const result = await appPrisma.debtor.update({ where: { id: req.params.id }, data: { status } });
     res.json(result);
 
     // Broadcast real-time event to all connected clients.
-    emitChange('debtors', 'updated', updated);
+    emitChange('debtors', 'updated', result);
   } catch (e) { next(e); }
 });
 
